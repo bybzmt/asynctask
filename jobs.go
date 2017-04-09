@@ -55,6 +55,11 @@ func (js *Jobs) GetTask() Task {
 		log.Fatal("gettask", j)
 		return Task{}
 	}
+	if j == nil {
+		log.Fatal("gettask", j)
+		return Task{}
+	}
+	log.Println("job", j)
 
 	t := j.PopTask()
 
