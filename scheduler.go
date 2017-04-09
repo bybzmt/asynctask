@@ -25,7 +25,8 @@ type Scheduler struct {
 	Client    *http.Client
 	timeout   time.Duration
 
-	orders map[string]*Job
+	allJobs    map[string]*Job
+	allWorkers []*Worker
 
 	jobs    *list.List
 	workers *list.List
@@ -35,6 +36,13 @@ type Scheduler struct {
 	running  bool
 	order    chan Order
 	complete chan Task
+	cmd      chan int
+
+	RunNum   int
+	UseTime  time.Duration
+	IdleTime time.Duration
+
+	stat Statistics
 }
 
 func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *Scheduler {
@@ -51,13 +59,15 @@ func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *S
 	s.Info = out
 	s.Log = err
 
-	s.orders = make(map[string]*Job)
+	s.allJobs = make(map[string]*Job)
 	s.order = make(chan Order)
 	s.complete = make(chan Task)
+	s.cmd = make(chan int)
 	s.jobs = list.New()
 	s.workers = list.New()
 
 	s.timeout = time.Second * 300
+	s.stat.StatPeriod = time.Second * 3
 
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: s.WorkerNum,
@@ -87,10 +97,10 @@ func (s *Scheduler) AddOrder(name, content string) bool {
 }
 
 func (s *Scheduler) add(o Order) {
-	j, ok := s.orders[o.Name]
+	j, ok := s.allJobs[o.Name]
 	if !ok {
 		j = new(Job).Init(o.Name)
-		s.orders[o.Name] = j
+		s.allJobs[o.Name] = j
 	}
 
 	s.taskId++
@@ -120,24 +130,40 @@ func (s *Scheduler) dispatch() {
 		s.jobs.MoveToBack(et)
 	}
 
-	j.RunNum++
-
 	ew := s.workers.Front()
 	s.workers.Remove(ew)
-
 	w := ew.Value.(*Worker)
+
+	now := time.Now()
+	us := now.Sub(w.LastTime)
+
+	j.RunNum++
+
+	w.IdleTime += us
+	w.LastTime = now
+
+	s.IdleTime += us
+	s.RunNum++
+
+	t.worker = w
+
 	w.task <- t
 }
 
 func (s *Scheduler) end(t Task) {
-	s.workers.PushBack(t.worker)
+	now := time.Now()
+	us := now.Sub(t.worker.LastTime)
 
 	t.worker.TaskNum++
+	t.worker.UseTime += us
+	t.worker.LastTime = now
+
 	t.job.RunNum--
 	t.job.CompleteNum++
+	t.job.UseTime += us
 
-	t.job = nil
-	t.worker = nil
+	s.UseTime += us
+	s.workers.PushBack(t.worker)
 }
 
 func (s *Scheduler) Run() {
@@ -145,9 +171,17 @@ func (s *Scheduler) Run() {
 
 	for i := 1; i <= s.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
-		go w.Run()
+		w.LastTime = time.Now()
 		s.workers.PushBack(w)
+		go w.Run()
 	}
+
+	go func() {
+		t := time.Tick(s.stat.StatPeriod)
+		for _ = range t {
+			s.cmd <- 2
+		}
+	}()
 
 	s.running = true
 
@@ -160,31 +194,34 @@ func (s *Scheduler) Run() {
 				s.dispatch()
 			}
 		case t := <-s.complete:
-			if t.Id == -1 {
+			s.end(t)
+
+			if s.running {
+				if s.jobs.Len() > 0 {
+					s.dispatch()
+				}
+			} else {
+				if s.workers.Len() == s.WorkerNum {
+					s.Log.Println("all workers closed")
+					return
+				}
+			}
+		case c := <-s.cmd:
+			switch c {
+			case 1:
+				s.running = false
+
 				s.Log.Println("closing...")
 				s.saveTask()
-
-				s.running = false
-			} else {
-				s.end(t)
-
-				if s.running {
-					if s.jobs.Len() > 0 {
-						s.dispatch()
-					}
-				} else {
-					if s.workers.Len() == s.WorkerNum {
-						s.Log.Println("all workers closed")
-						return
-					}
-				}
+			case 2:
+				s.stat.LastTime = time.Now()
 			}
 		}
 	}
 }
 
 func (s *Scheduler) Close() {
-	s.complete <- Task{Id: -1}
+	s.cmd <- 1
 }
 
 func (s *Scheduler) WaitClosed() {

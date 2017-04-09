@@ -14,16 +14,17 @@ import (
 )
 
 var ts_actions = map[string]int{
-	"ac0": 5,
-	"ac1": 5,
-	"ac2": 10,
-	"ac3": 10,
-	"ac4": 50,
-	"ac5": 100,
-	"ac6": 200,
-	"ac7": 500,
-	"ac8": 1000,
-	"ac9": 2000,
+	"ac0":  5,
+	"ac1":  5,
+	"ac2":  10,
+	"ac3":  10,
+	"ac4":  50,
+	"ac5":  100,
+	"ac6":  200,
+	"ac7":  500,
+	"ac8":  1000,
+	"ac9":  2000,
+	"ac10": 4000,
 }
 
 var ts_action_num = 100
@@ -100,7 +101,7 @@ func ts_addTask(hub *Scheduler) {
 	time.Sleep(10 * time.Millisecond)
 
 	for i := 0; i < ts_action_num; i++ {
-		an := ts_getRand() % 10
+		an := ts_getRand() % len(ts_actions)
 		ac := "ac" + strconv.Itoa(an)
 		sl := ts_actions[ac]
 		sl = ts_getRand() % sl

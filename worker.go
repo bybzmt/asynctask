@@ -14,6 +14,10 @@ type Worker struct {
 
 	task chan Task
 	s    *Scheduler
+
+	LastTime time.Time
+	UseTime  time.Duration
+	IdleTime time.Duration
 }
 
 func (w *Worker) Init(id int, s *Scheduler) *Worker {
@@ -63,8 +67,6 @@ func (w *Worker) log(t Task) {
 
 func (w *Worker) Run() {
 	for t := range w.task {
-		t.worker = w
-
 		t.StartTime = time.Now()
 		t.Status, t.Msg = w.doHttp(t)
 		t.EndTime = time.Now()

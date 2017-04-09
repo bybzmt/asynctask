@@ -1,0 +1,16 @@
+#代码临时目录
+lib/pkg/
+lib/bin/
+
+asynctask
+
+#vim临时文件
+*.swp
+*~
+
+#不排除占位文件
+!.empty
+
+#ctags
+tags
+ctags.sh

@@ -2,6 +2,7 @@ package main
 
 import (
 	"container/list"
+	"time"
 )
 
 type Job struct {
@@ -11,6 +12,8 @@ type Job struct {
 	CompleteNum int
 
 	Tasks *list.List
+
+	UseTime time.Duration
 }
 
 func (j *Job) Init(name string) *Job {
@@ -35,4 +38,29 @@ func (j *Job) PopTask() Task {
 
 func (j *Job) Len() int {
 	return j.Tasks.Len()
+}
+
+type Jobs struct {
+	all     map[string]*list.Element
+	alllist *list.List
+	use     *list.List
+	maxNum  int
+}
+
+func (js *Jobs) Init() *Jobs {
+	js.all = make(map[string]*list.Element)
+	js.use = list.New()
+	return js
+}
+
+func (js *Jobs) GetJob(action string) *Job {
+	return nil
+}
+
+func (js *Jobs) HasTask() bool {
+	return false
+}
+
+func (js *Jobs) GetTask() *Task {
+	return nil
 }
