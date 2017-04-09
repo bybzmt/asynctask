@@ -31,9 +31,9 @@ func (j *Job) AddTask(t Task) {
 
 func (j *Job) PopTask() Task {
 	e := j.Tasks.Front()
-	if e == nil {
-		panic("PopTask empty")
-	}
+	//if e == nil {
+	//	panic("PopTask empty")
+	//}
 	j.Tasks.Remove(e)
 
 	t := e.Value.(Task)

@@ -41,23 +41,23 @@ func (js *Jobs) AddTask(o Order) {
 	}
 
 	if j.Len() == 0 {
-		//js.use.Insert(j)
-		js.use2.PushBack(j)
+		js.use.Insert(j)
+		//js.use2.PushBack(j)
 	}
 
 	j.AddTask(t)
 }
 
 func (js *Jobs) HasTask() bool {
-	//return js.use.Len() > 0
-	return js.use2.Len() > 0
+	return js.use.Len() > 0
+	//return js.use2.Len() > 0
 }
 
 func (js *Jobs) GetTask() Task {
-	//j, ok := js.use.Min().(*Job)
+	j, ok := js.use.Min().(*Job)
 
-	je := js.use2.Front()
-	j, ok := je.Value.(*Job)
+	//je := js.use2.Front()
+	//j, ok := je.Value.(*Job)
 	if !ok || j == nil {
 		panic("GetTask job is nil")
 	}
@@ -65,8 +65,8 @@ func (js *Jobs) GetTask() Task {
 	t := j.PopTask()
 
 	if j.Len() < 1 {
-		//js.use.Delete(j)
-		js.use2.Remove(je)
+		js.use.Delete(j)
+		//js.use2.Remove(je)
 	}
 
 	return t
