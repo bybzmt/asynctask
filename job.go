@@ -12,14 +12,14 @@ type Job struct {
 	RunNum      int
 	CompleteNum int
 
-	Tasks *list.List
+	Tasks list.List
 
 	UseTime time.Duration
 }
 
 func (j *Job) Init(name string) *Job {
 	j.Name = name
-	j.Tasks = list.New()
+	j.Tasks.Init()
 	return j
 }
 
@@ -31,6 +31,9 @@ func (j *Job) AddTask(t Task) {
 
 func (j *Job) PopTask() Task {
 	e := j.Tasks.Front()
+	if e == nil {
+		panic("PopTask empty")
+	}
 	j.Tasks.Remove(e)
 
 	t := e.Value.(Task)

@@ -1,20 +1,22 @@
 package main
 
 import (
+	"container/list"
 	"github.com/HuKeping/rbtree"
-	"log"
 	"time"
 )
 
 type Jobs struct {
 	all    Lru
 	use    *rbtree.Rbtree
+	use2   list.List
 	taskId int
 }
 
 func (js *Jobs) Init(max int) *Jobs {
 	js.all.Init(max)
 	js.use = rbtree.New()
+	js.use2.Init()
 	return js
 }
 
@@ -39,32 +41,32 @@ func (js *Jobs) AddTask(o Order) {
 	}
 
 	if j.Len() == 0 {
-		js.use.Insert(j)
+		//js.use.Insert(j)
+		js.use2.PushBack(j)
 	}
 
 	j.AddTask(t)
 }
 
 func (js *Jobs) HasTask() bool {
-	return js.use.Len() > 0
+	//return js.use.Len() > 0
+	return js.use2.Len() > 0
 }
 
 func (js *Jobs) GetTask() Task {
-	j, ok := js.use.Min().(*Job)
-	if !ok {
-		log.Fatal("gettask", j)
-		return Task{}
+	//j, ok := js.use.Min().(*Job)
+
+	je := js.use2.Front()
+	j, ok := je.Value.(*Job)
+	if !ok || j == nil {
+		panic("GetTask job is nil")
 	}
-	if j == nil {
-		log.Fatal("gettask", j)
-		return Task{}
-	}
-	log.Println("job", j)
 
 	t := j.PopTask()
 
 	if j.Len() < 1 {
-		js.use.Delete(j)
+		//js.use.Delete(j)
+		js.use2.Remove(je)
 	}
 
 	return t
