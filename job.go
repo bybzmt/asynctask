@@ -2,6 +2,7 @@ package main
 
 import (
 	"container/list"
+	"github.com/HuKeping/rbtree"
 	"time"
 )
 
@@ -40,27 +41,7 @@ func (j *Job) Len() int {
 	return j.Tasks.Len()
 }
 
-type Jobs struct {
-	all     map[string]*list.Element
-	alllist *list.List
-	use     *list.List
-	maxNum  int
-}
-
-func (js *Jobs) Init() *Jobs {
-	js.all = make(map[string]*list.Element)
-	js.use = list.New()
-	return js
-}
-
-func (js *Jobs) GetJob(action string) *Job {
-	return nil
-}
-
-func (js *Jobs) HasTask() bool {
-	return false
-}
-
-func (js *Jobs) GetTask() *Task {
-	return nil
+//红黑树优先级比对
+func (j *Job) Less(than rbtree.Item) bool {
+	return j.RunNum < than.(*Job).RunNum
 }

@@ -25,13 +25,10 @@ type Scheduler struct {
 	Client    *http.Client
 	timeout   time.Duration
 
-	allJobs    map[string]*Job
 	allWorkers []*Worker
+	workers    *list.List
 
-	jobs    *list.List
-	workers *list.List
-
-	taskId int
+	jobs Jobs
 
 	running  bool
 	order    chan Order
@@ -59,11 +56,12 @@ func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *S
 	s.Info = out
 	s.Log = err
 
-	s.allJobs = make(map[string]*Job)
 	s.order = make(chan Order)
 	s.complete = make(chan Task)
 	s.cmd = make(chan int)
-	s.jobs = list.New()
+
+	s.jobs.Init(1000)
+
 	s.workers = list.New()
 
 	s.timeout = time.Second * 300
@@ -96,39 +94,8 @@ func (s *Scheduler) AddOrder(name, content string) bool {
 	return true
 }
 
-func (s *Scheduler) add(o Order) {
-	j, ok := s.allJobs[o.Name]
-	if !ok {
-		j = new(Job).Init(o.Name)
-		s.allJobs[o.Name] = j
-	}
-
-	s.taskId++
-
-	t := Task{
-		job:     j,
-		Id:      s.taskId,
-		Content: o.Content,
-		AddTime: time.Now(),
-	}
-
-	if j.Len() == 0 {
-		s.jobs.PushBack(j)
-	}
-
-	j.AddTask(t)
-}
-
 func (s *Scheduler) dispatch() {
-	et := s.jobs.Front()
-	j := et.Value.(*Job)
-
-	t := j.PopTask()
-	if j.Len() == 0 {
-		s.jobs.Remove(et)
-	} else {
-		s.jobs.MoveToBack(et)
-	}
+	t := s.jobs.GetTask()
 
 	ew := s.workers.Front()
 	s.workers.Remove(ew)
@@ -137,14 +104,13 @@ func (s *Scheduler) dispatch() {
 	now := time.Now()
 	us := now.Sub(w.LastTime)
 
-	j.RunNum++
-
 	w.IdleTime += us
 	w.LastTime = now
 
 	s.IdleTime += us
 	s.RunNum++
 
+	t.job.RunNum++
 	t.worker = w
 
 	w.task <- t
@@ -188,7 +154,7 @@ func (s *Scheduler) Run() {
 	for {
 		select {
 		case o := <-s.order:
-			s.add(o)
+			s.jobs.AddTask(o)
 
 			if s.workers.Len() > 0 {
 				s.dispatch()
@@ -197,7 +163,7 @@ func (s *Scheduler) Run() {
 			s.end(t)
 
 			if s.running {
-				if s.jobs.Len() > 0 {
+				if s.jobs.HasTask() {
 					s.dispatch()
 				}
 			} else {
