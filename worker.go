@@ -29,8 +29,8 @@ func (w *Worker) Init(id int, s *Scheduler) *Worker {
 
 func (w *Worker) doHttp(t Task) (status int, msg string) {
 
-	resp, err := w.s.Client.Post(
-		w.s.BaseUrl+t.job.Name,
+	resp, err := w.s.e.Client.Post(
+		w.s.e.BaseUrl+t.job.Name,
 		"application/x-www-form-urlencoded",
 		strings.NewReader(t.Content),
 	)
@@ -52,7 +52,7 @@ func (w *Worker) doHttp(t Task) (status int, msg string) {
 }
 
 func (w *Worker) log(t Task) {
-	w.s.Info.Printf(
+	w.s.e.Info.Printf(
 		"%s %d %s %0.3fs %0.3fs %d %s %s\n",
 		t.AddTime.Format("15:04:05"),
 		t.Id,

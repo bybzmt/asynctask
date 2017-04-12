@@ -14,7 +14,8 @@ type Job struct {
 
 	Tasks list.List
 
-	UseTime time.Duration
+	UseTime  time.Duration
+	LastTime time.Time
 }
 
 func (j *Job) Init(name string) *Job {
@@ -36,7 +37,11 @@ func (j *Job) PopTask() Task {
 	}
 	j.Tasks.Remove(e)
 
-	t := e.Value.(Task)
+	t, ok := e.Value.(Task)
+	if !ok {
+		panic("PopTask err")
+	}
+
 	return t
 }
 

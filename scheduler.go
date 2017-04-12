@@ -3,10 +3,7 @@ package main
 import (
 	"container/list"
 	"log"
-	"net/http"
-	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -16,17 +13,9 @@ type Order struct {
 }
 
 type Scheduler struct {
-	l sync.Mutex
+	e *Environment
 
-	WorkerNum int
-	BaseUrl   string
-	Log       *log.Logger
-	Info      *log.Logger
-	Client    *http.Client
-	timeout   time.Duration
-
-	allWorkers []*Worker
-	workers    *list.List
+	workers *list.List
 
 	jobs Jobs
 
@@ -43,18 +32,7 @@ type Scheduler struct {
 }
 
 func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *Scheduler {
-	s.WorkerNum = workerNum
-	s.BaseUrl = strings.TrimRight(baseurl, "/")
-
-	if out == nil {
-		out = log.New(os.Stdout, "[Info] ", log.Ldate)
-	}
-	if err == nil {
-		err = log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
-	}
-
-	s.Info = out
-	s.Log = err
+	s.e = new(Environment).Init(workerNum, baseurl, out, err)
 
 	s.order = make(chan Order)
 	s.complete = make(chan Task)
@@ -63,18 +41,6 @@ func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *S
 	s.jobs.Init(1000)
 
 	s.workers = list.New()
-
-	s.timeout = time.Second * 300
-	s.stat.StatPeriod = time.Second * 3
-
-	tr := &http.Transport{
-		MaxIdleConnsPerHost: s.WorkerNum,
-	}
-
-	s.Client = &http.Client{
-		Transport: tr,
-		Timeout:   s.timeout,
-	}
 
 	return s
 }
@@ -94,31 +60,62 @@ func (s *Scheduler) AddOrder(name, content string) bool {
 	return true
 }
 
-func (s *Scheduler) dispatch() {
-	t := s.jobs.GetTask()
+func (s *Scheduler) addTask(o Order) {
+	j := s.jobs.getJob(o.Name)
 
+	s.jobs.taskId++
+
+	t := Task{
+		job:     j,
+		Id:      s.jobs.taskId,
+		Content: o.Content,
+		AddTime: time.Now(),
+	}
+
+	s.jobs.use.Delete(j)
+
+	j.AddTask(t)
+
+	s.jobs.use.Insert(j)
+}
+
+func (s *Scheduler) dispatch() {
+	j := s.jobs.getTaskJob()
+	s.jobs.use.Delete(j)
+
+	t := j.PopTask()
+
+	now := time.Now()
+
+	//得到工人
 	ew := s.workers.Front()
 	s.workers.Remove(ew)
 	w := ew.Value.(*Worker)
 
-	now := time.Now()
+	//工人空闲间
 	us := now.Sub(w.LastTime)
-
 	w.IdleTime += us
 	w.LastTime = now
 
 	s.IdleTime += us
 	s.RunNum++
 
-	t.job.RunNum++
-	t.worker = w
+	j.LastTime = now
+	j.RunNum++
 
+	if j.Len() > 0 {
+		s.jobs.use.Insert(j)
+	}
+
+	t.worker = w
 	w.task <- t
 }
 
 func (s *Scheduler) end(t Task) {
 	now := time.Now()
 	us := now.Sub(t.worker.LastTime)
+
+	s.jobs.use.Delete(t.job)
 
 	t.worker.TaskNum++
 	t.worker.UseTime += us
@@ -130,31 +127,28 @@ func (s *Scheduler) end(t Task) {
 
 	s.UseTime += us
 	s.workers.PushBack(t.worker)
+
+	if t.job.Len() > 0 {
+		s.jobs.use.Insert(t.job)
+	}
 }
 
 func (s *Scheduler) Run() {
-	s.Log.Println("running")
+	s.e.Log.Println("running")
 
-	for i := 1; i <= s.WorkerNum; i++ {
+	for i := 1; i <= s.e.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
 		w.LastTime = time.Now()
 		s.workers.PushBack(w)
 		go w.Run()
 	}
 
-	go func() {
-		t := time.Tick(s.stat.StatPeriod)
-		for _ = range t {
-			s.cmd <- 2
-		}
-	}()
-
 	s.running = true
 
 	for {
 		select {
 		case o := <-s.order:
-			s.jobs.AddTask(o)
+			s.addTask(o)
 
 			if s.workers.Len() > 0 {
 				s.dispatch()
@@ -167,8 +161,8 @@ func (s *Scheduler) Run() {
 					s.dispatch()
 				}
 			} else {
-				if s.workers.Len() == s.WorkerNum {
-					s.Log.Println("all workers closed")
+				if s.workers.Len() == s.e.WorkerNum {
+					s.e.Log.Println("all workers closed")
 					return
 				}
 			}
@@ -177,10 +171,9 @@ func (s *Scheduler) Run() {
 			case 1:
 				s.running = false
 
-				s.Log.Println("closing...")
+				s.e.Log.Println("closing...")
 				s.saveTask()
 			case 2:
-				s.stat.LastTime = time.Now()
 			}
 		}
 	}
@@ -194,5 +187,5 @@ func (s *Scheduler) WaitClosed() {
 }
 
 func (s *Scheduler) saveTask() {
-	s.Log.Println("saving tasks...")
+	s.e.Log.Println("saving tasks...")
 }
