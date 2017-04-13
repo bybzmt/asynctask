@@ -6,12 +6,15 @@ type Jobs struct {
 	all    Lru
 	taskId int
 
-	front, back *Job
-	size        int
+	root *Job
+	size int
 }
 
 func (js *Jobs) Init(max int) *Jobs {
 	js.all.Init(max)
+	js.root = &Job{}
+	js.root.next = js.root
+	js.root.prev = js.root
 	return js
 }
 
@@ -36,53 +39,62 @@ func (js *Jobs) HasTask() bool {
 	return js.size > 0
 }
 
+func (js *Jobs) Front() *Job {
+	if js.size == 0 {
+		return nil
+	}
+	return js.root.next
+}
+
 func (js *Jobs) getTaskJob() *Job {
-	if js.front == nil {
+	j := js.Front()
+	if j == nil {
 		panic("GetTask job is nil")
 	}
 
-	return js.front
+	return j
+}
+
+func (js *Jobs) append(j, at *Job) {
+	js.size++
+
+	at.next.prev = j
+	j.next = at.next
+	j.prev = at
+	at.next = j
 }
 
 func (js *Jobs) PushBack(j *Job) {
-	js.size++
-
-	if js.back == nil {
-		js.back = j
-		js.front = j
-		j.next = nil
-		j.prev = nil
-		return
-	}
-
-	js.back.next = j
-	j.prev = js.back
-	j.next = nil
-	js.back = j
+	js.append(j, js.root.prev)
 }
 
 func (js *Jobs) Priority(j *Job) {
+	x := j
+
+	for x.next != nil && j.Score() > x.next.Score() {
+		x = x.next
+	}
+
+	for x.prev != nil && j.Score() < x.prev.Score() {
+		x = x.prev
+	}
+
+	js.MoveBefore(j, x)
+}
+
+func (js *Jobs) MoveBefore(j, x *Job) {
+	if j == x {
+		return
+	}
+
+	js.Remove(j)
+	js.append(j, x.prev)
 }
 
 func (js *Jobs) Remove(j *Job) {
-	if j.prev != nil {
-		j.prev.next = j.next
-	}
-
-	if j.next != nil {
-		j.next.prev = j.prev
-	}
-
-	if j == js.front {
-		js.front = j.next
-	}
-
-	if j == js.back {
-		js.back = j.prev
-	}
-
-	j.prev = nil
+	j.prev.next = j.next
+	j.next.prev = j.prev
 	j.next = nil
-
+	j.prev = nil
 	js.size--
 }

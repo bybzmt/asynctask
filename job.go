@@ -49,3 +49,7 @@ func (j *Job) PopTask() Task {
 func (j *Job) Len() int {
 	return j.Tasks.Len()
 }
+
+func (j *Job) Score() int {
+	return j.RunNum
+}

@@ -27,7 +27,7 @@ var ts_actions = map[string]int{
 	"ac10": 4000,
 }
 
-var ts_action_num = 200
+var ts_action_num = 1000
 var ts_action_now int64 = 0
 var ts_close chan bool
 var ts_rand = make(chan int, 100)
