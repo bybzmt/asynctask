@@ -72,16 +72,17 @@ func (s *Scheduler) addTask(o Order) {
 		AddTime: time.Now(),
 	}
 
-	s.jobs.use.Delete(j)
-
 	j.AddTask(t)
 
-	s.jobs.use.Insert(j)
+	if j.Len() == 1 {
+		s.jobs.PushBack(j)
+	}
+
+	s.jobs.Priority(j)
 }
 
 func (s *Scheduler) dispatch() {
 	j := s.jobs.getTaskJob()
-	s.jobs.use.Delete(j)
 
 	t := j.PopTask()
 
@@ -103,8 +104,10 @@ func (s *Scheduler) dispatch() {
 	j.LastTime = now
 	j.RunNum++
 
-	if j.Len() > 0 {
-		s.jobs.use.Insert(j)
+	if j.Len() < 1 {
+		s.jobs.Remove(j)
+	} else {
+		s.jobs.Priority(j)
 	}
 
 	t.worker = w
@@ -114,8 +117,6 @@ func (s *Scheduler) dispatch() {
 func (s *Scheduler) end(t Task) {
 	now := time.Now()
 	us := now.Sub(t.worker.LastTime)
-
-	s.jobs.use.Delete(t.job)
 
 	t.worker.TaskNum++
 	t.worker.UseTime += us
@@ -128,9 +129,7 @@ func (s *Scheduler) end(t Task) {
 	s.UseTime += us
 	s.workers.PushBack(t.worker)
 
-	if t.job.Len() > 0 {
-		s.jobs.use.Insert(t.job)
-	}
+	s.jobs.Priority(t.job)
 }
 
 func (s *Scheduler) Run() {

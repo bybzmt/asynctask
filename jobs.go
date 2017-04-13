@@ -1,18 +1,17 @@
 package main
 
-import (
-	"github.com/HuKeping/rbtree"
-)
+import ()
 
 type Jobs struct {
 	all    Lru
-	use    *rbtree.Rbtree
 	taskId int
+
+	front, back *Job
+	size        int
 }
 
 func (js *Jobs) Init(max int) *Jobs {
 	js.all.Init(max)
-	js.use = rbtree.New()
 	return js
 }
 
@@ -34,19 +33,56 @@ func (js *Jobs) getJob(name string) *Job {
 }
 
 func (js *Jobs) HasTask() bool {
-	return js.use.Len() > 0
+	return js.size > 0
 }
 
 func (js *Jobs) getTaskJob() *Job {
-	je := js.use.Min()
-	if je == nil {
+	if js.front == nil {
 		panic("GetTask job is nil")
 	}
 
-	j, ok := je.(*Job)
-	if !ok || j == nil {
-		panic("GetTask job is nil")
+	return js.front
+}
+
+func (js *Jobs) PushBack(j *Job) {
+	js.size++
+
+	if js.back == nil {
+		js.back = j
+		js.front = j
+		j.next = nil
+		j.prev = nil
+		return
 	}
 
-	return j
+	js.back.next = j
+	j.prev = js.back
+	j.next = nil
+	js.back = j
+}
+
+func (js *Jobs) Priority(j *Job) {
+}
+
+func (js *Jobs) Remove(j *Job) {
+	if j.prev != nil {
+		j.prev.next = j.next
+	}
+
+	if j.next != nil {
+		j.next.prev = j.prev
+	}
+
+	if j == js.front {
+		js.front = j.next
+	}
+
+	if j == js.back {
+		js.back = j.prev
+	}
+
+	j.prev = nil
+	j.next = nil
+
+	js.size--
 }

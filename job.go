@@ -2,11 +2,12 @@ package main
 
 import (
 	"container/list"
-	"github.com/HuKeping/rbtree"
 	"time"
 )
 
 type Job struct {
+	next, prev *Job
+
 	Name string
 
 	RunNum      int
@@ -47,9 +48,4 @@ func (j *Job) PopTask() Task {
 
 func (j *Job) Len() int {
 	return j.Tasks.Len()
-}
-
-//红黑树优先级比对
-func (j *Job) Less(than rbtree.Item) bool {
-	return j.RunNum < than.(*Job).RunNum
 }
