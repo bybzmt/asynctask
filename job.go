@@ -56,5 +56,14 @@ func (j *Job) Len() int {
 }
 
 func (j *Job) Score() int {
-	return j.RunNum
+	if j.s == nil {
+		panic("job Scheduler nil")
+	}
+
+	x := 0
+	if j.s.LoadStat.GetAll() > 0 {
+		x = int(float64(j.LoadStat.GetAll()) / float64(j.s.LoadStat.GetAll()) * 100)
+	}
+
+	return j.NowNum*10 + x
 }

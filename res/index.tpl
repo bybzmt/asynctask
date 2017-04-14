@@ -61,7 +61,8 @@ window.onload = function(){
 
 window.setInterval(function(){
     showStatus();
-});
+}, 300);
+
 </script>
 
 {{end}}

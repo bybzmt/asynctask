@@ -12,8 +12,8 @@ func (s *StatRow) Init(num int) {
 
 func (s *StatRow) Push(val int64) {
 	s.all += val - s.data[s.offset]
-	s.offset = (s.offset + 1) % len(s.data)
 	s.data[s.offset] = val
+	s.offset = (s.offset + 1) % len(s.data)
 }
 
 func (s *StatRow) GetNow() int64 {

@@ -74,11 +74,11 @@ func (js *Jobs) PushBack(j *Job) {
 func (js *Jobs) Priority(j *Job) {
 	x := j
 
-	for x.next != nil && j.Score() > x.next.Score() {
+	for x.next != nil && x.next != js.root && j.Score() > x.next.Score() {
 		x = x.next
 	}
 
-	for x.prev != nil && j.Score() < x.prev.Score() {
+	for x.prev != nil && x.prev != js.root && j.Score() < x.prev.Score() {
 		x = x.prev
 	}
 
