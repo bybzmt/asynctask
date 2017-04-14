@@ -65,10 +65,12 @@ func (j *Job) Score() int {
 		x = int(float64(j.LoadStat.GetAll()) / float64(j.s.LoadStat.GetAll()) * 100)
 	}
 
-	y := (1000 - j.Len()) / 10
-	if y < 0 {
-		y = 0
-	}
+	/*
+		y := (200 - j.Len()) / 10
+		if y < 0 {
+			y = 0
+		}
+	*/
 
-	return j.NowNum*10 + x + y
+	return j.NowNum*10 + x
 }
