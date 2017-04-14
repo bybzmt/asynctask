@@ -246,8 +246,8 @@ func (s *Scheduler) Run() {
 					j, ok := ele.Value.(*lruKv).val.(*Job)
 					if ok {
 						x := 0
-						if s.LoadStat.GetAll() > 0 {
-							x = int(float64(j.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()) * 10000)
+						if e1 > 0 {
+							x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
 						}
 
 						t.Jobs[j.Name] = Stat{
