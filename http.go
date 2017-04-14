@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 )
 
 var workerNum = flag.Int("num", 10, "worker number")
@@ -22,12 +23,23 @@ func main() {
 	std := log.New(os.Stdout, "[Info]", log.LstdFlags)
 	err := log.New(os.Stderr, "[Scheduler]", log.LstdFlags)
 
+	if *baseurl == "" {
+		err.Println("baseurl 不能为空")
+		os.Exit(1)
+	}
+	*baseurl = strings.TrimLeft(*baseurl, "/")
+
 	hub = new(Scheduler).Init(*workerNum, *baseurl, std, err)
 
 	http.HandleFunc("/", page_index)
 	http.HandleFunc("/status", page_status)
 	http.HandleFunc("/task/add", page_task_add)
-	go log.Fatal(http.ListenAndServe(*addr, nil))
+	http.HandleFunc("/res/", page_res)
+	http.HandleFunc("/favicon.ico", page_favicon)
+
+	go func() {
+		log.Fatal(http.ListenAndServe(*addr, nil))
+	}()
 
 	go exitSignal()
 
@@ -48,8 +60,12 @@ type Result struct {
 }
 
 func page_index(w http.ResponseWriter, r *http.Request) {
-	rs := &Result{Code: 0, Data: "ok"}
-	json.NewEncoder(w).Encode(rs)
+	tmpl := load_tpl("index.tpl")
+
+	var data = struct {
+	}{}
+
+	tmpl.Execute(w, data)
 }
 
 func page_task_add(w http.ResponseWriter, r *http.Request) {

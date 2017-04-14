@@ -199,6 +199,13 @@ func (s *Scheduler) Run() {
 				s.e.Log.Println("closing...")
 				s.saveTask()
 			case 2:
+				if !s.running {
+					if s.workers.Len() == s.e.WorkerNum {
+						s.e.Log.Println("all workers closed")
+						return
+					}
+				}
+
 				//时间片统计
 				now := time.Now()
 				for _, w := range s.e.allWorkers {
@@ -222,7 +229,11 @@ func (s *Scheduler) Run() {
 					}
 				}
 			case 3:
-				all := int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
+				e1 := s.LoadStat.GetAll() + s.IdleStat.GetAll()
+				all := 0
+				if e1 > 0 {
+					all = int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
+				}
 
 				t := &Statistics{}
 				t.Jobs = make(map[string]Stat, len(s.jobs.all.all))
@@ -234,7 +245,10 @@ func (s *Scheduler) Run() {
 				for _, ele := range s.jobs.all.all {
 					j, ok := ele.Value.(*lruKv).val.(*Job)
 					if ok {
-						x := int(float64(j.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()) * 10000)
+						x := 0
+						if s.LoadStat.GetAll() > 0 {
+							x = int(float64(j.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()) * 10000)
+						}
 
 						t.Jobs[j.Name] = Stat{
 							Load:    x,

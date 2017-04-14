@@ -27,7 +27,7 @@ func (w *Worker) Init(id int, s *Scheduler) *Worker {
 func (w *Worker) doHttp(t Task) (status int, msg string) {
 
 	resp, err := w.s.e.Client.Post(
-		w.s.e.BaseUrl+t.job.Name,
+		w.s.e.BaseUrl+"/"+t.job.Name,
 		"application/x-www-form-urlencoded",
 		strings.NewReader(t.Content),
 	)
