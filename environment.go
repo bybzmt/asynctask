@@ -20,6 +20,10 @@ type Environment struct {
 	timeout   time.Duration
 
 	allWorkers []*Worker
+
+	//统计周期
+	StatTick time.Duration
+	StatSize int
 }
 
 func (a *Environment) Init(workerNum int, baseurl string, out, err *log.Logger) *Environment {

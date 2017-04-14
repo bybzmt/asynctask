@@ -6,22 +6,27 @@ import (
 )
 
 type Job struct {
+	s *Scheduler
+
 	next, prev *Job
 
 	Name string
 
-	RunNum      int
-	CompleteNum int
+	RunNum int
+	NowNum int
 
 	Tasks list.List
 
-	UseTime  time.Duration
+	LoadTime time.Duration
+	LoadStat StatRow
 	LastTime time.Time
 }
 
-func (j *Job) Init(name string) *Job {
+func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.Name = name
 	j.Tasks.Init()
+	j.s = s
+	j.LoadStat.Init(j.s.e.StatSize)
 	return j
 }
 

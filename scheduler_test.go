@@ -111,7 +111,16 @@ func ts_addTask(hub *Scheduler) {
 		hub.AddOrder(ac, data)
 	}
 
+	go func() {
+		c := time.Tick(time.Second * 1)
+		for _ = range c {
+			log.Println(hub.Status())
+		}
+	}()
+
 	<-ts_close
+
+	//log.Println(hub.Status())
 
 	hub.Close()
 }

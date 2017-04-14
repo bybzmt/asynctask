@@ -3,6 +3,8 @@ package main
 import ()
 
 type Jobs struct {
+	s *Scheduler
+
 	all    Lru
 	taskId int
 
@@ -10,11 +12,12 @@ type Jobs struct {
 	size int
 }
 
-func (js *Jobs) Init(max int) *Jobs {
+func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 	js.all.Init(max)
 	js.root = &Job{}
 	js.root.next = js.root
 	js.root.prev = js.root
+	js.s = s
 	return js
 }
 
@@ -28,7 +31,7 @@ func (js *Jobs) getJob(name string) *Job {
 			panic("getJob err")
 		}
 	} else {
-		j = new(Job).Init(name)
+		j = new(Job).Init(name, js.s)
 		js.all.Add(name, j)
 	}
 

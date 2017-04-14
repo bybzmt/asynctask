@@ -9,15 +9,12 @@ import (
 type Worker struct {
 	Id int
 
-	TaskNum int
-	RunNum  int
+	run bool
 
 	task chan Task
 	s    *Scheduler
 
 	LastTime time.Time
-	UseTime  time.Duration
-	IdleTime time.Duration
 }
 
 func (w *Worker) Init(id int, s *Scheduler) *Worker {

@@ -24,23 +24,35 @@ type Scheduler struct {
 	complete chan Task
 	cmd      chan int
 
-	RunNum   int
-	UseTime  time.Duration
+	statResp chan *Statistics
+
+	RunNum  int
+	NowNum  int
+	WaitNum int
+
+	LoadTime time.Duration
 	IdleTime time.Duration
 
-	stat Statistics
+	LoadStat StatRow
+	IdleStat StatRow
 }
 
 func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *Scheduler {
 	s.e = new(Environment).Init(workerNum, baseurl, out, err)
+	s.e.StatTick = time.Second * 1
+	s.e.StatSize = 60
 
 	s.order = make(chan Order)
 	s.complete = make(chan Task)
 	s.cmd = make(chan int)
+	s.statResp = make(chan *Statistics)
 
-	s.jobs.Init(1000)
+	s.jobs.Init(1000, s)
 
 	s.workers = list.New()
+
+	s.LoadStat.Init(s.e.StatSize)
+	s.IdleStat.Init(s.e.StatSize)
 
 	return s
 }
@@ -54,6 +66,8 @@ func (s *Scheduler) AddOrder(name, content string) bool {
 		Name:    strings.TrimLeft(name, "/"),
 		Content: content,
 	}
+
+	s.WaitNum++
 
 	s.order <- o
 
@@ -93,15 +107,18 @@ func (s *Scheduler) dispatch() {
 	s.workers.Remove(ew)
 	w := ew.Value.(*Worker)
 
-	//工人空闲间
+	//空闲间
 	us := now.Sub(w.LastTime)
-	w.IdleTime += us
-	w.LastTime = now
 
-	s.IdleTime += us
+	//总状态
+	s.NowNum++
 	s.RunNum++
+	s.WaitNum--
+	s.IdleTime += us
 
+	//任务状态
 	j.LastTime = now
+	j.NowNum++
 	j.RunNum++
 
 	if j.Len() < 1 {
@@ -110,25 +127,25 @@ func (s *Scheduler) dispatch() {
 		s.jobs.Priority(j)
 	}
 
+	//分配任务
 	t.worker = w
+	w.run = true
 	w.task <- t
 }
 
 func (s *Scheduler) end(t Task) {
 	now := time.Now()
-	us := now.Sub(t.worker.LastTime)
-
-	t.worker.TaskNum++
-	t.worker.UseTime += us
 	t.worker.LastTime = now
+	t.worker.run = false
 
-	t.job.RunNum--
-	t.job.CompleteNum++
-	t.job.UseTime += us
+	us := t.EndTime.Sub(t.StartTime)
 
-	s.UseTime += us
+	t.job.NowNum--
+	t.job.LoadTime += us
+
+	s.NowNum--
+	s.LoadTime += us
 	s.workers.PushBack(t.worker)
-
 	s.jobs.Priority(t.job)
 }
 
@@ -137,10 +154,18 @@ func (s *Scheduler) Run() {
 
 	for i := 1; i <= s.e.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
+		s.e.allWorkers = append(s.e.allWorkers, w)
 		w.LastTime = time.Now()
 		s.workers.PushBack(w)
 		go w.Run()
 	}
+
+	go func() {
+		c := time.Tick(s.e.StatTick)
+		for _ = range c {
+			s.cmd <- 2
+		}
+	}()
 
 	s.running = true
 
@@ -168,11 +193,59 @@ func (s *Scheduler) Run() {
 		case c := <-s.cmd:
 			switch c {
 			case 1:
+				//关闭
 				s.running = false
 
 				s.e.Log.Println("closing...")
 				s.saveTask()
 			case 2:
+				//时间片统计
+				now := time.Now()
+				for _, w := range s.e.allWorkers {
+					if !w.run {
+						us := now.Sub(w.LastTime)
+						s.IdleTime += us
+						w.LastTime = now
+					}
+				}
+
+				s.LoadStat.Push(int64(s.LoadTime))
+				s.IdleStat.Push(int64(s.IdleTime))
+				s.LoadTime = 0
+				s.IdleTime = 0
+
+				for _, ele := range s.jobs.all.all {
+					j, ok := ele.Value.(*lruKv).val.(*Job)
+					if ok {
+						j.LoadStat.Push(int64(j.LoadTime))
+						j.LoadTime = 0
+					}
+				}
+			case 3:
+				all := int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
+
+				t := &Statistics{}
+				t.Jobs = make(map[string]Stat, len(s.jobs.all.all))
+				t.All.Load = all
+				t.All.RunNum = s.RunNum
+				t.All.NowNum = s.NowNum
+				t.All.WaitNum = s.WaitNum
+
+				for _, ele := range s.jobs.all.all {
+					j, ok := ele.Value.(*lruKv).val.(*Job)
+					if ok {
+						x := int(float64(j.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()) * 10000)
+
+						t.Jobs[j.Name] = Stat{
+							Load:    x,
+							RunNum:  j.RunNum,
+							NowNum:  j.NowNum,
+							WaitNum: j.Len(),
+						}
+					}
+				}
+
+				s.statResp <- t
 			}
 		}
 	}
@@ -187,4 +260,10 @@ func (s *Scheduler) WaitClosed() {
 
 func (s *Scheduler) saveTask() {
 	s.e.Log.Println("saving tasks...")
+}
+
+func (s *Scheduler) Status() *Statistics {
+	s.cmd <- 3
+	t := <-s.statResp
+	return t
 }

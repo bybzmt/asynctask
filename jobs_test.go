@@ -6,8 +6,9 @@ import (
 )
 
 func TestList(t *testing.T) {
+	s := &Scheduler{}
 	js := &Jobs{}
-	js.Init(10)
+	js.Init(10, s)
 
 	a := &Job{Name: "a1"}
 	js.PushBack(a)
