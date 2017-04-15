@@ -13,23 +13,20 @@ import (
 	"time"
 )
 
-var ts_actions = map[string]int{
-	"ac0":  5,
-	"ac1":  5,
-	"ac2":  10,
-	"ac3":  10,
-	"ac4":  50,
-	"ac5":  100,
-	"ac6":  200,
-	"ac7":  500,
-	"ac8":  1000,
-	"ac9":  2000,
-	"ac10": 4000,
+var ts_actions = []int{
+	5, 10, 50, 80,
+	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
+	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
+	//200, 230, 240, 270,
+	//300, 350, 400, 500,
+	//1000, 3000,
+	//6000,
+	10000,
 }
 
 var ts_rand chan int
 
-var to = flag.String("to", "", "to asynctask")
+var to = flag.String("to", "127.0.0.1:8080", "asynctask host")
 var num = flag.Int("num", 10000, "task num")
 var sleep = flag.Int("sleep", 10, "sleep ms")
 
@@ -49,8 +46,8 @@ func main() {
 		}
 
 		an := ts_getRand() % len(ts_actions)
-		ac := "ac" + strconv.Itoa(an)
-		sl := ts_actions[ac]
+		sl := ts_actions[an]
+		ac := "ac" + strconv.Itoa(sl)
 		sl = ts_getRand() % sl
 
 		p := url.Values{}
@@ -61,7 +58,7 @@ func main() {
 		v.Add("action", ac)
 		v.Add("params", p.Encode())
 
-		resp, err := http.PostForm(*to, v)
+		resp, err := http.PostForm("http://"+*to+"/task/add", v)
 		if err != nil {
 			panic(err)
 		}

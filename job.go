@@ -60,17 +60,19 @@ func (j *Job) Score() int {
 		panic("job Scheduler nil")
 	}
 
-	x := 0
+	area := 10000
+
+	x := j.NowNum * (area / j.s.e.WorkerNum)
+
+	y := 0
 	if j.s.LoadStat.GetAll() > 0 {
-		x = int(float64(j.LoadStat.GetAll()) / float64(j.s.LoadStat.GetAll()) * 100)
+		y = int(float64(j.LoadStat.GetAll()) / float64(j.s.LoadStat.GetAll()) * float64(area))
 	}
 
-	/*
-		y := (200 - j.Len()) / 10
-		if y < 0 {
-			y = 0
-		}
-	*/
+	z := 0
+	if j.s.WaitNum > 0 {
+		z = area - int(float64(j.Len())/float64(j.s.WaitNum)*float64(area))
+	}
 
-	return j.NowNum*10 + x
+	return x*4 + y*3 + z*3
 }
