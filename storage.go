@@ -14,20 +14,22 @@ type StorageRow struct {
 }
 
 func (s *Scheduler) saveToFile() {
-
-	rows := []StorageRow{}
-	rows.Contents = make([]string, 0, s.WaitNum)
+	rows := make([]StorageRow, 0, s.jobs.all.list.Len())
 
 	for _, ele := range s.jobs.all.all {
 		j, ok := ele.Value.(*lruKv).val.(*Job)
-		if ok {
-			rows.Name = j.Name
+		if ok && j.Len() > 0 {
+			row := StorageRow{}
+			row.Name = j.Name
+			row.Contents = make([]string, 0, j.Len())
 
 			ele := j.Tasks.Front()
 			for ele != nil {
-				rows.Contents = append(rows.Contents, ele.Value.(Task).Content)
+				row.Contents = append(row.Contents, ele.Value.(Task).Content)
 				ele = ele.Next()
 			}
+
+			rows = append(rows, row)
 		}
 	}
 
@@ -50,14 +52,14 @@ func (s *Scheduler) restoreFromFile() {
 	f, err := os.Open(*dbfile)
 	if err != nil {
 		if os.IsNotExist(err) {
+			s.e.Log.Println("not have storaged file")
 			return
 		}
 		panic(err)
 	}
 	defer f.Close()
 
-	rows := StorageRow{}
-	rows.Contents = make([]string, 0, s.WaitNum)
+	rows := []StorageRow{}
 
 	de := gob.NewDecoder(f)
 	err = de.Decode(&rows)
@@ -65,8 +67,10 @@ func (s *Scheduler) restoreFromFile() {
 		panic(err)
 	}
 
-	for _, o := range orders {
-		s.AddOrder(o.Name, o.Content)
+	for _, row := range rows {
+		for _, Content := range row.Contents {
+			s.AddOrder(row.Name, Content)
+		}
 	}
 
 	s.e.Log.Println("restore From File complete")

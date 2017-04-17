@@ -3,6 +3,7 @@ lib/pkg/
 lib/bin/
 
 asynctask
+asynctask.db
 
 #vim临时文件
 *.swp
