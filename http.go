@@ -42,6 +42,8 @@ func main() {
 	}()
 
 	go exitSignal()
+	go hub.restoreFromFile()
+	go redis_init()
 
 	hub.Run()
 }

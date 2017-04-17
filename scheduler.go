@@ -8,8 +8,8 @@ import (
 )
 
 type Order struct {
-	Name    string
-	Content string
+	Name    string `json:"action"`
+	Content string `json:"params"`
 }
 
 type Scheduler struct {
@@ -274,6 +274,8 @@ func (s *Scheduler) WaitClosed() {
 
 func (s *Scheduler) saveTask() {
 	s.e.Log.Println("saving tasks...")
+	s.saveToFile()
+	s.e.Log.Println("saving tasks complete")
 }
 
 func (s *Scheduler) Status() *Statistics {
