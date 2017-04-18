@@ -24,11 +24,12 @@ func main() {
 	std := log.New(os.Stdout, "[Info] ", log.LstdFlags)
 	err := log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
 
+	*baseurl = strings.TrimRight(*baseurl, "/")
+
 	if *baseurl == "" {
 		err.Println("baseurl 不能为空")
 		os.Exit(1)
 	}
-	*baseurl = strings.TrimLeft(*baseurl, "/")
 
 	hub = new(Scheduler).Init(*workerNum, *baseurl, std, err)
 

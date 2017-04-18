@@ -11,7 +11,7 @@ type Worker struct {
 
 	run bool
 
-	task chan Task
+	task chan *Task
 	s    *Scheduler
 
 	LastTime time.Time
@@ -20,11 +20,11 @@ type Worker struct {
 func (w *Worker) Init(id int, s *Scheduler) *Worker {
 	w.Id = id
 	w.s = s
-	w.task = make(chan Task)
+	w.task = make(chan *Task)
 	return w
 }
 
-func (w *Worker) doHttp(t Task) (status int, msg string) {
+func (w *Worker) doHttp(t *Task) (status int, msg string) {
 
 	resp, err := w.s.e.Client.Post(
 		w.s.e.BaseUrl+"/"+t.job.Name,
@@ -48,7 +48,7 @@ func (w *Worker) doHttp(t Task) (status int, msg string) {
 	return
 }
 
-func (w *Worker) log(t Task) {
+func (w *Worker) log(t *Task) {
 	w.s.e.Info.Printf(
 		"%d %s %0.3fs %0.3fs %d %s %s\n",
 		t.Id,

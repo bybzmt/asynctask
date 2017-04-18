@@ -9,7 +9,6 @@ type Jobs struct {
 	taskId int
 
 	root *Job
-	size int
 }
 
 func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
@@ -39,18 +38,21 @@ func (js *Jobs) getJob(name string) *Job {
 }
 
 func (js *Jobs) HasTask() bool {
-	return js.size > 0
+	if js.root == js.root.next {
+		return false
+	}
+	return true
 }
 
-func (js *Jobs) Front() *Job {
-	if js.size == 0 {
+func (js *Jobs) front() *Job {
+	if js.root == js.root.next {
 		return nil
 	}
 	return js.root.next
 }
 
-func (js *Jobs) getTaskJob() *Job {
-	j := js.Front()
+func (js *Jobs) GetTaskJob() *Job {
+	j := js.front()
 	if j == nil {
 		panic("GetTask job is nil")
 	}
@@ -59,8 +61,6 @@ func (js *Jobs) getTaskJob() *Job {
 }
 
 func (js *Jobs) append(j, at *Job) {
-	js.size++
-
 	at.next.prev = j
 	j.next = at.next
 	j.prev = at
@@ -99,5 +99,19 @@ func (js *Jobs) Remove(j *Job) {
 	j.next.prev = j.prev
 	j.next = nil
 	j.prev = nil
-	js.size--
+}
+
+func (js *Jobs) Len() int {
+	return js.all.Len()
+}
+
+func (js *Jobs) Each(fn func(j *Job)) {
+	js.all.Each(func(k, v interface{}) {
+		j, ok := v.(*Job)
+		if !ok {
+			panic("Jobs Each Data Type err")
+		}
+
+		fn(j)
+	})
 }

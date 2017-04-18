@@ -20,8 +20,8 @@ type Scheduler struct {
 	jobs Jobs
 
 	running  bool
-	order    chan Order
-	complete chan Task
+	order    chan *Order
+	complete chan *Task
 	cmd      chan int
 
 	statResp chan *Statistics
@@ -42,12 +42,12 @@ func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *S
 	s.e.StatTick = time.Second * 1
 	s.e.StatSize = 60
 
-	s.order = make(chan Order)
-	s.complete = make(chan Task)
+	s.order = make(chan *Order)
+	s.complete = make(chan *Task)
 	s.cmd = make(chan int)
 	s.statResp = make(chan *Statistics)
 
-	s.jobs.Init(1000, s)
+	s.jobs.Init(2000, s)
 
 	s.workers = list.New()
 
@@ -62,24 +62,28 @@ func (s *Scheduler) AddOrder(name, content string) bool {
 		return false
 	}
 
-	o := Order{
-		Name:    strings.TrimLeft(name, "/"),
-		Content: content,
+	name = strings.Trim(name, "/ ")
+	if name == "" {
+		return false
 	}
 
-	s.WaitNum++
+	o := &Order{
+		Name:    name,
+		Content: content,
+	}
 
 	s.order <- o
 
 	return true
 }
 
-func (s *Scheduler) addTask(o Order) {
+func (s *Scheduler) addTask(o *Order) {
 	j := s.jobs.getJob(o.Name)
 
+	s.WaitNum++
 	s.jobs.taskId++
 
-	t := Task{
+	t := &Task{
 		job:     j,
 		Id:      s.jobs.taskId,
 		Content: o.Content,
@@ -96,7 +100,7 @@ func (s *Scheduler) addTask(o Order) {
 }
 
 func (s *Scheduler) dispatch() {
-	j := s.jobs.getTaskJob()
+	j := s.jobs.GetTaskJob()
 
 	t := j.PopTask()
 
@@ -133,7 +137,7 @@ func (s *Scheduler) dispatch() {
 	w.task <- t
 }
 
-func (s *Scheduler) end(t Task) {
+func (s *Scheduler) end(t *Task) {
 	now := time.Now()
 	t.worker.LastTime = now
 	t.worker.run = false
@@ -142,6 +146,7 @@ func (s *Scheduler) end(t Task) {
 
 	t.job.NowNum--
 	t.job.LoadTime += us
+	t.job.UseTimeStat.Push(int64(us))
 
 	s.NowNum--
 	s.LoadTime += us
@@ -221,13 +226,10 @@ func (s *Scheduler) Run() {
 				s.LoadTime = 0
 				s.IdleTime = 0
 
-				for _, ele := range s.jobs.all.all {
-					j, ok := ele.Value.(*lruKv).val.(*Job)
-					if ok {
-						j.LoadStat.Push(int64(j.LoadTime))
-						j.LoadTime = 0
-					}
-				}
+				s.jobs.Each(func(j *Job) {
+					j.LoadStat.Push(int64(j.LoadTime))
+					j.LoadTime = 0
+				})
 			case 3:
 				e1 := s.LoadStat.GetAll() + s.IdleStat.GetAll()
 				all := 0
@@ -236,28 +238,28 @@ func (s *Scheduler) Run() {
 				}
 
 				t := &Statistics{}
-				t.Jobs = make(map[string]Stat, len(s.jobs.all.all))
+				t.Jobs = make([]Stat, 0, s.jobs.Len())
+				t.All.Name = "all"
 				t.All.Load = all
 				t.All.RunNum = s.RunNum
 				t.All.NowNum = s.NowNum
 				t.All.WaitNum = s.WaitNum
 
-				for _, ele := range s.jobs.all.all {
-					j, ok := ele.Value.(*lruKv).val.(*Job)
-					if ok {
-						x := 0
-						if e1 > 0 {
-							x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
-						}
-
-						t.Jobs[j.Name] = Stat{
-							Load:    x,
-							RunNum:  j.RunNum,
-							NowNum:  j.NowNum,
-							WaitNum: j.Len(),
-						}
+				s.jobs.Each(func(j *Job) {
+					x := 0
+					if e1 > 0 {
+						x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
 					}
-				}
+
+					t.Jobs = append(t.Jobs, Stat{
+						Name:    j.Name,
+						Load:    x,
+						RunNum:  j.RunNum,
+						NowNum:  j.NowNum,
+						WaitNum: j.Len(),
+						UseTime: int(j.UseTimeStat.GetAll()/int64(time.Millisecond)) / len(j.UseTimeStat.data),
+					})
+				})
 
 				s.statResp <- t
 			}

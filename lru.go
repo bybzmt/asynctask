@@ -54,3 +54,21 @@ func (l *Lru) Add(key, val interface{}) {
 		delete(l.all, e.Value.(*lruKv).key)
 	}
 }
+
+func (l *Lru) Each(fn func(k, v interface{})) {
+	ele := l.list.Front()
+	for ele != nil {
+		kv, ok := ele.Value.(*lruKv)
+		if !ok {
+			panic("lru data err")
+		}
+
+		fn(kv.key, kv.val)
+
+		ele = ele.Next()
+	}
+}
+
+func (l *Lru) Len() int {
+	return l.list.Len()
+}

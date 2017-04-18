@@ -25,13 +25,15 @@ func (s *StatRow) GetAll() int64 {
 }
 
 type Stat struct {
+	Name    string
 	Load    int
 	NowNum  int
 	RunNum  int
 	WaitNum int
+	UseTime int
 }
 
 type Statistics struct {
 	All  Stat
-	Jobs map[string]Stat
+	Jobs []Stat
 }

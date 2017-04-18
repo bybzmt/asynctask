@@ -20,6 +20,8 @@ type Job struct {
 	LoadTime time.Duration
 	LoadStat StatRow
 	LastTime time.Time
+
+	UseTimeStat StatRow
 }
 
 func (j *Job) Init(name string, s *Scheduler) *Job {
@@ -27,23 +29,24 @@ func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.Tasks.Init()
 	j.s = s
 	j.LoadStat.Init(j.s.e.StatSize)
+	j.UseTimeStat.Init(10)
 	return j
 }
 
-func (j *Job) AddTask(t Task) {
+func (j *Job) AddTask(t *Task) {
 	t.job = j
 
 	j.Tasks.PushBack(t)
 }
 
-func (j *Job) PopTask() Task {
+func (j *Job) PopTask() *Task {
 	e := j.Tasks.Front()
 	if e == nil {
 		panic("PopTask empty")
 	}
 	j.Tasks.Remove(e)
 
-	t, ok := e.Value.(Task)
+	t, ok := e.Value.(*Task)
 	if !ok {
 		panic("PopTask err")
 	}

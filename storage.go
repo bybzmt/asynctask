@@ -14,24 +14,23 @@ type StorageRow struct {
 }
 
 func (s *Scheduler) saveToFile() {
-	rows := make([]StorageRow, 0, s.jobs.all.list.Len())
+	rows := make([]StorageRow, 0, s.jobs.Len())
 
-	for _, ele := range s.jobs.all.all {
-		j, ok := ele.Value.(*lruKv).val.(*Job)
-		if ok && j.Len() > 0 {
+	s.jobs.Each(func(j *Job) {
+		if j.Len() > 0 {
 			row := StorageRow{}
 			row.Name = j.Name
 			row.Contents = make([]string, 0, j.Len())
 
 			ele := j.Tasks.Front()
 			for ele != nil {
-				row.Contents = append(row.Contents, ele.Value.(Task).Content)
+				row.Contents = append(row.Contents, ele.Value.(*Task).Content)
 				ele = ele.Next()
 			}
 
 			rows = append(rows, row)
 		}
-	}
+	})
 
 	f, err := os.OpenFile(*dbfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
