@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/go-redis/redis"
-	"log"
 	"runtime"
 	"time"
 )
@@ -20,13 +19,14 @@ func redis_init() {
 		return
 	}
 
-	log.Println("use redis")
+	hub.e.Log.Println("use redis")
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     *redis_host,
 		Password: *redis_pwd,
 		DB:       *redis_db,
 	})
+	defer client.Close()
 
 	var mem_full = false
 
@@ -44,8 +44,8 @@ func redis_init() {
 		}
 	}()
 
-	for hub.running {
-		if mem_full {
+	for {
+		if !hub.running || mem_full {
 			time.Sleep(time.Second * 1)
 			continue
 		}

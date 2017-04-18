@@ -50,7 +50,7 @@ func main() {
 
 func exitSignal() {
 	co := make(chan os.Signal, 1)
-	signal.Notify(co, os.Interrupt)
+	signal.Notify(co, os.Interrupt, os.Kill)
 	<-co
 
 	hub.Close()
