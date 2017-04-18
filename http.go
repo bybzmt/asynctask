@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 )
 
 var workerNum = flag.Int("num", 10, "worker number")
@@ -50,7 +51,7 @@ func main() {
 
 func exitSignal() {
 	co := make(chan os.Signal, 1)
-	signal.Notify(co, os.Interrupt, os.Kill)
+	signal.Notify(co, os.Interrupt, os.Kill, syscall.SIGTERM)
 	<-co
 
 	hub.Close()
