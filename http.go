@@ -20,8 +20,8 @@ var hub *Scheduler
 func main() {
 	flag.Parse()
 
-	std := log.New(os.Stdout, "[Info]", log.LstdFlags)
-	err := log.New(os.Stderr, "[Scheduler]", log.LstdFlags)
+	std := log.New(os.Stdout, "[Info] ", log.LstdFlags)
+	err := log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
 
 	if *baseurl == "" {
 		err.Println("baseurl 不能为空")

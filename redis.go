@@ -12,8 +12,7 @@ import (
 var redis_host = flag.String("redis_host", "", "redis host")
 var redis_pwd = flag.String("redis_pwd", "", "redis password")
 var redis_db = flag.Int("redis_db", 0, "redis database")
-var redis_key = flag.String("redis_key", "", "redis list key name")
-var redis_encoder = flag.String("redis_encoder", "php", "data encoder name")
+var redis_key = flag.String("redis_key", "", "redis list key name. json data: {action:string, params:string}")
 var max_mem = flag.Uint64("max_mem", 128, "max memory size(MB)")
 
 func redis_init() {

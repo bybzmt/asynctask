@@ -50,15 +50,14 @@ func (w *Worker) doHttp(t Task) (status int, msg string) {
 
 func (w *Worker) log(t Task) {
 	w.s.e.Info.Printf(
-		"%s %d %s %0.3fs %0.3fs %d %s %s\n",
-		t.AddTime.Format("15:04:05"),
+		"%d %s %0.3fs %0.3fs %d %s %s\n",
 		t.Id,
 		t.job.Name,
 		t.StartTime.Sub(t.AddTime).Seconds(),
 		t.EndTime.Sub(t.StartTime).Seconds(),
 		t.Status,
-		t.Msg,
 		t.Content,
+		t.Msg,
 	)
 }
 
