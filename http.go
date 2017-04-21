@@ -26,11 +26,6 @@ func main() {
 
 	*baseurl = strings.TrimRight(*baseurl, "/")
 
-	if *baseurl == "" {
-		err.Println("baseurl 不能为空")
-		os.Exit(1)
-	}
-
 	hub = new(Scheduler).Init(*workerNum, *baseurl, std, err)
 
 	http.HandleFunc("/", page_index)
