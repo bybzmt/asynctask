@@ -29,6 +29,7 @@ type Stat struct {
 	Load    int
 	NowNum  int
 	RunNum  int
+	OldNum  int
 	WaitNum int
 	UseTime int
 }

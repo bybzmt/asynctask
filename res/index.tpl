@@ -11,6 +11,7 @@
                    <th>负载</th>
                    <th>执行中</th>
                    <th>己执行</th>
+                   <th>昨天</th>
                    <th>队列</th>
                </tr>
             </thead>
@@ -27,8 +28,9 @@
         <option selected value="2">占用</option>
         <option value="3">执行中</option>
         <option value="4">己执行</option>
-        <option value="5">队列</option>
-        <option value="6">平均时间</option>
+        <option value="5">己执行</option>
+        <option value="6">队列</option>
+        <option value="7">平均时间</option>
     </select>
     </div>
 
@@ -43,6 +45,7 @@
                <th>负载</th>
                <th>执行中</th>
                <th>己执行</th>
+               <th>昨天</th>
                <th>队列</th>
                 <th>平均时间</th>
            </tr>
@@ -65,6 +68,7 @@ function showStatus() {
         html += '<td class="load">'+(j.Load/100)+'%</td>';
         html += '<td class="now">'+j.NowNum+'</td>';
         html += '<td class="run">'+j.RunNum+'</td>';
+        html += '<td class="old">'+j.OldNum+'</td>';
         html += '<td class="wait">'+j.WaitNum+'</td>';
         html += "</tr>"
         $("#All table tbody").html(html);
@@ -78,8 +82,9 @@ function showStatus() {
             case "2": return b.Load - a.Load;
             case "3": return b.NowNum - a.NowNum;
             case "4": return b.RunNum - a.RunNum;
-            case "5": return b.WaitNum - a.WaitNum;
-            case "6": return b.UseTime - a.UseTime;
+            case "5": return b.OldNum - a.OldNum;
+            case "6": return b.WaitNum - a.WaitNum;
+            case "7": return b.UseTime - a.UseTime;
             }
         });
 
@@ -91,6 +96,7 @@ function showStatus() {
             html += '<td class="load">'+(j.Load/100)+'%</td>';
             html += '<td class="now">'+j.NowNum+'</td>';
             html += '<td class="run">'+j.RunNum+'</td>';
+            html += '<td class="old">'+j.OldNum+'</td>';
             html += '<td class="wait">'+j.WaitNum+'</td>';
             html += '<td class="time">'+(j.UseTime/1000)+'s</td>';
             html += "</tr>"

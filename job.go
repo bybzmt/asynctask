@@ -13,6 +13,7 @@ type Job struct {
 	Name string
 
 	RunNum int
+	OldNum int
 	NowNum int
 
 	Tasks list.List

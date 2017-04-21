@@ -68,6 +68,8 @@ func page_index(w http.ResponseWriter, r *http.Request) {
 }
 
 func page_task_add(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
 	name := r.FormValue("action")
 	data := r.FormValue("params")
 
@@ -78,6 +80,8 @@ func page_task_add(w http.ResponseWriter, r *http.Request) {
 }
 
 func page_status(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
 	t := hub.Status()
 
 	rs := &Result{Code: 0, Data: t}

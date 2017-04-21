@@ -26,7 +26,10 @@ type Scheduler struct {
 
 	statResp chan *Statistics
 
-	RunNum  int
+	RunNum int
+	OldNum int
+	Today  int
+
 	NowNum  int
 	WaitNum int
 
@@ -210,61 +213,87 @@ func (s *Scheduler) Run() {
 						return
 					}
 				}
-
-				//时间片统计
-				now := time.Now()
-				for _, w := range s.e.allWorkers {
-					if !w.run {
-						us := now.Sub(w.LastTime)
-						s.IdleTime += us
-						w.LastTime = now
-					}
-				}
-
-				s.LoadStat.Push(int64(s.LoadTime))
-				s.IdleStat.Push(int64(s.IdleTime))
-				s.LoadTime = 0
-				s.IdleTime = 0
-
-				s.jobs.Each(func(j *Job) {
-					j.LoadStat.Push(int64(j.LoadTime))
-					j.LoadTime = 0
-				})
+				s.statTick()
 			case 3:
-				e1 := s.LoadStat.GetAll() + s.IdleStat.GetAll()
-				all := 0
-				if e1 > 0 {
-					all = int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
-				}
-
-				t := &Statistics{}
-				t.Jobs = make([]Stat, 0, s.jobs.Len())
-				t.All.Name = "all"
-				t.All.Load = all
-				t.All.RunNum = s.RunNum
-				t.All.NowNum = s.NowNum
-				t.All.WaitNum = s.WaitNum
-
-				s.jobs.Each(func(j *Job) {
-					x := 0
-					if e1 > 0 {
-						x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
-					}
-
-					t.Jobs = append(t.Jobs, Stat{
-						Name:    j.Name,
-						Load:    x,
-						RunNum:  j.RunNum,
-						NowNum:  j.NowNum,
-						WaitNum: j.Len(),
-						UseTime: int(j.UseTimeStat.GetAll()/int64(time.Millisecond)) / len(j.UseTimeStat.data),
-					})
-				})
-
-				s.statResp <- t
+				s.getStatData()
 			}
 		}
 	}
+}
+
+func (s *Scheduler) statTick() {
+	//时间片统计
+	now := time.Now()
+
+	if s.Today == 0 {
+		s.Today = now.Day()
+	}
+
+	for _, w := range s.e.allWorkers {
+		if !w.run {
+			us := now.Sub(w.LastTime)
+			s.IdleTime += us
+			w.LastTime = now
+		}
+	}
+
+	s.LoadStat.Push(int64(s.LoadTime))
+	s.IdleStat.Push(int64(s.IdleTime))
+	s.LoadTime = 0
+	s.IdleTime = 0
+
+	s.jobs.Each(func(j *Job) {
+		j.LoadStat.Push(int64(j.LoadTime))
+		j.LoadTime = 0
+	})
+
+	if s.Today != now.Day() {
+		s.OldNum = s.RunNum
+		s.RunNum = 0
+
+		s.jobs.Each(func(j *Job) {
+			j.OldNum = j.RunNum
+			j.RunNum = 0
+		})
+
+		s.Today = now.Day()
+	}
+}
+
+func (s *Scheduler) getStatData() {
+	e1 := s.LoadStat.GetAll() + s.IdleStat.GetAll()
+	all := 0
+	if e1 > 0 {
+		all = int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
+	}
+
+	t := &Statistics{}
+	t.Jobs = make([]Stat, 0, s.jobs.Len())
+	t.All.Name = "all"
+	t.All.Load = all
+	t.All.RunNum = s.RunNum
+	t.All.OldNum = s.OldNum
+	t.All.NowNum = s.NowNum
+	t.All.WaitNum = s.WaitNum
+
+	s.jobs.Each(func(j *Job) {
+		x := 0
+		if e1 > 0 {
+			x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
+		}
+
+		t.Jobs = append(t.Jobs, Stat{
+			Name:    j.Name,
+			Load:    x,
+			RunNum:  j.RunNum,
+			OldNum:  j.OldNum,
+			NowNum:  j.NowNum,
+			WaitNum: j.Len(),
+			UseTime: int(j.UseTimeStat.GetAll()/int64(time.Millisecond)) / len(j.UseTimeStat.data),
+		})
+	})
+
+	s.statResp <- t
 }
 
 func (s *Scheduler) Close() {
