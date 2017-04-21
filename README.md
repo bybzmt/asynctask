@@ -57,3 +57,6 @@ Usage of ./asynctask:
 * 任务都必需是POST请求！
 * 推荐使用redis来添加任务！
 
+## 监控页截图
+
+![监控页截图](https://raw.githubusercontent.com/bybzmt/asynctask/master/testtools/screenshot.gif)
