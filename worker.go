@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
+	"net/http"
 )
 
 type Worker struct {
@@ -25,12 +26,32 @@ func (w *Worker) Init(id int, s *Scheduler) *Worker {
 }
 
 func (w *Worker) doHttp(t *Task) (status int, msg string) {
+	var url string
 
-	resp, err := w.s.e.Client.Post(
-		w.s.e.BaseUrl+"/"+t.job.Name,
-		"application/x-www-form-urlencoded",
-		strings.NewReader(t.Content),
-	)
+	if strings.HasPrefix(t.job.Name, "http") {
+		url = t.job.Name
+	} else {
+		url = w.s.e.BaseUrl+"/"+strings.TrimLeft(t.job.Name, "/")
+	}
+
+	var resp *http.Response
+	var err error
+
+	if t.job.Method == "GET" {
+		if strings.IndexByte(url, '?') == -1 {
+			url = url + "?" + t.Content
+		} else {
+			url = url + "&" + t.Content
+		}
+
+		resp, err = w.s.e.Client.Get(url)
+	} else {
+		resp, err = w.s.e.Client.Post(
+			url,
+			"application/x-www-form-urlencoded",
+			strings.NewReader(t.Content),
+		)
+	}
 
 	if err != nil {
 		status = -1

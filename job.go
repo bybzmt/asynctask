@@ -10,6 +10,7 @@ type Job struct {
 
 	next, prev *Job
 
+	Method string
 	Name string
 
 	RunNum int
@@ -25,7 +26,8 @@ type Job struct {
 	UseTimeStat StatRow
 }
 
-func (j *Job) Init(name string, s *Scheduler) *Job {
+func (j *Job) Init(method, name string, s *Scheduler) *Job {
+	j.Method = method
 	j.Name = name
 	j.Tasks.Init()
 	j.s = s

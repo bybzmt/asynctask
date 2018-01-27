@@ -8,27 +8,28 @@ import (
 
 var dbfile = flag.String("dbfile", "./asynctask.db", "storage file")
 
-type StorageRow struct {
-	Name     string
-	Contents []string
+func (s *Scheduler) saveTask() {
+	s.e.Log.Println("saving tasks...")
+	s.saveToFile()
+	s.e.Log.Println("saving tasks complete")
 }
 
 func (s *Scheduler) saveToFile() {
-	rows := make([]StorageRow, 0, s.jobs.Len())
+	rows := make([]Order, 0, s.WaitNum)
 
 	s.jobs.Each(func(j *Job) {
 		if j.Len() > 0 {
-			row := StorageRow{}
-			row.Name = j.Name
-			row.Contents = make([]string, 0, j.Len())
-
 			ele := j.Tasks.Front()
 			for ele != nil {
-				row.Contents = append(row.Contents, ele.Value.(*Task).Content)
+				row := Order{}
+				row.Method = j.Method
+				row.Name = j.Name
+				row.Content = ele.Value.(*Task).Content
+
+				rows = append(rows, row)
+
 				ele = ele.Next()
 			}
-
-			rows = append(rows, row)
 		}
 	})
 
@@ -58,7 +59,7 @@ func (s *Scheduler) restoreFromFile() {
 	}
 	defer f.Close()
 
-	rows := []StorageRow{}
+	rows := []Order{}
 
 	de := gob.NewDecoder(f)
 	err = de.Decode(&rows)
@@ -67,9 +68,7 @@ func (s *Scheduler) restoreFromFile() {
 	}
 
 	for _, row := range rows {
-		for _, Content := range row.Contents {
-			s.AddOrder(row.Name, Content)
-		}
+		s.AddOrder(row.Method, row.Name, row.Content)
 	}
 
 	s.e.Log.Println("restore From File complete")

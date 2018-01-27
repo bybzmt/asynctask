@@ -105,10 +105,16 @@ func ts_addTask(hub *Scheduler) {
 		ac := "ac" + strconv.Itoa(an)
 		sl := ts_actions[ac]
 		sl = ts_getRand() % sl
+		var method string
+		if ts_getRand() % 5 == 0 {
+			method = "GET"
+		} else {
+			method = "POST"
+		}
 
 		data := "code=200&sleep=" + strconv.Itoa(sl)
 
-		hub.AddOrder(ac, data)
+		hub.AddOrder(method, ac, data)
 	}
 
 	go func() {

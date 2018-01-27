@@ -20,18 +20,19 @@ func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 	return js
 }
 
-func (js *Jobs) getJob(name string) *Job {
+func (js *Jobs) getJob(method, name string) *Job {
 	var j *Job
+	var jobname = method + " " + name
 
-	ji, ok := js.all.Get(name)
+	ji, ok := js.all.Get(jobname)
 	if ok {
 		j, ok = ji.(*Job)
 		if !ok {
 			panic("getJob err")
 		}
 	} else {
-		j = new(Job).Init(name, js.s)
-		js.all.Add(name, j)
+		j = new(Job).Init(method, name, js.s)
+		js.all.Add(jobname, j)
 	}
 
 	return j

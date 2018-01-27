@@ -70,10 +70,11 @@ func page_index(w http.ResponseWriter, r *http.Request) {
 func page_task_add(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 
+	method := r.FormValue("method")
 	name := r.FormValue("action")
 	data := r.FormValue("params")
 
-	hub.AddOrder(name, data)
+	hub.AddOrder(method, name, data)
 
 	rs := &Result{Code: 0, Data: "ok"}
 	json.NewEncoder(w).Encode(rs)

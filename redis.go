@@ -60,7 +60,7 @@ func redis_init() {
 				hub.e.Log.Println("redis data Unmarshal error:", err.Error())
 			}
 
-			hub.AddOrder(o.Name, o.Content)
+			hub.AddOrder(o.Method, o.Name, o.Content)
 		}
 	}
 }

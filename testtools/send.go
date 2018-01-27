@@ -18,8 +18,8 @@ var ts_actions = []int{
 	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
 	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
 	200, 230, 240, 270,
-	//300, 350, 400, 500,
-	//1000, 3000,
+	300, 350, 400, 500,
+	1000, 3000,
 	//6000,
 	//10000,
 }
@@ -47,14 +47,24 @@ func main() {
 
 		an := ts_getRand() % len(ts_actions)
 		sl := ts_actions[an]
-		ac := "ac" + strconv.Itoa(sl)
-		sl = ts_getRand() % sl
+		ac := "/ac" + strconv.Itoa(sl) + "_" + strconv.Itoa(i)
+		tmp := ts_getRand()
+		sl = tmp % sl
+
+
 
 		p := url.Values{}
 		p.Add("code", "200")
 		p.Add("sleep", strconv.Itoa(sl))
 
 		v := url.Values{}
+
+		if tmp % 10 == 0 {
+			v.Add("method", "GET")
+		} else {
+			v.Add("method", "POST")
+		}
+
 		v.Add("action", ac)
 		v.Add("params", p.Encode())
 
