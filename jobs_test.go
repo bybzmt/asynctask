@@ -3,35 +3,38 @@ package main
 import (
 	"fmt"
 	"testing"
+	"log"
+	"os"
+	"time"
 )
 
 func TestList(t *testing.T) {
-	s := &Scheduler{}
-	js := &Jobs{}
-	js.Init(10, s)
+	std := log.New(os.Stdout, "[Info] ", log.LstdFlags)
+	err := log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
 
-	a := &Job{Name: "a1"}
-	js.PushBack(a)
-	fmt.Println("size", js.Len())
+	hub = new(Scheduler).Init(10, "", std, err)
 
-	b := &Job{Name: "a2"}
-	js.PushBack(b)
-	fmt.Println("size", js.Len())
+	js := &hub.jobs
 
-	c := &Job{Name: "a3"}
-	js.PushBack(c)
-	fmt.Println("size", js.Len())
+	a := &Order{Method:"GET", Name: "a1"}
+	js.AddTask(a)
+
+	b := &Order{Method:"GET", Name: "a2"}
+	js.AddTask(b)
+
+	c := &Order{Method:"GET", Name: "a3"}
+	js.AddTask(c)
+
+	now := time.Now()
+
+	js.GetTask(now);
+	js.GetTask(now);
+	js.GetTask(now);
 
 	fmt.Println(js)
-	js.MoveBefore(c, a)
 
-	fmt.Println(js)
-
-	js.Remove(b)
-	js.Remove(a)
-	js.Remove(c)
-
-	if js.Len() != 0 {
-		t.Fatal("jobs list size err")
+	if js.HasTask() {
+		t.Fatal("jobs list err")
 	}
+
 }

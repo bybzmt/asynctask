@@ -36,13 +36,23 @@ func (j *Job) Init(method, name string, s *Scheduler) *Job {
 	return j
 }
 
-func (j *Job) AddTask(t *Task) {
+func (j *Job) AddTask(content string) {
+
+	j.s.jobs.taskId++
+
+	t := &Task{
+		job:     j,
+		Id:      j.s.jobs.taskId,
+		Content: content,
+		AddTime: time.Now(),
+	}
+
 	t.job = j
 
 	j.Tasks.PushBack(t)
 }
 
-func (j *Job) PopTask() *Task {
+func (j *Job) PopTask(now time.Time) *Task {
 	e := j.Tasks.Front()
 	if e == nil {
 		panic("PopTask empty")
@@ -53,6 +63,11 @@ func (j *Job) PopTask() *Task {
 	if !ok {
 		panic("PopTask err")
 	}
+
+	//任务状态
+	j.LastTime = now
+	j.NowNum++
+	j.RunNum++
 
 	return t
 }

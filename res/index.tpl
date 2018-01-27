@@ -79,12 +79,12 @@ function showStatus() {
             switch (sortby) {
             case "0": return a.Name.localeCompare(b.Name)
             case "1": return b.Name.localeCompare(a.Name)
-            case "2": return b.Load - a.Load;
-            case "3": return b.NowNum - a.NowNum;
-            case "4": return b.RunNum - a.RunNum;
-            case "5": return b.OldNum - a.OldNum;
-            case "6": return b.WaitNum - a.WaitNum;
-            case "7": return b.UseTime - a.UseTime;
+            case "2": return (b.Load != a.Load) ? b.Load - a.Load : a.Name.localeCompare(b.Name);
+            case "3": return (b.NowNum != a.NowNum) ? b.NowNum - a.NowNum : a.Name.localeCompare(b.Name);
+            case "4": return (b.RunNum != a.RunNum) ? b.RunNum - a.RunNum : a.Name.localeCompare(b.Name);
+            case "5": return (b.RunNum != a.RunNum) ? b.OldNum - a.OldNum : a.Name.localeCompare(b.Name);
+            case "6": return (b.WaitNum != a.WaitNum) ? b.WaitNum - a.WaitNum : a.Name.localeCompare(b.Name);
+            case "7": return (b.UseTime != a.UseTime) ? b.UseTime - a.UseTime : a.Name.localeCompare(b.Name);
             }
         });
 

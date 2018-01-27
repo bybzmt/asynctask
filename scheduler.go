@@ -44,14 +44,14 @@ type Scheduler struct {
 func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *Scheduler {
 	s.e = new(Environment).Init(workerNum, baseurl, out, err)
 	s.e.StatTick = time.Second * 1
-	s.e.StatSize = 60
+	s.e.StatSize = 30
 
 	s.order = make(chan *Order)
 	s.complete = make(chan *Task)
 	s.cmd = make(chan int)
 	s.statResp = make(chan *Statistics)
 
-	s.jobs.Init(200, s)
+	s.jobs.Init(100, s)
 
 	s.workers = list.New()
 
@@ -87,33 +87,14 @@ func (s *Scheduler) AddOrder(method, name, content string) bool {
 }
 
 func (s *Scheduler) addTask(o *Order) {
-	j := s.jobs.getJob(o.Method, o.Name)
-
+	s.jobs.AddTask(o)
 	s.WaitNum++
-	s.jobs.taskId++
-
-	t := &Task{
-		job:     j,
-		Id:      s.jobs.taskId,
-		Content: o.Content,
-		AddTime: time.Now(),
-	}
-
-	j.AddTask(t)
-
-	if j.Len() == 1 {
-		s.jobs.PushBack(j)
-	}
-
-	s.jobs.Priority(j)
 }
 
 func (s *Scheduler) dispatch() {
-	j := s.jobs.GetTaskJob()
-
-	t := j.PopTask()
-
 	now := time.Now()
+
+	t := s.jobs.GetTask(now)
 
 	//得到工人
 	ew := s.workers.Front()
@@ -128,17 +109,6 @@ func (s *Scheduler) dispatch() {
 	s.RunNum++
 	s.WaitNum--
 	s.IdleTime += us
-
-	//任务状态
-	j.LastTime = now
-	j.NowNum++
-	j.RunNum++
-
-	if j.Len() < 1 {
-		s.jobs.Remove(j)
-	} else {
-		s.jobs.Priority(j)
-	}
 
 	//分配任务
 	t.worker = w
@@ -160,7 +130,6 @@ func (s *Scheduler) end(t *Task) {
 	s.NowNum--
 	s.LoadTime += us
 	s.workers.PushBack(t.worker)
-	s.jobs.Priority(t.job)
 }
 
 func (s *Scheduler) Run() {

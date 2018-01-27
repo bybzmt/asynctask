@@ -19,7 +19,8 @@ var ts_actions = []int{
 	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
 	200, 230, 240, 270,
 	300, 350, 400, 500,
-	1000, 3000,
+	//1000,
+	3000,
 	//6000,
 	//10000,
 }
@@ -47,7 +48,7 @@ func main() {
 
 		an := ts_getRand() % len(ts_actions)
 		sl := ts_actions[an]
-		ac := "/ac" + strconv.Itoa(sl) + "_" + strconv.Itoa(i)
+		ac := "/ac" + strconv.Itoa(sl)
 		tmp := ts_getRand()
 		sl = tmp % sl
 
@@ -58,6 +59,10 @@ func main() {
 		p.Add("sleep", strconv.Itoa(sl))
 
 		v := url.Values{}
+
+		if tmp % 13 == 0 {
+			//ac = "http://127.0.0.1:8081" + ac
+		}
 
 		if tmp % 10 == 0 {
 			v.Add("method", "GET")
