@@ -26,7 +26,9 @@ func main() {
 
 	*baseurl = strings.TrimRight(*baseurl, "/")
 
-	hub = new(Scheduler).Init(*workerNum, *baseurl, std, err)
+	env := new(Environment).Init(*workerNum, *baseurl, std, err)
+
+	hub = new(Scheduler).Init(env)
 
 	http.HandleFunc("/", page_index)
 	http.HandleFunc("/status", page_status)

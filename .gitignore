@@ -1,6 +1,5 @@
 #代码临时目录
-lib/pkg/
-lib/bin/
+lib/
 
 asynctask
 asynctask.db

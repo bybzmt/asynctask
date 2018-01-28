@@ -33,7 +33,6 @@ var ts_close chan bool
 var ts_rand = make(chan int, 100)
 
 func TestScheduler(t *testing.T) {
-	return
 	l, addr, err := ts_Listen()
 	if err != nil {
 		t.Fatal("listen error")
@@ -46,14 +45,15 @@ func TestScheduler(t *testing.T) {
 
 	go ts_server(l)
 
-	baseurl := "http://127.0.0.1:" + addr + "/test/"
+	baseurl := "http://127.0.0.1:" + addr + "/test"
 
 	log.Println("baseurl:", baseurl)
 
-	hub = new(Scheduler).Init(10, baseurl, nil, nil)
+	env := new(Environment).Init(10, baseurl, nil, nil)
+	hub := new(Scheduler).Init(env)
 
 	go ts_initRand()
-	go ts_addTask(hub)
+	go ts_addTask(hub, baseurl)
 
 	hub.Run()
 	l.Close()
@@ -98,7 +98,7 @@ func ts_server(l net.Listener) {
 	s.Serve(l)
 }
 
-func ts_addTask(hub *Scheduler) {
+func ts_addTask(hub *Scheduler, baseurl string) {
 	time.Sleep(10 * time.Millisecond)
 
 	for i := 0; i < ts_action_num; i++ {
@@ -107,10 +107,17 @@ func ts_addTask(hub *Scheduler) {
 		sl := ts_actions[ac]
 		sl = ts_getRand() % sl
 		var method string
-		if ts_getRand() % 5 == 0 {
+
+		if ts_getRand() % 3 == 0 {
 			method = "GET"
 		} else {
 			method = "POST"
+		}
+
+		if ts_getRand() % 3 == 0 {
+			ac = baseurl + ac
+		} else {
+			ac = "/" + ac
 		}
 
 		data := "code=200&sleep=" + strconv.Itoa(sl)

@@ -45,18 +45,19 @@ Usage of ./asynctask:
 ----------| -------
 /         | 服务运行状态监控页面
 /status   | 监控状态json数据
-/task/add | 添加任务接口 参数: action 任务连接, params 任务参数
+/task/add | 添加任务接口 参数: method 请求方式 action 任务连接, params 任务参数
 
 
 ## redis接口
 可以配置好redis相关设置, 程序会从redis list中获取任务.
 
-任务要求用json格式:`{action:'请求地址', 'params':'请求参数字符串'}`
+任务要求用json格式:`{method:'请求方式', action:'请求地址', 'params':'请求参数字符串'}`
+
 
 ## 注意
 
 * 注意params参数格式为a=1&b=2&c=3。需要使用url编码
-* 任务都必需是POST请求！
+* method必需是`GET`或`POST`
 * 推荐使用redis来添加任务！
 
 ## 监控页截图

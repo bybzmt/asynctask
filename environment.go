@@ -5,21 +5,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
 type Environment struct {
-	l sync.Mutex
-
 	WorkerNum int
 	BaseUrl   string
 	Log       *log.Logger
 	Info      *log.Logger
 	Client    *http.Client
 	timeout   time.Duration
-
-	allWorkers []*Worker
 
 	//统计周期
 	StatTick time.Duration

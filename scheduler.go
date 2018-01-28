@@ -2,7 +2,6 @@ package main
 
 import (
 	"container/list"
-	"log"
 	"strings"
 	"time"
 )
@@ -16,6 +15,9 @@ type Order struct {
 type Scheduler struct {
 	e *Environment
 
+	//所有工作进程
+	allWorkers []*Worker
+	//空闲工作进程
 	workers *list.List
 
 	jobs Jobs
@@ -41,8 +43,8 @@ type Scheduler struct {
 	IdleStat StatRow
 }
 
-func (s *Scheduler) Init(workerNum int, baseurl string, out, err *log.Logger) *Scheduler {
-	s.e = new(Environment).Init(workerNum, baseurl, out, err)
+func (s *Scheduler) Init(env *Environment) *Scheduler {
+	s.e = env
 	s.e.StatTick = time.Second * 1
 	s.e.StatSize = 30
 
@@ -117,8 +119,7 @@ func (s *Scheduler) dispatch() {
 }
 
 func (s *Scheduler) end(t *Task) {
-	now := time.Now()
-	t.worker.LastTime = now
+	t.worker.LastTime = t.EndTime
 	t.worker.run = false
 
 	us := t.EndTime.Sub(t.StartTime)
@@ -137,7 +138,7 @@ func (s *Scheduler) Run() {
 
 	for i := 1; i <= s.e.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
-		s.e.allWorkers = append(s.e.allWorkers, w)
+		s.allWorkers = append(s.allWorkers, w)
 		w.LastTime = time.Now()
 		s.workers.PushBack(w)
 		go w.Run()
@@ -204,7 +205,7 @@ func (s *Scheduler) statTick() {
 		s.Today = now.Day()
 	}
 
-	for _, w := range s.e.allWorkers {
+	for _, w := range s.allWorkers {
 		if !w.run {
 			us := now.Sub(w.LastTime)
 			s.IdleTime += us
@@ -237,9 +238,6 @@ func (s *Scheduler) statTick() {
 
 func (s *Scheduler) Close() {
 	s.cmd <- 1
-}
-
-func (s *Scheduler) WaitClosed() {
 }
 
 

@@ -12,7 +12,8 @@ func TestList(t *testing.T) {
 	std := log.New(os.Stdout, "[Info] ", log.LstdFlags)
 	err := log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
 
-	hub = new(Scheduler).Init(10, "", std, err)
+	env := new(Environment).Init(10, "", std, err)
+	hub := new(Scheduler).Init(env)
 
 	js := &hub.jobs
 
