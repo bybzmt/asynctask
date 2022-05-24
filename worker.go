@@ -2,9 +2,9 @@ package main
 
 import (
 	"io/ioutil"
+	"net/http"
 	"strings"
 	"time"
-	"net/http"
 )
 
 type Worker struct {
@@ -28,30 +28,18 @@ func (w *Worker) Init(id int, s *Scheduler) *Worker {
 func (w *Worker) doHttp(t *Task) (status int, msg string) {
 	var url string
 
-	if strings.HasPrefix(t.job.Name, "http") {
-		url = t.job.Name
-	} else {
-		url = w.s.e.BaseUrl+"/"+strings.TrimLeft(t.job.Name, "/")
-	}
+	url = w.s.e.BaseUrl + t.job.Name
 
 	var resp *http.Response
 	var err error
 
-	if t.job.Method == "GET" {
-		if strings.IndexByte(url, '?') == -1 {
-			url = url + "?" + t.Content
-		} else {
-			url = url + "&" + t.Content
-		}
-
-		resp, err = w.s.e.Client.Get(url)
+	if strings.IndexByte(url, '?') == -1 {
+		url = url + "?" + strings.Join(t.Params, "&")
 	} else {
-		resp, err = w.s.e.Client.Post(
-			url,
-			"application/x-www-form-urlencoded",
-			strings.NewReader(t.Content),
-		)
+		url = url + "&" + strings.Join(t.Params, "&")
 	}
+
+	resp, err = w.s.e.Client.Get(url)
 
 	if err != nil {
 		status = -1
@@ -77,7 +65,7 @@ func (w *Worker) log(t *Task) {
 		t.StartTime.Sub(t.AddTime).Seconds(),
 		t.EndTime.Sub(t.StartTime).Seconds(),
 		t.Status,
-		t.Content,
+		strings.Join(t.Params, " "),
 		t.Msg,
 	)
 }

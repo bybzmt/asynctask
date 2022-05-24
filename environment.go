@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -23,7 +22,7 @@ type Environment struct {
 
 func (a *Environment) Init(workerNum int, baseurl string, out, err *log.Logger) *Environment {
 	a.WorkerNum = workerNum
-	a.BaseUrl = strings.TrimRight(baseurl, "/")
+	a.BaseUrl = baseurl
 
 	if out == nil {
 		out = log.New(os.Stdout, "[Info] ", log.Ldate)

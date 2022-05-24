@@ -1,6 +1,6 @@
 package main
 
-import(
+import (
 	"time"
 )
 
@@ -72,7 +72,7 @@ func (s *Scheduler) getStatData() {
 		}
 
 		t.Jobs = append(t.Jobs, Stat{
-			Name:    j.Method + " " + j.Name,
+			Name:    j.Name,
 			Load:    x,
 			RunNum:  j.RunNum,
 			OldNum:  j.OldNum,
@@ -84,4 +84,3 @@ func (s *Scheduler) getStatData() {
 
 	s.statResp <- t
 }
-

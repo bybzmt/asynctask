@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"github.com/go-redis/redis"
 	"runtime"
 	"time"
+
+	"github.com/go-redis/redis"
 )
 
 var redis_host = flag.String("redis_host", "", "redis host")
@@ -60,7 +61,7 @@ func redis_init() {
 				hub.e.Log.Println("redis data Unmarshal error:", err.Error())
 			}
 
-			hub.AddOrder(o.Method, o.Name, o.Content)
+			hub.AddOrder(&o)
 		}
 	}
 }

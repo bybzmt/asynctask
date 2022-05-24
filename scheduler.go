@@ -7,9 +7,10 @@ import (
 )
 
 type Order struct {
-	Method  string `json:"method"`
-	Name    string `json:"action"`
-	Content string `json:"params"`
+	Id      uint32
+	Task    string
+	Params  []string
+	AddTime int64
 }
 
 type Scheduler struct {
@@ -63,24 +64,14 @@ func (s *Scheduler) Init(env *Environment) *Scheduler {
 	return s
 }
 
-func (s *Scheduler) AddOrder(method, name, content string) bool {
+func (s *Scheduler) AddOrder(o *Order) bool {
 	if !s.running {
 		return false
 	}
 
-	if method != "GET" && method != "POST" {
+	o.Task = strings.Trim(o.Task, " ")
+	if o.Task == "" {
 		return false
-	}
-
-	name = strings.Trim(name, " ")
-	if name == "" {
-		return false
-	}
-
-	o := &Order{
-		Method:  method,
-		Name:    name,
-		Content: content,
 	}
 
 	s.order <- o
@@ -239,5 +230,3 @@ func (s *Scheduler) statTick() {
 func (s *Scheduler) Close() {
 	s.cmd <- 1
 }
-
-

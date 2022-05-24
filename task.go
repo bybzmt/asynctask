@@ -8,10 +8,10 @@ type Task struct {
 	job    *Job
 	worker *Worker
 
-	Id      int
-	Content string
-	Status  int
-	Msg     string
+	Id     uint32
+	Params []string
+	Status int
+	Msg    string
 
 	AddTime   time.Time
 	StartTime time.Time

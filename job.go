@@ -10,7 +10,6 @@ type Job struct {
 
 	next, prev *Job
 
-	Method string
 	Name string
 
 	RunNum int
@@ -26,8 +25,7 @@ type Job struct {
 	UseTimeStat StatRow
 }
 
-func (j *Job) Init(method, name string, s *Scheduler) *Job {
-	j.Method = method
+func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.Name = name
 	j.Tasks.Init()
 	j.s = s
@@ -36,18 +34,16 @@ func (j *Job) Init(method, name string, s *Scheduler) *Job {
 	return j
 }
 
-func (j *Job) AddTask(content string) {
+func (j *Job) AddTask(o *Order) {
 
 	j.s.jobs.taskId++
 
 	t := &Task{
 		job:     j,
-		Id:      j.s.jobs.taskId,
-		Content: content,
-		AddTime: time.Now(),
+		Id:      o.Id,
+		Params:  o.Params,
+		AddTime: time.Unix(int64(o.AddTime), 0),
 	}
-
-	t.job = j
 
 	j.Tasks.PushBack(t)
 }

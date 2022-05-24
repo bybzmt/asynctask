@@ -13,7 +13,7 @@ type Jobs struct {
 
 	idleMax int
 	idleLen int
-	idle *Job
+	idle    *Job
 
 	root *Job
 }
@@ -21,7 +21,7 @@ type Jobs struct {
 func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 	js.idleMax = max
 
-	js.all = make(map[string]*Job, max * 2)
+	js.all = make(map[string]*Job, max*2)
 
 	js.idle = &Job{}
 	js.idle.next = js.idle
@@ -36,12 +36,10 @@ func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 }
 
 func (js *Jobs) AddTask(o *Order) {
-	var jobname = o.Method + " " + o.Name
-
-	j, ok := js.all[jobname]
+	j, ok := js.all[o.Task]
 	if !ok {
-		j = new(Job).Init(o.Method, o.Name, js.s)
-		js.all[jobname] = j
+		j = new(Job).Init(o.Task, js.s)
+		js.all[o.Task] = j
 
 		//添加到idle链表
 		js.idlePushBack(j)
@@ -54,7 +52,7 @@ func (js *Jobs) AddTask(o *Order) {
 		js.pushBack(j)
 	}
 
-	j.AddTask(o.Content)
+	j.AddTask(o)
 
 	js.Priority(j)
 }
@@ -77,7 +75,7 @@ func (js *Jobs) GetTask(now time.Time) *Task {
 			j := js.idleFront()
 			if j != nil {
 				js.idleRmove(j)
-				delete(js.all, j.Method + " " + j.Name)
+				delete(js.all, j.Name)
 			}
 		}
 	} else {

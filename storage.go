@@ -22,9 +22,8 @@ func (s *Scheduler) saveToFile() {
 			ele := j.Tasks.Front()
 			for ele != nil {
 				row := Order{}
-				row.Method = j.Method
-				row.Name = j.Name
-				row.Content = ele.Value.(*Task).Content
+				row.Task = j.Name
+				row.Params = ele.Value.(*Task).Params
 
 				rows = append(rows, row)
 
@@ -68,7 +67,7 @@ func (s *Scheduler) restoreFromFile() {
 	}
 
 	for _, row := range rows {
-		s.AddOrder(row.Method, row.Name, row.Content)
+		s.AddOrder(&row)
 	}
 
 	s.e.Log.Println("restore From File complete")
