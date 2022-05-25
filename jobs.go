@@ -36,10 +36,10 @@ func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 }
 
 func (js *Jobs) AddTask(o *Order) {
-	j, ok := js.all[o.Task]
+	j, ok := js.all[o.Name]
 	if !ok {
-		j = new(Job).Init(o.Task, js.s)
-		js.all[o.Task] = j
+		j = new(Job).Init(o.Name, js.s)
+		js.all[o.Name] = j
 
 		//添加到idle链表
 		js.idlePushBack(j)

@@ -2,16 +2,13 @@ package main
 
 import (
 	"encoding/gob"
-	"flag"
 	"os"
 )
 
-var dbfile = flag.String("dbfile", "./asynctask.db", "storage file")
-
 func (s *Scheduler) saveTask() {
-	s.e.Log.Println("saving tasks...")
+	s.e.Log.Println("[Info] saving tasks...")
 	s.saveToFile()
-	s.e.Log.Println("saving tasks complete")
+	s.e.Log.Println("[Info] saving tasks complete")
 }
 
 func (s *Scheduler) saveToFile() {
@@ -22,7 +19,7 @@ func (s *Scheduler) saveToFile() {
 			ele := j.Tasks.Front()
 			for ele != nil {
 				row := Order{}
-				row.Task = j.Name
+				row.Name = j.Name
 				row.Params = ele.Value.(*Task).Params
 
 				rows = append(rows, row)
@@ -46,12 +43,12 @@ func (s *Scheduler) saveToFile() {
 }
 
 func (s *Scheduler) restoreFromFile() {
-	s.e.Log.Println("restore From File")
+	s.e.Log.Println("[Info] restore From File")
 
 	f, err := os.Open(*dbfile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.e.Log.Println("not have storaged file")
+			s.e.Log.Println("[Info] not have storaged file")
 			return
 		}
 		panic(err)
@@ -70,5 +67,5 @@ func (s *Scheduler) restoreFromFile() {
 		s.AddOrder(&row)
 	}
 
-	s.e.Log.Println("restore From File complete")
+	s.e.Log.Println("[Info] restore From File complete")
 }

@@ -3,38 +3,38 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 	"time"
 )
 
+const (
+	MODE_CMD  Mode = 1
+	MODE_HTTP Mode = 2
+)
+
+type Mode int
+
 type Environment struct {
 	WorkerNum int
-	BaseUrl   string
-	Log       *log.Logger
-	Info      *log.Logger
-	Client    *http.Client
-	timeout   time.Duration
+	Base      string
+	Mode      Mode
+
+	Log *log.Logger
+
+	Client  *http.Client
+	Timeout time.Duration
 
 	//统计周期
 	StatTick time.Duration
 	StatSize int
 }
 
-func (a *Environment) Init(workerNum int, baseurl string, out, err *log.Logger) *Environment {
+func (a *Environment) Init(workerNum int, base string, timeout int, out *log.Logger) *Environment {
 	a.WorkerNum = workerNum
-	a.BaseUrl = baseurl
+	a.Base = base
 
-	if out == nil {
-		out = log.New(os.Stdout, "[Info] ", log.Ldate)
-	}
-	if err == nil {
-		err = log.New(os.Stderr, "[Scheduler] ", log.LstdFlags)
-	}
+	a.Log = out
 
-	a.Info = out
-	a.Log = err
-
-	a.timeout = time.Second * 300
+	a.Timeout = time.Second * time.Duration(timeout)
 
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: a.WorkerNum,
@@ -42,7 +42,7 @@ func (a *Environment) Init(workerNum int, baseurl string, out, err *log.Logger) 
 
 	a.Client = &http.Client{
 		Transport: tr,
-		Timeout:   a.timeout,
+		Timeout:   a.Timeout,
 	}
 
 	return a

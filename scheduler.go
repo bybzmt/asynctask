@@ -7,10 +7,10 @@ import (
 )
 
 type Order struct {
-	Id      uint32
-	Task    string
-	Params  []string
-	AddTime int64
+	Id      uint32   `json:"id"`
+	Name    string   `json:"name"`
+	Params  []string `json:"params"`
+	AddTime int64    `json:"add_time"`
 }
 
 type Scheduler struct {
@@ -69,8 +69,8 @@ func (s *Scheduler) AddOrder(o *Order) bool {
 		return false
 	}
 
-	o.Task = strings.Trim(o.Task, " ")
-	if o.Task == "" {
+	o.Name = strings.TrimSpace(o.Name)
+	if o.Name == "" {
 		return false
 	}
 
@@ -125,7 +125,7 @@ func (s *Scheduler) end(t *Task) {
 }
 
 func (s *Scheduler) Run() {
-	s.e.Log.Println("running")
+	s.e.Log.Println("[Info] running")
 
 	for i := 1; i <= s.e.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
@@ -161,7 +161,7 @@ func (s *Scheduler) Run() {
 				}
 			} else {
 				if s.workers.Len() == s.e.WorkerNum {
-					s.e.Log.Println("all workers closed")
+					s.e.Log.Println("[Info] all workers closed")
 					return
 				}
 			}
@@ -171,12 +171,12 @@ func (s *Scheduler) Run() {
 				//关闭
 				s.running = false
 
-				s.e.Log.Println("closing...")
+				s.e.Log.Println("[Info] closing...")
 				s.saveTask()
 			case 2:
 				if !s.running {
 					if s.workers.Len() == s.e.WorkerNum {
-						s.e.Log.Println("all workers closed")
+						s.e.Log.Println("[Info] all workers closed")
 						return
 					}
 				}
