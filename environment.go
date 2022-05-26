@@ -16,6 +16,7 @@ type Mode int
 type Environment struct {
 	WorkerNum int
 	Base      string
+	DbFile    string
 	Mode      Mode
 
 	Log *log.Logger

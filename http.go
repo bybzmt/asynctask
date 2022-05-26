@@ -67,6 +67,7 @@ func main() {
 	}
 
 	env := new(Environment).Init(*workerNum, *base, *timeout, logger)
+	env.DbFile = *dbfile
 
 	if *mode == "cmd" {
 		env.Mode = MODE_CMD

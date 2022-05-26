@@ -49,7 +49,11 @@ func TestScheduler(t *testing.T) {
 
 	log.Println("baseurl:", baseurl)
 
-	env := new(Environment).Init(10, baseurl, nil, nil)
+	logger := log.Default()
+
+	env := new(Environment).Init(10, baseurl, 10, logger)
+	env.DbFile = "./asynctask.db"
+
 	hub := new(Scheduler).Init(env)
 
 	go ts_initRand()
@@ -106,15 +110,8 @@ func ts_addTask(hub *Scheduler, baseurl string) {
 		ac := "ac" + strconv.Itoa(an)
 		sl := ts_actions[ac]
 		sl = ts_getRand() % sl
-		var method string
 
-		if ts_getRand() % 3 == 0 {
-			method = "GET"
-		} else {
-			method = "POST"
-		}
-
-		if ts_getRand() % 3 == 0 {
+		if ts_getRand()%3 == 0 {
 			ac = baseurl + ac
 		} else {
 			ac = "/" + ac
@@ -122,7 +119,12 @@ func ts_addTask(hub *Scheduler, baseurl string) {
 
 		data := "code=200&sleep=" + strconv.Itoa(sl)
 
-		hub.AddOrder(method, ac, data)
+		o := Order{
+			Name:   ac,
+			Params: []string{data},
+		}
+
+		hub.AddOrder(&o)
 	}
 
 	go func() {

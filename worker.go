@@ -113,6 +113,11 @@ type TaskLog struct {
 
 func (w *Worker) log(t *Task) {
 
+	var waitTime float64 = 0
+	if t.AddTime.Unix() > 0 {
+		waitTime = t.StartTime.Sub(t.AddTime).Seconds()
+	}
+
 	d := TaskLog{
 		Params: t.Params,
 		Output: t.Msg,
@@ -125,7 +130,7 @@ func (w *Worker) log(t *Task) {
 		t.Id,
 		t.job.Name,
 		t.Status,
-		t.StartTime.Sub(t.AddTime).Seconds(),
+		waitTime,
 		t.EndTime.Sub(t.StartTime).Seconds(),
 		msg,
 	)
