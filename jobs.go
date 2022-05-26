@@ -14,6 +14,7 @@ type Jobs struct {
 	idleMax int
 	idleLen int
 	idle    *Job
+	block   *Job
 
 	root *Job
 }
@@ -26,6 +27,10 @@ func (js *Jobs) Init(max int, s *Scheduler) *Jobs {
 	js.idle = &Job{}
 	js.idle.next = js.idle
 	js.idle.prev = js.idle
+
+	js.block = &Job{}
+	js.block.next = js.block
+	js.block.prev = js.block
 
 	js.root = &Job{}
 	js.root.next = js.root
@@ -45,10 +50,9 @@ func (js *Jobs) AddTask(o *Order) {
 		js.idlePushBack(j)
 	}
 
-	if j.Len() == 0 {
-		//从idle移除
+	//从idle移除
+	if j.mode == JOB_MODE_IDLE {
 		js.idleRmove(j)
-		//添加到工作链表
 		js.pushBack(j)
 	}
 
@@ -65,24 +69,37 @@ func (js *Jobs) GetTask(now time.Time) *Task {
 
 	t := j.PopTask(now)
 
-	if j.Len() < 1 {
+	//如果运行数超过上限，移到block队列中
+	if j.RunNum >= j.parallel {
+		j.mode = JOB_MODE_BLOCK
+		js.remove(j)
+		js.blockAdd(j)
+	} else if j.Len() < 1 {
 		//从运行链表中移聊
 		js.remove(j)
 		//添加到idle链表中
 		js.idlePushBack(j)
-		//移除多余的idle
-		if js.idleLen > js.idleMax {
-			j := js.idleFront()
-			if j != nil {
-				js.idleRmove(j)
-				delete(js.all, j.Name)
-			}
-		}
 	} else {
 		js.Priority(j)
 	}
 
 	return t
+}
+
+func (js *Jobs) end(j *Job, us time.Duration) {
+	j.NowNum--
+	j.LoadTime += us
+	j.UseTimeStat.Push(int64(us))
+
+	if j.mode == JOB_MODE_BLOCK {
+		js.remove(j)
+
+		if j.Len() == 0 {
+			js.idlePushBack(j)
+		} else {
+			js.pushBack(j)
+		}
+	}
 }
 
 func (js *Jobs) HasTask() bool {
@@ -113,7 +130,12 @@ func (js *Jobs) remove(j *Job) {
 	j.prev = nil
 }
 
+func (js *Jobs) blockAdd(j *Job) {
+	js.append(j, js.block.prev)
+}
+
 func (js *Jobs) pushBack(j *Job) {
+	j.mode = JOB_MODE_RUNNABLE
 	js.append(j, js.root.prev)
 }
 
@@ -125,10 +147,22 @@ func (js *Jobs) idleFront() *Job {
 }
 
 func (js *Jobs) idlePushBack(j *Job) {
+	j.mode = JOB_MODE_IDLE
+
 	js.append(j, js.idle.prev)
 
 	js.idleLen++
+
+	//移除多余的idle
+	if js.idleLen > js.idleMax {
+		j := js.idleFront()
+		if j != nil {
+			js.idleRmove(j)
+			delete(js.all, j.Name)
+		}
+	}
 }
+
 func (js *Jobs) idleRmove(j *Job) {
 	js.remove(j)
 

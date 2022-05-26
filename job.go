@@ -5,10 +5,20 @@ import (
 	"time"
 )
 
+type job_mode int
+
+const (
+	JOB_MODE_RUNNABLE job_mode = iota
+	JOB_MODE_BLOCK
+	JOB_MODE_IDLE
+)
+
 type Job struct {
 	s *Scheduler
 
 	next, prev *Job
+	mode       job_mode
+	parallel   int
 
 	Name string
 
@@ -31,6 +41,7 @@ func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.s = s
 	j.LoadStat.Init(j.s.e.StatSize)
 	j.UseTimeStat.Init(10)
+	j.parallel = j.s.e.Parallel
 	return j
 }
 
@@ -44,6 +55,13 @@ func (j *Job) AddTask(o *Order) {
 		Params:  o.Params,
 		AddTime: time.Unix(int64(o.AddTime), 0),
 	}
+
+	parallel := o.Parallel
+	if parallel < 1 || parallel > j.s.e.Parallel {
+		parallel = j.s.e.Parallel
+	}
+
+	j.parallel = parallel
 
 	j.Tasks.PushBack(t)
 }

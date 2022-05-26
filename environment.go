@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	MODE_CMD  Mode = 1
-	MODE_HTTP Mode = 2
+	MODE_HTTP Mode = iota
+	MODE_CMD
 )
 
 type Mode int
@@ -18,6 +18,7 @@ type Environment struct {
 	Base      string
 	DbFile    string
 	Mode      Mode
+	Parallel  int
 
 	Log *log.Logger
 
@@ -34,7 +35,7 @@ func (a *Environment) Init(workerNum int, base string, timeout int, out *log.Log
 	a.Base = base
 
 	a.Log = out
-
+	a.Parallel = 5
 	a.Timeout = time.Second * time.Duration(timeout)
 
 	tr := &http.Transport{

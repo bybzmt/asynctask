@@ -7,10 +7,11 @@ import (
 )
 
 type Order struct {
-	Id      uint32   `json:"id"`
-	Name    string   `json:"name"`
-	Params  []string `json:"params"`
-	AddTime int64    `json:"add_time"`
+	Id       uint32   `json:"id,omitempty"`
+	Parallel int      `json:"parallel,omitempty"`
+	Name     string   `json:"name"`
+	Params   []string `json:"params,omitempty"`
+	AddTime  int64    `json:"add_time,omitempty"`
 }
 
 type Scheduler struct {
@@ -115,9 +116,7 @@ func (s *Scheduler) end(t *Task) {
 
 	us := t.EndTime.Sub(t.StartTime)
 
-	t.job.NowNum--
-	t.job.LoadTime += us
-	t.job.UseTimeStat.Push(int64(us))
+	s.jobs.end(t.job, us)
 
 	s.NowNum--
 	s.LoadTime += us

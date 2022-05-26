@@ -15,11 +15,12 @@ import (
 )
 
 var addr = flag.String("addr", ":http", "listen addr:port")
-var mode = flag.String("mode", "cmd", "http or cmd mode")
+var mode = flag.String("mode", "http", "http or cmd mode")
 var base = flag.String("base", os.Getenv("base"), "base url or cmd base [ENV]")
 
 var timeout = flag.Int("timeout", 300, "task timeout Second")
 var workerNum = flag.Int("num", 10, "worker number")
+var parallel = flag.Int("parallel", 5, "one task parallel number")
 var logfile = flag.String("log", os.Getenv("log"), "log file [ENV]")
 var dbfile = flag.String("dbfile", os.Getenv("dbfile"), "storage file [ENV]")
 var max_mem = flag.Uint64("max_mem", 128, "max memory size(MB)")
@@ -65,9 +66,13 @@ func main() {
 	if *timeout < 1 {
 		log.Fatalln("parameter timeout must > 0")
 	}
+	if *parallel < 1 {
+		log.Fatalln("parameter parallel must >= 1")
+	}
 
 	env := new(Environment).Init(*workerNum, *base, *timeout, logger)
 	env.DbFile = *dbfile
+	env.Parallel = *parallel
 
 	if *mode == "cmd" {
 		env.Mode = MODE_CMD
