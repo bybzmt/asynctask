@@ -58,7 +58,9 @@ func (js *Jobs) AddTask(o *Order) {
 
 	j.AddTask(o)
 
-	js.Priority(j)
+	if j.mode == JOB_MODE_RUNNABLE {
+		js.Priority(j)
+	}
 }
 
 func (js *Jobs) GetTask(now time.Time) *Task {
@@ -93,7 +95,7 @@ func (js *Jobs) end(j *Job, us time.Duration) {
 	if j.mode == JOB_MODE_BLOCK {
 		js.remove(j)
 
-		if j.Len() == 0 {
+		if j.Len() < 1 {
 			js.idlePushBack(j)
 		} else {
 			js.pushBack(j)

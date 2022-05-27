@@ -86,6 +86,10 @@ func (s *Scheduler) addTask(o *Order) {
 }
 
 func (s *Scheduler) dispatch() {
+	if !s.jobs.HasTask() {
+		return
+	}
+
 	now := time.Now()
 
 	t := s.jobs.GetTask(now)
@@ -158,9 +162,7 @@ func (s *Scheduler) Run() {
 			s.end(t)
 
 			if s.running {
-				if s.jobs.HasTask() {
-					s.dispatch()
-				}
+				s.dispatch()
 			} else {
 				if s.workers.Len() == s.e.WorkerNum {
 					s.e.Log.Println("[Info] all workers closed")
