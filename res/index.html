@@ -84,7 +84,7 @@ body{
         <option selected value="2">占用</option>
         <option value="3">执行中</option>
         <option value="4">己执行</option>
-        <option value="5">己执行</option>
+        <option value="5">昨天</option>
         <option value="6">队列</option>
         <option value="7">平均时间</option>
     </select>
@@ -138,7 +138,7 @@ function showStatus() {
             case "2": return (b.Load != a.Load) ? b.Load - a.Load : a.Name.localeCompare(b.Name);
             case "3": return (b.NowNum != a.NowNum) ? b.NowNum - a.NowNum : a.Name.localeCompare(b.Name);
             case "4": return (b.RunNum != a.RunNum) ? b.RunNum - a.RunNum : a.Name.localeCompare(b.Name);
-            case "5": return (b.RunNum != a.RunNum) ? b.OldNum - a.OldNum : a.Name.localeCompare(b.Name);
+            case "5": return (b.OldNum != a.OldNum) ? b.OldNum - a.OldNum : a.Name.localeCompare(b.Name);
             case "6": return (b.WaitNum != a.WaitNum) ? b.WaitNum - a.WaitNum : a.Name.localeCompare(b.Name);
             case "7": return (b.UseTime != a.UseTime) ? b.UseTime - a.UseTime : a.Name.localeCompare(b.Name);
             }
