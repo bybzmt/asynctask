@@ -70,8 +70,7 @@ func (js *Jobs) GetTask(now time.Time) *Task {
 	t := j.PopTask(now)
 
 	//如果运行数超过上限，移到block队列中
-	if j.RunNum >= int(j.parallel) {
-		j.mode = JOB_MODE_BLOCK
+	if j.NowNum >= int(j.parallel) {
 		js.remove(j)
 		js.blockAdd(j)
 	} else if j.Len() < 1 {
@@ -131,6 +130,7 @@ func (js *Jobs) remove(j *Job) {
 }
 
 func (js *Jobs) blockAdd(j *Job) {
+	j.mode = JOB_MODE_BLOCK
 	js.append(j, js.block.prev)
 }
 
