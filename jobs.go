@@ -99,6 +99,7 @@ func (js *Jobs) end(j *Job, us time.Duration) {
 			js.idlePushBack(j)
 		} else {
 			js.pushBack(j)
+			js.Priority(j)
 		}
 	}
 }
