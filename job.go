@@ -18,7 +18,7 @@ type Job struct {
 
 	next, prev *Job
 	mode       job_mode
-	parallel   int
+	parallel   uint
 
 	Name string
 
@@ -56,12 +56,9 @@ func (j *Job) AddTask(o *Order) {
 		AddTime: time.Unix(int64(o.AddTime), 0),
 	}
 
-	parallel := o.Parallel
-	if parallel < 1 || parallel > j.s.e.Parallel {
-		parallel = j.s.e.Parallel
+	if o.Parallel > 0 {
+		j.parallel = o.Parallel
 	}
-
-	j.parallel = parallel
 
 	j.Tasks.PushBack(t)
 }

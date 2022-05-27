@@ -7,11 +7,11 @@ import (
 )
 
 type Order struct {
-	Id       uint32   `json:"id,omitempty"`
-	Parallel int      `json:"parallel,omitempty"`
+	Id       uint     `json:"id,omitempty"`
+	Parallel uint     `json:"parallel,omitempty"`
 	Name     string   `json:"name"`
 	Params   []string `json:"params,omitempty"`
-	AddTime  int64    `json:"add_time,omitempty"`
+	AddTime  uint     `json:"add_time,omitempty"`
 }
 
 type Scheduler struct {
@@ -121,6 +121,9 @@ func (s *Scheduler) end(t *Task) {
 	s.NowNum--
 	s.LoadTime += us
 	s.workers.PushBack(t.worker)
+
+	t.job = nil
+	t.worker = nil
 }
 
 func (s *Scheduler) Run() {

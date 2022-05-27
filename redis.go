@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -15,10 +16,12 @@ func redis_init() {
 
 	hub.e.Log.Println("[Info] use redis")
 
+	db, _ := strconv.Atoi(*redis_db)
+
 	client := redis.NewClient(&redis.Options{
 		Addr:     *redis_host,
 		Password: *redis_pwd,
-		DB:       *redis_db,
+		DB:       db,
 	})
 	defer client.Close()
 

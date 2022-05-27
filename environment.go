@@ -18,7 +18,7 @@ type Environment struct {
 	Base      string
 	DbFile    string
 	Mode      Mode
-	Parallel  int
+	Parallel  uint
 
 	Log *log.Logger
 

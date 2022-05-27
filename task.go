@@ -8,7 +8,7 @@ type Task struct {
 	job    *Job
 	worker *Worker
 
-	Id     uint32
+	Id     uint
 	Params []string
 	Status int
 	Msg    string
