@@ -18,9 +18,15 @@ func (s *Scheduler) saveToFile() {
 		if j.Len() > 0 {
 			ele := j.Tasks.Front()
 			for ele != nil {
-				row := Order{}
-				row.Name = j.Name
-				row.Params = ele.Value.(*Task).Params
+				t := ele.Value.(*Task)
+
+				row := Order{
+					Id:       t.Id,
+					Parallel: j.parallel,
+					Name:     j.Name,
+					Params:   t.Params,
+					AddTime:  uint(t.AddTime.Unix()),
+				}
 
 				rows = append(rows, row)
 
