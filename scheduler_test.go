@@ -130,7 +130,7 @@ func ts_addTask(hub *Scheduler, baseurl string) {
 	go func() {
 		c := time.Tick(time.Second * 1)
 		for _ = range c {
-			log.Println(hub.Status())
+			hub.Status()
 		}
 	}()
 

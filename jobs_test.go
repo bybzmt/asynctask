@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"testing"
-	"time"
 )
 
 func TestList(t *testing.T) {
@@ -24,11 +23,9 @@ func TestList(t *testing.T) {
 	c := &Order{Name: "a3"}
 	js.AddTask(c)
 
-	now := time.Now()
-
-	js.GetTask(now)
-	js.GetTask(now)
-	js.GetTask(now)
+	js.GetTask()
+	js.GetTask()
+	js.GetTask()
 
 	fmt.Println(js)
 

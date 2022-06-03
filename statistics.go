@@ -32,6 +32,7 @@ type Stat struct {
 	OldNum  int
 	WaitNum int
 	UseTime int
+	Score   int
 }
 
 type Statistics struct {
@@ -46,10 +47,11 @@ func (s *Scheduler) Status() *Statistics {
 }
 
 func (s *Scheduler) getStatData() {
-	e1 := s.LoadStat.GetAll() + s.IdleStat.GetAll()
+	e1 := float64(len(s.LoadStat.data) * int(s.e.StatTick))
+
 	all := 0
 	if e1 > 0 {
-		all = int(float64(s.LoadStat.GetAll()) / float64(s.LoadStat.GetAll()+s.IdleStat.GetAll()) * 10000)
+		all = int(float64(s.LoadStat.GetAll()) / e1 * 10000)
 	}
 
 	t := &Statistics{}
@@ -64,7 +66,7 @@ func (s *Scheduler) getStatData() {
 	s.jobs.Each(func(j *Job) {
 		x := 0
 		if e1 > 0 {
-			x = int(float64(j.LoadStat.GetAll()) / float64(e1) * 10000)
+			x = int(float64(j.LoadStat.GetAll()) / e1 * 10000)
 		}
 
 		t.Jobs = append(t.Jobs, Stat{
@@ -75,6 +77,7 @@ func (s *Scheduler) getStatData() {
 			NowNum:  j.NowNum,
 			WaitNum: j.Len(),
 			UseTime: int(j.UseTimeStat.GetAll()/int64(time.Millisecond)) / len(j.UseTimeStat.data),
+			Score:   j.Score(),
 		})
 	})
 

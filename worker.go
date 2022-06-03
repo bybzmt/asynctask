@@ -16,8 +16,6 @@ type Worker struct {
 
 	task chan *Task
 	s    *Scheduler
-
-	LastTime time.Time
 }
 
 func (w *Worker) Init(id int, s *Scheduler) *Worker {
@@ -106,11 +104,6 @@ func (w *Worker) doHttp(t *Task) (status int, msg string) {
 	return
 }
 
-type TaskLog struct {
-	Params []string
-	Output string
-}
-
 func (w *Worker) log(t *Task) {
 
 	var waitTime float64 = 0
@@ -118,31 +111,26 @@ func (w *Worker) log(t *Task) {
 		waitTime = t.StartTime.Sub(t.AddTime).Seconds()
 	}
 
+	runTime := t.EndTime.Sub(t.StartTime).Seconds()
+
 	d := TaskLog{
-		Params: t.Params,
-		Output: t.Msg,
+		Id:       t.Id,
+		Name:     t.job.Name,
+		Params:   t.Params,
+		Status:   t.Status,
+		WaitTime: waitTime,
+		RunTime:  runTime,
+		Output:   t.Msg,
 	}
 
 	msg, _ := json.Marshal(d)
 
-	w.s.e.Log.Printf(
-		"[Task] id:%d %s %d %0.3fs %0.3fs %s\n",
-		t.Id,
-		t.job.Name,
-		t.Status,
-		waitTime,
-		t.EndTime.Sub(t.StartTime).Seconds(),
-		msg,
-	)
+	w.s.e.Log.Printf("[Task] %s\n", msg)
 }
 
 func (w *Worker) Run() {
 	for t := range w.task {
-		t.StartTime = time.Now()
 		t.Status, t.Msg = w.exec(t)
-		t.EndTime = time.Now()
-
-		w.log(t)
 
 		w.s.complete <- t
 	}

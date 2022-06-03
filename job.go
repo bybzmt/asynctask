@@ -30,7 +30,6 @@ type Job struct {
 
 	LoadTime time.Duration
 	LoadStat StatRow
-	LastTime time.Time
 
 	UseTimeStat StatRow
 }
@@ -49,11 +48,10 @@ func (j *Job) AddTask(o *Order) {
 
 	j.s.jobs.taskId++
 
-	t := &Task{
-		job:     j,
+	t := &taskMini{
 		Id:      o.Id,
 		Params:  o.Params,
-		AddTime: time.Unix(int64(o.AddTime), 0),
+		AddTime: o.AddTime,
 	}
 
 	if o.Parallel > 0 {
@@ -63,22 +61,24 @@ func (j *Job) AddTask(o *Order) {
 	j.Tasks.PushBack(t)
 }
 
-func (j *Job) PopTask(now time.Time) *Task {
+func (j *Job) PopTask() *Task {
 	e := j.Tasks.Front()
 	if e == nil {
 		panic("PopTask empty")
 	}
 	j.Tasks.Remove(e)
 
-	t, ok := e.Value.(*Task)
+	m, ok := e.Value.(*taskMini)
 	if !ok {
 		panic("PopTask err")
 	}
 
-	//任务状态
-	j.LastTime = now
-	j.NowNum++
-	j.RunNum++
+	t := &Task{
+		job:     j,
+		Id:      m.Id,
+		Params:  m.Params,
+		AddTime: time.Unix(int64(m.AddTime), 0),
+	}
 
 	return t
 }

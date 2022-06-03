@@ -6,14 +6,6 @@ import (
 	"time"
 )
 
-type Order struct {
-	Id       uint     `json:"id,omitempty"`
-	Parallel uint     `json:"parallel,omitempty"`
-	Name     string   `json:"name"`
-	Params   []string `json:"params,omitempty"`
-	AddTime  uint     `json:"add_time,omitempty"`
-}
-
 type Scheduler struct {
 	e *Environment
 
@@ -21,6 +13,8 @@ type Scheduler struct {
 	allWorkers []*Worker
 	//空闲工作进程
 	workers *list.List
+	//运行中的任务
+	tasks map[*Task]struct{}
 
 	jobs Jobs
 
@@ -39,7 +33,6 @@ type Scheduler struct {
 	WaitNum int
 
 	LoadTime time.Duration
-	IdleTime time.Duration
 
 	LoadStat StatRow
 	IdleStat StatRow
@@ -58,6 +51,7 @@ func (s *Scheduler) Init(env *Environment) *Scheduler {
 	s.jobs.Init(100, s)
 
 	s.workers = list.New()
+	s.tasks = make(map[*Task]struct{})
 
 	s.LoadStat.Init(s.e.StatSize)
 	s.IdleStat.Init(s.e.StatSize)
@@ -92,21 +86,21 @@ func (s *Scheduler) dispatch() {
 
 	now := time.Now()
 
-	t := s.jobs.GetTask(now)
+	t := s.jobs.GetTask()
+	t.StartTime = now
+	t.StatTime = now
+
+	s.tasks[t] = struct{}{}
 
 	//得到工人
 	ew := s.workers.Front()
 	s.workers.Remove(ew)
 	w := ew.Value.(*Worker)
 
-	//空闲间
-	us := now.Sub(w.LastTime)
-
 	//总状态
 	s.NowNum++
 	s.RunNum++
 	s.WaitNum--
-	s.IdleTime += us
 
 	//分配任务
 	t.worker = w
@@ -115,16 +109,22 @@ func (s *Scheduler) dispatch() {
 }
 
 func (s *Scheduler) end(t *Task) {
-	t.worker.LastTime = t.EndTime
+	now := time.Now()
+
 	t.worker.run = false
 
-	us := t.EndTime.Sub(t.StartTime)
+	t.EndTime = now
+	t.worker.log(t)
+
+	us := t.EndTime.Sub(t.StatTime)
 
 	s.jobs.end(t.job, us)
 
 	s.NowNum--
 	s.LoadTime += us
 	s.workers.PushBack(t.worker)
+
+	delete(s.tasks, t)
 
 	t.job = nil
 	t.worker = nil
@@ -136,7 +136,6 @@ func (s *Scheduler) Run() {
 	for i := 1; i <= s.e.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
 		s.allWorkers = append(s.allWorkers, w)
-		w.LastTime = time.Now()
 		s.workers.PushBack(w)
 		go w.Run()
 	}
@@ -196,27 +195,25 @@ func (s *Scheduler) statTick() {
 	//时间片统计
 	now := time.Now()
 
-	if s.Today == 0 {
-		s.Today = now.Day()
-	}
+	for t, _ := range s.tasks {
+		us := now.Sub(t.StatTime)
+		t.StatTime = now
 
-	for _, w := range s.allWorkers {
-		if !w.run {
-			us := now.Sub(w.LastTime)
-			s.IdleTime += us
-			w.LastTime = now
-		}
+		s.LoadTime += us
+		t.job.LoadTime += us
 	}
 
 	s.LoadStat.Push(int64(s.LoadTime))
-	s.IdleStat.Push(int64(s.IdleTime))
 	s.LoadTime = 0
-	s.IdleTime = 0
 
 	s.jobs.Each(func(j *Job) {
 		j.LoadStat.Push(int64(j.LoadTime))
 		j.LoadTime = 0
 	})
+
+	if s.Today == 0 {
+		s.Today = now.Day()
+	}
 
 	if s.Today != now.Day() {
 		s.OldNum = s.RunNum

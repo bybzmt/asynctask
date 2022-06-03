@@ -63,13 +63,17 @@ func (js *Jobs) AddTask(o *Order) {
 	}
 }
 
-func (js *Jobs) GetTask(now time.Time) *Task {
+func (js *Jobs) GetTask() *Task {
 	j := js.front()
 	if j == nil {
 		panic("GetTask job is nil")
 	}
 
-	t := j.PopTask(now)
+	t := j.PopTask()
+
+	//任务状态
+	j.NowNum++
+	j.RunNum++
 
 	//如果运行数超过上限，移到block队列中
 	if j.NowNum >= int(j.parallel) {
