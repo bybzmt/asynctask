@@ -20,10 +20,6 @@ func (s *StatRow) Push(val int64) {
 	s.offset = (s.offset + 1) % len(s.data)
 }
 
-func (s *StatRow) GetNow() int64 {
-	return s.data[s.offset]
-}
-
 func (s *StatRow) GetAll() int64 {
 	return s.all
 }
