@@ -17,21 +17,25 @@ import (
 
 var addr = flag.String("addr", ":http", "listen addr:port")
 var mode = flag.String("mode", "http", "http or cmd mode")
-var base = flag.String("base", os.Getenv("base"), "base url or cmd base [ENV]")
 
 var timeout = flag.Int("timeout", 300, "task timeout Second")
-var workerNum = flag.Int("num", 10, "worker number")
-var parallel = flag.Int("parallel", 5, "one task default parallel")
-var logfile = flag.String("log", os.Getenv("log"), "log file [ENV]")
-var dbfile = flag.String("dbfile", os.Getenv("dbfile"), "storage file [ENV]")
-var max_mem = flag.Uint("max_mem", 128, "max memory size(MB)")
 
-var redis_host = flag.String("redis_host", os.Getenv("redis_host"), "redis host [ENV]")
-var redis_pwd = flag.String("redis_pwd", os.Getenv("redis_pwd"), "redis password [ENV]")
-var redis_db = flag.String("redis_db", os.Getenv("redis_db"), "redis database [ENV]")
-var redis_key = flag.String("redis_key", os.Getenv("redis_key"), "redis list key. [ENV] \njson: {id:uint, parallel:uint, name:string, params:[]string, add_time:uint}")
+var cfg Config
+var hub Scheduler
 
-var hub *Scheduler
+func Init() {
+	flag.StringVar(&cfg.Base, "base", os.Getenv("base"), "base url or cmd base [ENV]")
+	flag.IntVar(&cfg.WorkerNum, "num", 10, "worker number")
+	flag.UintVar(&cfg.Parallel, "parallel", 5, "one task default parallel")
+	flag.StringVar(&cfg.LogFile, "log", os.Getenv("log"), "log file [ENV]")
+	flag.StringVar(&cfg.DbFile, "dbfile", os.Getenv("dbfile"), "storage file [ENV]")
+	flag.UintVar(&cfg.MaxMem, "max_mem", 128, "max memory size(MB)")
+
+	flag.StringVar(&cfg.RedisHost, "redis_host", os.Getenv("redis_host"), "redis host [ENV]")
+	flag.StringVar(&cfg.RedisPwd, "redis_pwd", os.Getenv("redis_pwd"), "redis password [ENV]")
+	flag.StringVar(&cfg.RedisDb, "redis_db", os.Getenv("redis_db"), "redis database [ENV]")
+	flag.StringVar(&cfg.RedisKey, "redis_key", os.Getenv("redis_key"), "redis list key. [ENV] \njson: {id:uint, parallel:uint, name:string, params:[]string, add_time:uint}")
+}
 
 //go:embed res/*
 var uifiles embed.FS
@@ -39,39 +43,22 @@ var uifiles embed.FS
 func main() {
 	flag.Parse()
 
-	if *dbfile == "" {
-		*dbfile = "./asynctask.db"
-	}
-
 	if *mode != "cmd" && *mode != "http" {
 		log.Fatalln("parameter mode must be cmd or http")
-	}
-	if *workerNum < 1 {
-		log.Fatalln("parameter num must > 0")
 	}
 	if *timeout < 1 {
 		log.Fatalln("parameter timeout must > 0")
 	}
-	if *parallel < 1 {
+	if cfg.WorkerNum < 1 {
+		log.Fatalln("parameter num must > 0")
+	}
+	if cfg.Parallel < 1 {
 		log.Fatalln("parameter parallel must >= 1")
 	}
 
-	env := new(Config)
-	env.Parallel = uint(*parallel)
-	env.WorkerNum = *workerNum
-	env.Base = *base
-	env.DbFile = *dbfile
-	env.LogFile = *logfile
-	env.MaxMem = *max_mem
+	cfg.Init(*mode, *timeout)
 
-	env.RedisDb = *redis_db
-	env.RedisKey = *redis_key
-	env.RedisHost = *redis_host
-	env.RedisPwd = *redis_pwd
-
-	env.Init(*mode, *timeout)
-
-	hub = new(Scheduler).Init(env)
+	hub.Init(&cfg)
 
 	tfs, _ := fs.Sub(uifiles, "res")
 	http.Handle("/", http.FileServer(http.FS(tfs)))

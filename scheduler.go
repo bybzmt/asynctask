@@ -7,6 +7,8 @@ import (
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/go-redis/redis"
 )
 
 type Cmd int
@@ -44,6 +46,7 @@ type Scheduler struct {
 	LoadTime time.Duration
 	LoadStat StatRow
 
+	redis     *redis.Client
 	log       *log.Logger
 	logCloser io.Closer
 }

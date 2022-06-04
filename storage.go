@@ -7,7 +7,11 @@ import (
 
 func (s *Scheduler) saveTask() {
 	s.log.Println("[Info] saving tasks...")
-	s.saveToFile()
+	if s.redis != nil {
+		s.saveToRedis()
+	} else {
+		s.saveToFile()
+	}
 	s.log.Println("[Info] saving tasks complete")
 }
 
@@ -51,7 +55,7 @@ func (s *Scheduler) saveToFile() {
 func (s *Scheduler) restoreFromFile() {
 	s.log.Println("[Info] restore From File")
 
-	f, err := os.Open(*dbfile)
+	f, err := os.Open(s.cfg.DbFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			s.log.Println("[Info] not have storaged file")

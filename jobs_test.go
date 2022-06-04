@@ -2,13 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"testing"
 )
 
 func TestList(t *testing.T) {
-	logger := log.Default()
-
 	env := new(Config)
 	env.Init("http", 10)
 	hub := new(Scheduler).Init(env)

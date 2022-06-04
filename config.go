@@ -35,24 +35,28 @@ type Config struct {
 	StatSize int
 }
 
-func (a *Config) Init(mode string, timeout int) {
-	a.TaskTimeout = time.Second * time.Duration(timeout)
+func (c *Config) Init(mode string, timeout int) {
+	c.TaskTimeout = time.Second * time.Duration(timeout)
 
 	tr := &http.Transport{
-		MaxIdleConnsPerHost: a.WorkerNum,
+		MaxIdleConnsPerHost: c.WorkerNum,
 	}
 
-	a.Client = &http.Client{
+	c.Client = &http.Client{
 		Transport: tr,
-		Timeout:   a.TaskTimeout,
+		Timeout:   c.TaskTimeout,
 	}
 
 	if mode == "cmd" {
-		a.Mode = MODE_CMD
+		c.Mode = MODE_CMD
 	} else {
-		a.Mode = MODE_HTTP
+		c.Mode = MODE_HTTP
 	}
 
-	a.StatTick = time.Second * 1
-	a.StatSize = 30
+	c.StatTick = time.Second * 1
+	c.StatSize = 30
+
+	if c.DbFile == "" {
+		c.DbFile = "./asynctask.db"
+	}
 }
