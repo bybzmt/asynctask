@@ -2,6 +2,7 @@ package main
 
 import (
 	"container/list"
+	"encoding/json"
 	"io"
 	"log"
 	"os"
@@ -24,9 +25,9 @@ type Scheduler struct {
 	cfg *Config
 
 	//所有工作进程
-	allWorkers []*Worker
+	allWorkers []Worker
 	//空闲工作进程
-	workers *list.List
+	workers list.List
 	//运行中的任务
 	tasks map[*Task]struct{}
 	//所有任务
@@ -39,11 +40,16 @@ type Scheduler struct {
 	today    int
 	memFull  bool
 
-	RunNum  int
-	OldNum  int
-	NowNum  int
+	//己执行任务计数
+	RunNum int
+	//昨天任务计数
+	OldNum int
+	//执行中的任务
+	NowNum int
+	//总队列长度
 	WaitNum int
 
+	//负载数据
 	LoadTime time.Duration
 	LoadStat StatRow
 
@@ -61,7 +67,7 @@ func (s *Scheduler) Init(env *Config) *Scheduler {
 
 	s.jobs.Init(100, s)
 
-	s.workers = list.New()
+	s.workers.Init()
 	s.tasks = make(map[*Task]struct{})
 
 	s.LoadStat.Init(s.cfg.StatSize)
@@ -100,7 +106,7 @@ func (s *Scheduler) dispatch(now time.Time) {
 	//得到工人
 	ew := s.workers.Front()
 	s.workers.Remove(ew)
-	w := ew.Value.(*Worker)
+	w := ew.Value.(Worker)
 
 	//总状态
 	s.NowNum++
@@ -109,22 +115,23 @@ func (s *Scheduler) dispatch(now time.Time) {
 
 	//分配任务
 	t.worker = w
-	w.run = true
-	w.task <- t
+
+	w.Exec(t)
 }
 
 func (s *Scheduler) end(t *Task, now time.Time) {
 	t.EndTime = now
-	t.worker.log(t)
 
-	us := t.EndTime.Sub(t.StatTime)
+	s.logTask(t)
 
-	s.jobs.end(t.job, us)
+	loadTime := t.EndTime.Sub(t.StatTime)
+	useTime := t.EndTime.Sub(t.StartTime)
+
+	s.jobs.end(t.job, loadTime, useTime)
 
 	s.NowNum--
-	s.LoadTime += us
+	s.LoadTime += loadTime
 
-	t.worker.run = false
 	s.workers.PushBack(t.worker)
 
 	delete(s.tasks, t)
@@ -139,7 +146,14 @@ func (s *Scheduler) Run() {
 	go s.redis_init()
 
 	for i := 1; i <= s.cfg.WorkerNum; i++ {
-		w := new(Worker).Init(i, s)
+		var w Worker
+
+		if s.cfg.Mode == MODE_CMD {
+			w = new(WorkerCmd).Init(i, s)
+		} else {
+			w = new(WorkerHttp).Init(i, s)
+		}
+
 		s.allWorkers = append(s.allWorkers, w)
 		s.workers.PushBack(w)
 		go w.Run()
@@ -264,4 +278,28 @@ func (s *Scheduler) openLog() {
 		s.log = log.New(fh, "", log.LstdFlags)
 		s.logCloser = fh
 	}
+}
+
+func (s *Scheduler) logTask(t *Task) {
+
+	var waitTime float64 = 0
+	if t.AddTime.Unix() > 0 {
+		waitTime = t.StartTime.Sub(t.AddTime).Seconds()
+	}
+
+	runTime := t.EndTime.Sub(t.StartTime).Seconds()
+
+	d := TaskLog{
+		Id:       t.Id,
+		Name:     t.job.Name,
+		Params:   t.Params,
+		Status:   t.Status,
+		WaitTime: LogSecond(waitTime),
+		RunTime:  LogSecond(runTime),
+		Output:   t.Msg,
+	}
+
+	msg, _ := json.Marshal(d)
+
+	s.log.Printf("[Task] %s\n", msg)
 }

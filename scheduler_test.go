@@ -45,7 +45,7 @@ func TestScheduler(t *testing.T) {
 
 	go ts_server(l)
 
-	baseurl := "http://127.0.0.1:" + addr + "/test"
+	baseurl := "http://127.0.0.1:" + addr + "/test/"
 
 	log.Println("baseurl:", baseurl)
 
@@ -110,12 +110,6 @@ func ts_addTask(hub *Scheduler, baseurl string) {
 		ac := "ac" + strconv.Itoa(an)
 		sl := ts_actions[ac]
 		sl = ts_getRand() % sl
-
-		if ts_getRand()%3 == 0 {
-			ac = baseurl + ac
-		} else {
-			ac = "/" + ac
-		}
 
 		data := "code=200&sleep=" + strconv.Itoa(sl)
 

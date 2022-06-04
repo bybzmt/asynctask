@@ -91,10 +91,10 @@ func (js *Jobs) GetTask() *Task {
 	return t
 }
 
-func (js *Jobs) end(j *Job, us time.Duration) {
+func (js *Jobs) end(j *Job, loadTime, useTime time.Duration) {
 	j.NowNum--
-	j.LoadTime += us
-	j.UseTimeStat.Push(int64(us))
+	j.LoadTime += loadTime
+	j.UseTimeStat.Push(int64(useTime))
 
 	if j.mode == JOB_MODE_BLOCK {
 		js.remove(j)

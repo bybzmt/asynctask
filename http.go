@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -65,6 +66,7 @@ func main() {
 
 	http.HandleFunc("/api/status", page_status)
 	http.HandleFunc("/api/task/add", page_task_add)
+	http.HandleFunc("/api/task/empty", page_task_empty)
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*addr, nil))
@@ -92,7 +94,7 @@ func page_task_add(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 
 	_id := r.FormValue("id")
-	name := r.FormValue("action")
+	name := r.FormValue("name")
 	data := r.Form["params"]
 
 	id, _ := strconv.Atoi(_id)
@@ -123,5 +125,17 @@ func page_status(w http.ResponseWriter, r *http.Request) {
 	t := hub.Status()
 
 	rs := &Result{Code: 0, Data: t}
+	json.NewEncoder(w).Encode(rs)
+}
+
+func page_task_empty(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
+	name := r.FormValue("name")
+	name = strings.TrimSpace(name)
+
+	hub.JobEmpty(name)
+
+	rs := &Result{Code: 0, Data: "ok"}
 	json.NewEncoder(w).Encode(rs)
 }

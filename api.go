@@ -22,6 +22,20 @@ func (s *Scheduler) AddOrder(o *Order) bool {
 	return true
 }
 
+func (s *Scheduler) JobEmpty(name string) bool {
+	s.cmd <- CMD_SUSPEND
+
+	j, ok := s.jobs.all[name]
+	if ok {
+		len := j.Tasks.Len()
+		s.WaitNum -= len
+		j.Tasks.Init()
+	}
+
+	s.cmd <- CMD_RESUME
+	return true
+}
+
 func (s *Scheduler) Status() *Statistics {
 	s.cmd <- CMD_SUSPEND
 	t := s.getStatData()

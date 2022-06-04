@@ -17,7 +17,7 @@ type Order struct {
 //运行的任务
 type Task struct {
 	job    *Job
-	worker *Worker
+	worker Worker
 
 	Id     uint
 	Params []string
@@ -43,6 +43,7 @@ type taskMiniList struct {
 	list   [150]taskMini
 }
 
+//输出日志时间（为了不显示太长的小数)
 type LogSecond float64
 
 func (l LogSecond) MarshalJSON() ([]byte, error) {
@@ -59,4 +60,12 @@ type TaskLog struct {
 	WaitTime LogSecond
 	RunTime  LogSecond
 	Output   string
+}
+
+//工作线程
+type Worker interface {
+	Exec(t *Task)
+	Cancel()
+	Run()
+	Close()
 }

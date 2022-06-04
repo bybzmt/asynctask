@@ -31,6 +31,7 @@ type Job struct {
 	LoadTime time.Duration
 	LoadStat StatRow
 
+	//任务执行所用时间
 	UseTimeStat StatRow
 }
 

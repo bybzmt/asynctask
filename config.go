@@ -13,22 +13,28 @@ const (
 type Mode int
 
 type Config struct {
+	//工作线程数量
 	WorkerNum int
-	Base      string
-	Mode      Mode
-	Parallel  uint
+	//任务Base
+	Base string
+	//任务模式cmd/http
+	Mode Mode
+	//默认并发数
+	Parallel uint
+	//任务超时时间
+	TaskTimeout time.Duration
 
 	LogFile string
 	DbFile  string
-	MaxMem  uint
+	//最大内存点用
+	MaxMem uint
 
 	RedisHost string
 	RedisPwd  string
 	RedisDb   string
 	RedisKey  string
 
-	Client      *http.Client
-	TaskTimeout time.Duration
+	Client *http.Client
 
 	//统计周期
 	StatTick time.Duration
@@ -63,6 +69,7 @@ func (c *Config) Init(mode string, timeout int) {
 	if c.WorkerNum < 1 {
 		c.WorkerNum = 10
 	}
+
 	if c.Parallel < 1 {
 		c.Parallel = 5
 	}
