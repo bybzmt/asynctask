@@ -41,12 +41,13 @@ type Statistics struct {
 }
 
 func (s *Scheduler) Status() *Statistics {
-	s.cmd <- 3
-	t := <-s.statResp
+	s.cmd <- CMD_SUSPEND
+	t := s.getStatData()
+	s.cmd <- CMD_RESUME
 	return t
 }
 
-func (s *Scheduler) getStatData() {
+func (s *Scheduler) getStatData() *Statistics {
 	e1 := float64(len(s.LoadStat.data) * int(s.e.StatTick))
 
 	all := 0
@@ -81,5 +82,5 @@ func (s *Scheduler) getStatData() {
 		})
 	})
 
-	s.statResp <- t
+	return t
 }

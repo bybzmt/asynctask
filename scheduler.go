@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+type Cmd int
+
+const (
+	CMD_CLOSE Cmd = iota
+	CMD_SUSPEND
+	CMD_RESUME
+)
+
 type Scheduler struct {
 	e *Environment
 
@@ -15,27 +23,24 @@ type Scheduler struct {
 	workers *list.List
 	//运行中的任务
 	tasks map[*Task]struct{}
-
+	//所有任务
 	jobs Jobs
 
 	running  bool
 	order    chan *Order
 	complete chan *Task
-	cmd      chan int
+	cmd      chan Cmd
+	Today    int
 
 	statResp chan *Statistics
 
-	RunNum int
-	OldNum int
-	Today  int
-
+	RunNum  int
+	OldNum  int
 	NowNum  int
 	WaitNum int
 
 	LoadTime time.Duration
-
 	LoadStat StatRow
-	IdleStat StatRow
 }
 
 func (s *Scheduler) Init(env *Environment) *Scheduler {
@@ -45,7 +50,7 @@ func (s *Scheduler) Init(env *Environment) *Scheduler {
 
 	s.order = make(chan *Order)
 	s.complete = make(chan *Task)
-	s.cmd = make(chan int)
+	s.cmd = make(chan Cmd)
 	s.statResp = make(chan *Statistics)
 
 	s.jobs.Init(100, s)
@@ -54,7 +59,8 @@ func (s *Scheduler) Init(env *Environment) *Scheduler {
 	s.tasks = make(map[*Task]struct{})
 
 	s.LoadStat.Init(s.e.StatSize)
-	s.IdleStat.Init(s.e.StatSize)
+
+	s.Today = time.Now().Day()
 
 	return s
 }
@@ -80,7 +86,15 @@ func (s *Scheduler) addTask(o *Order) {
 }
 
 func (s *Scheduler) dispatch() {
+	if !s.running {
+		return
+	}
+
 	if !s.jobs.HasTask() {
+		return
+	}
+
+	if s.workers.Len() == 0 {
 		return
 	}
 
@@ -140,12 +154,7 @@ func (s *Scheduler) Run() {
 		go w.Run()
 	}
 
-	go func() {
-		c := time.Tick(s.e.StatTick)
-		for _ = range c {
-			s.cmd <- 2
-		}
-	}()
+	tick := time.Tick(s.e.StatTick)
 
 	s.running = true
 
@@ -153,16 +162,14 @@ func (s *Scheduler) Run() {
 		select {
 		case o := <-s.order:
 			s.addTask(o)
-
-			if s.workers.Len() > 0 {
-				s.dispatch()
-			}
+			s.dispatch()
 		case t := <-s.complete:
 			s.end(t)
+			s.dispatch()
+		case now := <-tick:
+			s.statTick(now)
 
-			if s.running {
-				s.dispatch()
-			} else {
+			if !s.running {
 				if s.workers.Len() == s.e.WorkerNum {
 					s.e.Log.Println("[Info] all workers closed")
 					return
@@ -170,31 +177,21 @@ func (s *Scheduler) Run() {
 			}
 		case c := <-s.cmd:
 			switch c {
-			case 1:
+			case CMD_CLOSE:
 				//关闭
 				s.running = false
 
 				s.e.Log.Println("[Info] closing...")
 				s.saveTask()
-			case 2:
-				if !s.running {
-					if s.workers.Len() == s.e.WorkerNum {
-						s.e.Log.Println("[Info] all workers closed")
-						return
-					}
+			case CMD_SUSPEND:
+				for CMD_RESUME != <-s.cmd {
 				}
-				s.statTick()
-			case 3:
-				s.getStatData()
 			}
 		}
 	}
 }
 
-func (s *Scheduler) statTick() {
-	//时间片统计
-	now := time.Now()
-
+func (s *Scheduler) statTick(now time.Time) {
 	for t, _ := range s.tasks {
 		us := now.Sub(t.StatTime)
 		t.StatTime = now
@@ -211,10 +208,6 @@ func (s *Scheduler) statTick() {
 		j.LoadTime = 0
 	})
 
-	if s.Today == 0 {
-		s.Today = now.Day()
-	}
-
 	if s.Today != now.Day() {
 		s.OldNum = s.RunNum
 		s.RunNum = 0
@@ -229,5 +222,5 @@ func (s *Scheduler) statTick() {
 }
 
 func (s *Scheduler) Close() {
-	s.cmd <- 1
+	s.cmd <- CMD_CLOSE
 }

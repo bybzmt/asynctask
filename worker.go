@@ -130,8 +130,11 @@ func (w *Worker) log(t *Task) {
 
 func (w *Worker) Run() {
 	for t := range w.task {
-		t.Status, t.Msg = w.exec(t)
+		if t == nil {
+			return
+		}
 
+		t.Status, t.Msg = w.exec(t)
 		w.s.complete <- t
 	}
 }
