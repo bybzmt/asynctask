@@ -2,66 +2,49 @@ package main
 
 import (
 	"encoding/json"
-	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/go-redis/redis"
 )
 
-func redis_init() {
-	if *redis_host == "" {
+func (s *Scheduler) redis_init() {
+	if s.cfg.RedisHost == "" {
 		return
 	}
 
-	hub.e.Log.Println("[Info] use redis")
+	s.log.Println("[Info] use redis")
 
 	db, _ := strconv.Atoi(*redis_db)
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     *redis_host,
-		Password: *redis_pwd,
+		Addr:     s.cfg.RedisHost,
+		Password: s.cfg.RedisPwd,
 		DB:       db,
 	})
 	defer client.Close()
 
-	var mem_full = false
-
-	go func() {
-		for {
-			st := runtime.MemStats{}
-			runtime.ReadMemStats(&st)
-			if st.Alloc > (*max_mem)*1024*1024 {
-				mem_full = true
-			} else {
-				mem_full = false
-			}
-
-			time.Sleep(time.Second * 1)
-		}
-	}()
-
-	for {
-		if !hub.running || mem_full {
+	for s.running {
+		if s.memFull {
 			time.Sleep(time.Second * 3)
 			continue
 		}
 
-		out, err := client.BLPop(time.Second*10, *redis_key).Result()
+		out, err := client.BLPop(time.Second*10, s.cfg.RedisKey).Result()
 
 		if err != nil {
-			hub.e.Log.Println("[Debug] redis list empty.", err.Error())
+			s.log.Println("[Debug] redis list empty.", err.Error())
 			time.Sleep(time.Second * 3)
 		} else {
 			o := Order{}
 			err = json.Unmarshal([]byte(out[1]), &o)
 			if err != nil {
-				hub.e.Log.Println("[Debug] redis data Unmarshal error:", err.Error())
+				s.log.Println("[Debug] redis data Unmarshal error:", err.Error())
 			} else {
-				ok := hub.AddOrder(&o)
+				ok := s.AddOrder(&o)
 				if !ok {
 					out, _ := json.Marshal(&o)
-					hub.e.Log.Println("[Info] add Task Fail", out)
+					s.log.Println("[Info] add Task Fail", out)
 				}
 			}
 		}

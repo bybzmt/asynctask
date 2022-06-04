@@ -40,15 +40,8 @@ type Statistics struct {
 	Jobs []Stat
 }
 
-func (s *Scheduler) Status() *Statistics {
-	s.cmd <- CMD_SUSPEND
-	t := s.getStatData()
-	s.cmd <- CMD_RESUME
-	return t
-}
-
 func (s *Scheduler) getStatData() *Statistics {
-	e1 := float64(len(s.LoadStat.data) * int(s.e.StatTick))
+	e1 := float64(len(s.LoadStat.data) * int(s.cfg.StatTick))
 
 	all := 0
 	if e1 > 0 {

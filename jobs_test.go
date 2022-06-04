@@ -9,7 +9,8 @@ import (
 func TestList(t *testing.T) {
 	logger := log.Default()
 
-	env := new(Environment).Init(10, "", 10, logger)
+	env := new(Config)
+	env.Init("http", 10)
 	hub := new(Scheduler).Init(env)
 
 	js := &hub.jobs

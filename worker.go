@@ -26,7 +26,7 @@ func (w *Worker) Init(id int, s *Scheduler) *Worker {
 }
 
 func (w *Worker) exec(t *Task) (status int, msg string) {
-	if w.s.e.Mode == MODE_CMD {
+	if w.s.cfg.Mode == MODE_CMD {
 		return w.doCMD(t)
 	}
 
@@ -34,7 +34,7 @@ func (w *Worker) exec(t *Task) (status int, msg string) {
 }
 
 func (w *Worker) doCMD(t *Task) (status int, msg string) {
-	task := w.s.e.Base + " " + t.job.Name
+	task := w.s.cfg.Base + " " + t.job.Name
 	task = strings.TrimSpace(task)
 
 	params := strings.Split(task, " ")
@@ -44,7 +44,7 @@ func (w *Worker) doCMD(t *Task) (status int, msg string) {
 
 	c := exec.Command(task, params...)
 
-	timer := time.AfterFunc(w.s.e.Timeout, func() {
+	timer := time.AfterFunc(w.s.cfg.TaskTimeout, func() {
 		if c.Process != nil {
 			c.Process.Kill()
 		}
@@ -75,7 +75,7 @@ func (w *Worker) doCMD(t *Task) (status int, msg string) {
 func (w *Worker) doHttp(t *Task) (status int, msg string) {
 	var url string
 
-	url = w.s.e.Base + t.job.Name
+	url = w.s.cfg.Base + t.job.Name
 
 	var resp *http.Response
 	var err error
@@ -86,7 +86,7 @@ func (w *Worker) doHttp(t *Task) (status int, msg string) {
 		url = url + "&" + strings.Join(t.Params, "&")
 	}
 
-	resp, err = w.s.e.Client.Get(url)
+	resp, err = w.s.cfg.Client.Get(url)
 
 	if err != nil {
 		status = -1
@@ -125,7 +125,7 @@ func (w *Worker) log(t *Task) {
 
 	msg, _ := json.Marshal(d)
 
-	w.s.e.Log.Printf("[Task] %s\n", msg)
+	w.s.log.Printf("[Task] %s\n", msg)
 }
 
 func (w *Worker) Run() {

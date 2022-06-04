@@ -2,7 +2,10 @@ package main
 
 import (
 	"container/list"
-	"strings"
+	"io"
+	"log"
+	"os"
+	"runtime"
 	"time"
 )
 
@@ -15,7 +18,7 @@ const (
 )
 
 type Scheduler struct {
-	e *Environment
+	cfg *Config
 
 	//所有工作进程
 	allWorkers []*Worker
@@ -30,9 +33,8 @@ type Scheduler struct {
 	order    chan *Order
 	complete chan *Task
 	cmd      chan Cmd
-	Today    int
-
-	statResp chan *Statistics
+	today    int
+	memFull  bool
 
 	RunNum  int
 	OldNum  int
@@ -41,43 +43,30 @@ type Scheduler struct {
 
 	LoadTime time.Duration
 	LoadStat StatRow
+
+	log       *log.Logger
+	logCloser io.Closer
 }
 
-func (s *Scheduler) Init(env *Environment) *Scheduler {
-	s.e = env
-	s.e.StatTick = time.Second * 1
-	s.e.StatSize = 30
+func (s *Scheduler) Init(env *Config) *Scheduler {
+	s.cfg = env
 
 	s.order = make(chan *Order)
 	s.complete = make(chan *Task)
 	s.cmd = make(chan Cmd)
-	s.statResp = make(chan *Statistics)
 
 	s.jobs.Init(100, s)
 
 	s.workers = list.New()
 	s.tasks = make(map[*Task]struct{})
 
-	s.LoadStat.Init(s.e.StatSize)
+	s.LoadStat.Init(s.cfg.StatSize)
 
-	s.Today = time.Now().Day()
+	s.today = time.Now().Day()
+
+	s.openLog()
 
 	return s
-}
-
-func (s *Scheduler) AddOrder(o *Order) bool {
-	if !s.running {
-		return false
-	}
-
-	o.Name = strings.TrimSpace(o.Name)
-	if o.Name == "" {
-		return false
-	}
-
-	s.order <- o
-
-	return true
 }
 
 func (s *Scheduler) addTask(o *Order) {
@@ -139,24 +128,24 @@ func (s *Scheduler) end(t *Task) {
 	s.workers.PushBack(t.worker)
 
 	delete(s.tasks, t)
-
-	t.job = nil
-	t.worker = nil
 }
 
 func (s *Scheduler) Run() {
-	s.e.Log.Println("[Info] running")
+	s.log.Println("[Info] running")
 
-	for i := 1; i <= s.e.WorkerNum; i++ {
+	s.running = true
+
+	go s.restoreFromFile()
+	go s.redis_init()
+
+	for i := 1; i <= s.cfg.WorkerNum; i++ {
 		w := new(Worker).Init(i, s)
 		s.allWorkers = append(s.allWorkers, w)
 		s.workers.PushBack(w)
 		go w.Run()
 	}
 
-	tick := time.Tick(s.e.StatTick)
-
-	s.running = true
+	tick := time.Tick(s.cfg.StatTick)
 
 	for {
 		select {
@@ -168,27 +157,40 @@ func (s *Scheduler) Run() {
 			s.dispatch()
 		case now := <-tick:
 			s.statTick(now)
+			s.dayCheck(now)
+			s.memCheck()
 
 			if !s.running {
-				if s.workers.Len() == s.e.WorkerNum {
-					s.e.Log.Println("[Info] all workers closed")
+				if s.workers.Len() == s.cfg.WorkerNum {
+					s.log.Println("[Info] all workers closed")
 					return
 				}
 			}
 		case c := <-s.cmd:
 			switch c {
 			case CMD_CLOSE:
-				//关闭
-				s.running = false
-
-				s.e.Log.Println("[Info] closing...")
-				s.saveTask()
+				s.close()
 			case CMD_SUSPEND:
 				for CMD_RESUME != <-s.cmd {
 				}
 			}
 		}
 	}
+}
+
+func (s *Scheduler) close() {
+	if !s.running {
+		return
+	}
+
+	s.running = false
+	s.log.Println("[Info] closing...")
+
+	for _, w := range s.allWorkers {
+		w.Close()
+	}
+
+	s.saveTask()
 }
 
 func (s *Scheduler) statTick(now time.Time) {
@@ -207,20 +209,47 @@ func (s *Scheduler) statTick(now time.Time) {
 		j.LoadStat.Push(int64(j.LoadTime))
 		j.LoadTime = 0
 	})
+}
 
-	if s.Today != now.Day() {
-		s.OldNum = s.RunNum
-		s.RunNum = 0
-
-		s.jobs.Each(func(j *Job) {
-			j.OldNum = j.RunNum
-			j.RunNum = 0
-		})
-
-		s.Today = now.Day()
+func (s *Scheduler) memCheck() {
+	st := runtime.MemStats{}
+	runtime.ReadMemStats(&st)
+	if st.Alloc > uint64(s.cfg.MaxMem*1024*1024) {
+		s.memFull = true
+	} else {
+		s.memFull = false
 	}
 }
 
-func (s *Scheduler) Close() {
-	s.cmd <- CMD_CLOSE
+func (s *Scheduler) dayCheck(now time.Time) {
+	if s.today != now.Day() {
+		s.OldNum = s.RunNum
+		s.RunNum = -1
+
+		s.jobs.Each(func(j *Job) {
+			j.OldNum = j.RunNum
+			j.RunNum = -1
+		})
+
+		s.today = now.Day()
+	}
+}
+
+func (s *Scheduler) openLog() {
+	if s.cfg.LogFile == "" {
+		s.log = log.Default()
+	} else {
+		if s.logCloser != nil {
+			s.logCloser.Close()
+			s.logCloser = nil
+		}
+
+		fh, err := os.OpenFile(s.cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		s.log = log.New(fh, "", log.LstdFlags)
+		s.logCloser = fh
+	}
 }

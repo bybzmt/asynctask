@@ -38,9 +38,9 @@ func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.Name = name
 	j.Tasks.Init()
 	j.s = s
-	j.LoadStat.Init(j.s.e.StatSize)
+	j.LoadStat.Init(j.s.cfg.StatSize)
 	j.UseTimeStat.Init(10)
-	j.parallel = j.s.e.Parallel
+	j.parallel = j.s.cfg.Parallel
 	return j
 }
 
@@ -94,7 +94,7 @@ func (j *Job) Score() int {
 
 	area := 10000
 
-	x := j.NowNum * (area / j.s.e.WorkerNum)
+	x := j.NowNum * (area / j.s.cfg.WorkerNum)
 
 	y := 0
 	if j.s.LoadStat.GetAll() > 0 {

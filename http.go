@@ -24,7 +24,7 @@ var workerNum = flag.Int("num", 10, "worker number")
 var parallel = flag.Int("parallel", 5, "one task default parallel")
 var logfile = flag.String("log", os.Getenv("log"), "log file [ENV]")
 var dbfile = flag.String("dbfile", os.Getenv("dbfile"), "storage file [ENV]")
-var max_mem = flag.Uint64("max_mem", 128, "max memory size(MB)")
+var max_mem = flag.Uint("max_mem", 128, "max memory size(MB)")
 
 var redis_host = flag.String("redis_host", os.Getenv("redis_host"), "redis host [ENV]")
 var redis_pwd = flag.String("redis_pwd", os.Getenv("redis_pwd"), "redis password [ENV]")
@@ -39,22 +39,8 @@ var uifiles embed.FS
 func main() {
 	flag.Parse()
 
-	var logger *log.Logger
-
 	if *dbfile == "" {
 		*dbfile = "./asynctask.db"
-	}
-
-	if *logfile == "" {
-		logger = log.Default()
-	} else {
-		fh, err := os.OpenFile(*logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		defer fh.Close()
-
-		logger = log.New(fh, "", log.LstdFlags)
 	}
 
 	if *mode != "cmd" && *mode != "http" {
@@ -70,15 +56,20 @@ func main() {
 		log.Fatalln("parameter parallel must >= 1")
 	}
 
-	env := new(Environment).Init(*workerNum, *base, *timeout, logger)
-	env.DbFile = *dbfile
+	env := new(Config)
 	env.Parallel = uint(*parallel)
+	env.WorkerNum = *workerNum
+	env.Base = *base
+	env.DbFile = *dbfile
+	env.LogFile = *logfile
+	env.MaxMem = *max_mem
 
-	if *mode == "cmd" {
-		env.Mode = MODE_CMD
-	} else {
-		env.Mode = MODE_HTTP
-	}
+	env.RedisDb = *redis_db
+	env.RedisKey = *redis_key
+	env.RedisHost = *redis_host
+	env.RedisPwd = *redis_pwd
+
+	env.Init(*mode, *timeout)
 
 	hub = new(Scheduler).Init(env)
 
@@ -93,8 +84,6 @@ func main() {
 	}()
 
 	go exitSignal()
-	go hub.restoreFromFile()
-	go redis_init()
 
 	hub.Run()
 }

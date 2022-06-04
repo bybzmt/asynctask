@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"time"
 )
@@ -13,30 +12,31 @@ const (
 
 type Mode int
 
-type Environment struct {
+type Config struct {
 	WorkerNum int
 	Base      string
-	DbFile    string
 	Mode      Mode
 	Parallel  uint
 
-	Log *log.Logger
+	LogFile string
+	DbFile  string
+	MaxMem  uint
 
-	Client  *http.Client
-	Timeout time.Duration
+	RedisHost string
+	RedisPwd  string
+	RedisDb   string
+	RedisKey  string
+
+	Client      *http.Client
+	TaskTimeout time.Duration
 
 	//统计周期
 	StatTick time.Duration
 	StatSize int
 }
 
-func (a *Environment) Init(workerNum int, base string, timeout int, out *log.Logger) *Environment {
-	a.WorkerNum = workerNum
-	a.Base = base
-
-	a.Log = out
-	a.Parallel = 5
-	a.Timeout = time.Second * time.Duration(timeout)
+func (a *Config) Init(mode string, timeout int) {
+	a.TaskTimeout = time.Second * time.Duration(timeout)
 
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: a.WorkerNum,
@@ -44,8 +44,15 @@ func (a *Environment) Init(workerNum int, base string, timeout int, out *log.Log
 
 	a.Client = &http.Client{
 		Transport: tr,
-		Timeout:   a.Timeout,
+		Timeout:   a.TaskTimeout,
 	}
 
-	return a
+	if mode == "cmd" {
+		a.Mode = MODE_CMD
+	} else {
+		a.Mode = MODE_HTTP
+	}
+
+	a.StatTick = time.Second * 1
+	a.StatSize = 30
 }

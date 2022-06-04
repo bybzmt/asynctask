@@ -6,9 +6,9 @@ import (
 )
 
 func (s *Scheduler) saveTask() {
-	s.e.Log.Println("[Info] saving tasks...")
+	s.log.Println("[Info] saving tasks...")
 	s.saveToFile()
-	s.e.Log.Println("[Info] saving tasks complete")
+	s.log.Println("[Info] saving tasks complete")
 }
 
 func (s *Scheduler) saveToFile() {
@@ -35,7 +35,7 @@ func (s *Scheduler) saveToFile() {
 		}
 	})
 
-	f, err := os.OpenFile(s.e.DbFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(s.cfg.DbFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -49,12 +49,12 @@ func (s *Scheduler) saveToFile() {
 }
 
 func (s *Scheduler) restoreFromFile() {
-	s.e.Log.Println("[Info] restore From File")
+	s.log.Println("[Info] restore From File")
 
 	f, err := os.Open(*dbfile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.e.Log.Println("[Info] not have storaged file")
+			s.log.Println("[Info] not have storaged file")
 			return
 		}
 		panic(err)
@@ -73,5 +73,5 @@ func (s *Scheduler) restoreFromFile() {
 		s.AddOrder(&row)
 	}
 
-	s.e.Log.Println("[Info] restore From File complete")
+	s.log.Println("[Info] restore From File complete")
 }
