@@ -108,3 +108,16 @@ func (j *Job) Score() int {
 
 	return x*4 + y*3 + z*3
 }
+
+func (j *Job) Each(fn func(t *taskMini)) {
+	if j.Len() > 0 {
+		ele := j.Tasks.Front()
+		for ele != nil {
+			t := ele.Value.(*taskMini)
+
+			fn(t)
+
+			ele = ele.Next()
+		}
+	}
+}

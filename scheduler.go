@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -77,7 +78,7 @@ func (s *Scheduler) addTask(o *Order) {
 	s.WaitNum++
 }
 
-func (s *Scheduler) dispatch() {
+func (s *Scheduler) dispatch(now time.Time) {
 	if !s.running {
 		return
 	}
@@ -89,8 +90,6 @@ func (s *Scheduler) dispatch() {
 	if s.workers.Len() == 0 {
 		return
 	}
-
-	now := time.Now()
 
 	t := s.jobs.GetTask()
 	t.StartTime = now
@@ -114,11 +113,7 @@ func (s *Scheduler) dispatch() {
 	w.task <- t
 }
 
-func (s *Scheduler) end(t *Task) {
-	now := time.Now()
-
-	t.worker.run = false
-
+func (s *Scheduler) end(t *Task, now time.Time) {
 	t.EndTime = now
 	t.worker.log(t)
 
@@ -128,6 +123,8 @@ func (s *Scheduler) end(t *Task) {
 
 	s.NowNum--
 	s.LoadTime += us
+
+	t.worker.run = false
 	s.workers.PushBack(t.worker)
 
 	delete(s.tasks, t)
@@ -154,10 +151,12 @@ func (s *Scheduler) Run() {
 		select {
 		case o := <-s.order:
 			s.addTask(o)
-			s.dispatch()
+			now := time.Now()
+			s.dispatch(now)
 		case t := <-s.complete:
-			s.end(t)
-			s.dispatch()
+			now := time.Now()
+			s.end(t, now)
+			s.dispatch(now)
 		case now := <-tick:
 			s.statTick(now)
 			s.dayCheck(now)
@@ -165,7 +164,7 @@ func (s *Scheduler) Run() {
 
 			if !s.running {
 				if s.workers.Len() == s.cfg.WorkerNum {
-					s.log.Println("[Info] all workers closed")
+					s.closed()
 					return
 				}
 			}
@@ -178,6 +177,13 @@ func (s *Scheduler) Run() {
 				}
 			}
 		}
+	}
+}
+
+func (s *Scheduler) closed() {
+	s.log.Println("[Info] all workers closed")
+	if s.logCloser != nil {
+		s.logCloser.Close()
 	}
 }
 
@@ -247,7 +253,10 @@ func (s *Scheduler) openLog() {
 			s.logCloser = nil
 		}
 
-		fh, err := os.OpenFile(s.cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		file := s.cfg.LogFile
+		file = strings.Replace(file, "[date]", time.Now().Format("20060102"), 1)
+
+		fh, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalln(err)
 		}

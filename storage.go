@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/gob"
+	"encoding/json"
+	"io"
 	"os"
 )
 
@@ -9,6 +10,7 @@ func (s *Scheduler) saveTask() {
 	s.log.Println("[Info] saving tasks...")
 	if s.redis != nil {
 		s.saveToRedis()
+		s.redis.Close()
 	} else {
 		s.saveToFile()
 	}
@@ -16,40 +18,29 @@ func (s *Scheduler) saveTask() {
 }
 
 func (s *Scheduler) saveToFile() {
-	rows := make([]Order, 0, s.WaitNum)
-
-	s.jobs.Each(func(j *Job) {
-		if j.Len() > 0 {
-			ele := j.Tasks.Front()
-			for ele != nil {
-				t := ele.Value.(*Task)
-
-				row := Order{
-					Id:       t.Id,
-					Parallel: j.parallel,
-					Name:     j.Name,
-					Params:   t.Params,
-					AddTime:  uint(t.AddTime.Unix()),
-				}
-
-				rows = append(rows, row)
-
-				ele = ele.Next()
-			}
-		}
-	})
-
 	f, err := os.OpenFile(s.cfg.DbFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
 
-	en := gob.NewEncoder(f)
-	err = en.Encode(rows)
-	if err != nil {
-		panic(err)
-	}
+	encoder := json.NewEncoder(f)
+
+	s.jobs.Each(func(j *Job) {
+		j.Each(func(t *taskMini) {
+			row := Order{
+				Id:       t.Id,
+				Parallel: j.parallel,
+				Name:     j.Name,
+				Params:   t.Params,
+				AddTime:  t.AddTime,
+			}
+			err := encoder.Encode(&row)
+			if err != nil {
+				s.log.Panicln("[Error] json encode error", err)
+			}
+		})
+	})
 }
 
 func (s *Scheduler) restoreFromFile() {
@@ -65,17 +56,22 @@ func (s *Scheduler) restoreFromFile() {
 	}
 	defer f.Close()
 
-	rows := []Order{}
+	decoder := json.NewDecoder(f)
 
-	de := gob.NewDecoder(f)
-	err = de.Decode(&rows)
-	if err != nil {
-		panic(err)
+	for {
+		row := Order{}
+
+		err := decoder.Decode(&row)
+		if err != nil {
+			if err == io.EOF {
+				s.log.Println("[Info] restore From File complete")
+				return
+			}
+
+			s.log.Println("[Error] json decode error", err)
+			return
+		} else {
+			s.AddOrder(&row)
+		}
 	}
-
-	for _, row := range rows {
-		s.AddOrder(&row)
-	}
-
-	s.log.Println("[Info] restore From File complete")
 }

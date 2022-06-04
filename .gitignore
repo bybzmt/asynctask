@@ -1,8 +1,7 @@
-#代码临时目录
-lib/
 
 asynctask
 asynctask.db
+*.log
 
 #vim临时文件
 *.swp

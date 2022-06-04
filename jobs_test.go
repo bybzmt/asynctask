@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -25,7 +24,7 @@ func TestList(t *testing.T) {
 	js.GetTask()
 	js.GetTask()
 
-	fmt.Println(js)
+	//fmt.Println(js)
 
 	if js.HasTask() {
 		t.Fatal("jobs list err")

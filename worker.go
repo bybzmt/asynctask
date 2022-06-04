@@ -118,8 +118,8 @@ func (w *Worker) log(t *Task) {
 		Name:     t.job.Name,
 		Params:   t.Params,
 		Status:   t.Status,
-		WaitTime: waitTime,
-		RunTime:  runTime,
+		WaitTime: LogSecond(waitTime),
+		RunTime:  LogSecond(runTime),
 		Output:   t.Msg,
 	}
 

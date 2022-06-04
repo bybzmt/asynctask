@@ -49,10 +49,10 @@ func TestScheduler(t *testing.T) {
 
 	log.Println("baseurl:", baseurl)
 
-	logger := log.Default()
-
-	env := new(Environment).Init(10, baseurl, 10, logger)
-	env.DbFile = "./asynctask.db"
+	env := new(Config)
+	env.Base = baseurl
+	env.LogFile = "my_[date].log"
+	env.Init("http", 10)
 
 	hub := new(Scheduler).Init(env)
 
@@ -120,8 +120,9 @@ func ts_addTask(hub *Scheduler, baseurl string) {
 		data := "code=200&sleep=" + strconv.Itoa(sl)
 
 		o := Order{
-			Name:   ac,
-			Params: []string{data},
+			Name:    ac,
+			Params:  []string{data},
+			AddTime: uint(time.Now().Unix()),
 		}
 
 		hub.AddOrder(&o)

@@ -27,7 +27,7 @@ func Init() {
 	flag.StringVar(&cfg.Base, "base", os.Getenv("base"), "base url or cmd base [ENV]")
 	flag.IntVar(&cfg.WorkerNum, "num", 10, "worker number")
 	flag.UintVar(&cfg.Parallel, "parallel", 5, "one task default parallel")
-	flag.StringVar(&cfg.LogFile, "log", os.Getenv("log"), "log file [ENV]")
+	flag.StringVar(&cfg.LogFile, "log", os.Getenv("log"), "log file e.g: my-[date].log [ENV]")
 	flag.StringVar(&cfg.DbFile, "dbfile", os.Getenv("dbfile"), "storage file [ENV]")
 	flag.UintVar(&cfg.MaxMem, "max_mem", 128, "max memory size(MB)")
 

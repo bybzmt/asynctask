@@ -59,4 +59,11 @@ func (c *Config) Init(mode string, timeout int) {
 	if c.DbFile == "" {
 		c.DbFile = "./asynctask.db"
 	}
+
+	if c.WorkerNum < 1 {
+		c.WorkerNum = 10
+	}
+	if c.Parallel < 1 {
+		c.Parallel = 5
+	}
 }

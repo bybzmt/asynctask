@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -42,13 +43,20 @@ type taskMiniList struct {
 	list   [150]taskMini
 }
 
+type LogSecond float64
+
+func (l LogSecond) MarshalJSON() ([]byte, error) {
+	str := fmt.Sprintf("%.2f", l)
+	return []byte(str), nil
+}
+
 //task 日志记录
 type TaskLog struct {
 	Id       uint
 	Name     string
 	Params   []string
 	Status   int
-	WaitTime float64
-	RunTime  float64
+	WaitTime LogSecond
+	RunTime  LogSecond
 	Output   string
 }
