@@ -69,6 +69,7 @@ func main() {
 	http.HandleFunc("/api/task/cancel", page_task_cancel)
 	http.HandleFunc("/api/job/empty", page_job_empty)
 	http.HandleFunc("/api/job/priority", page_job_priority)
+	http.HandleFunc("/api/job/parallel", page_job_parallel)
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*addr, nil))
@@ -81,7 +82,7 @@ func main() {
 
 func exitSignal() {
 	co := make(chan os.Signal, 1)
-	signal.Notify(co, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(co, os.Interrupt, syscall.SIGTERM)
 	<-co
 
 	hub.Close()
@@ -146,11 +147,25 @@ func page_job_priority(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 
 	name := strings.TrimSpace(r.FormValue("name"))
-	_priority := strings.TrimSpace(r.FormValue("priority"))
+	tmp := strings.TrimSpace(r.FormValue("priority"))
 
-	priority, _ := strconv.Atoi(_priority)
+	priority, _ := strconv.Atoi(tmp)
 
 	ok := hub.JobPriority(name, priority)
+
+	rs := &Result{Code: 0, Data: ok}
+	json.NewEncoder(w).Encode(rs)
+}
+
+func page_job_parallel(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	tmp := strings.TrimSpace(r.FormValue("parallel"))
+
+	parallel, _ := strconv.Atoi(tmp)
+
+	ok := hub.JobParallel(name, uint(parallel))
 
 	rs := &Result{Code: 0, Data: ok}
 	json.NewEncoder(w).Encode(rs)

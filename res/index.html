@@ -174,7 +174,16 @@ function jobPriority(job)
             alert(JSON.stringify(json));
         });
     }
+}
 
+function jobParallel(job)
+{
+    var txt = prompt("Job: "+job.Name+" Parallel: ", job.Parallel)
+    if (txt!=null && txt!="") {
+        $.getJSON("/api/job/parallel?name="+encodeURIComponent(job.Name)+"&parallel="+encodeURIComponent(txt), function(json){
+            alert(JSON.stringify(json));
+        });
+    }
 }
 
 function showStatus() {
@@ -243,7 +252,8 @@ function showStatus() {
             html += "<tr>"
             html += '<td>'+j.Name+'</td>';
             html += '<td>'+(j.Load/100)+'%</td>';
-            html += '<td>'+j.NowNum+'</td>';
+            html += "<td><span ondblclick='jobParallel("+JSON.stringify(j)+")'>";
+            html += j.NowNum+'/'+j.Parallel+'</span></td>';
             html += '<td>'+j.RunNum+'</td>';
             html += '<td>'+j.OldNum+'</td>';
             html += "<td><span ondblclick='jobEmpty("+JSON.stringify(j)+")'>"+j.WaitNum+"</span></td>";

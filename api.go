@@ -55,6 +55,22 @@ func (s *Scheduler) JobPriority(name string, priority int) bool {
 	return ok
 }
 
+func (s *Scheduler) JobParallel(name string, parallel uint) bool {
+	s.cmd <- CMD_SUSPEND
+	defer func() { s.cmd <- CMD_RESUME }()
+
+	if parallel < 1 {
+		parallel = 1
+	}
+
+	j, ok := s.jobs.all[name]
+	if ok {
+		j.parallel = parallel
+	}
+
+	return ok
+}
+
 func (s *Scheduler) taskCancel(id string) bool {
 	s.cmd <- CMD_SUSPEND
 	defer func() { s.cmd <- CMD_RESUME }()
