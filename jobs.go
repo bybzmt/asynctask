@@ -71,6 +71,7 @@ func (js *Jobs) GetTask() *Task {
 
 	t := j.PopTask()
 
+	j.LastTime = js.s.now
 	j.NowNum++
 
 	//如果运行数超过上限，移到block队列中
@@ -83,6 +84,8 @@ func (js *Jobs) GetTask() *Task {
 		//添加到idle链表中
 		js.idlePushBack(j)
 	} else {
+		js.remove(j)
+		js.pushBack(j)
 		js.Priority(j)
 	}
 

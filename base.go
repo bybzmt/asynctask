@@ -37,12 +37,6 @@ type taskMini struct {
 	AddTime uint
 }
 
-type taskMiniList struct {
-	offset int
-	next   *taskMiniList
-	list   [150]taskMini
-}
-
 //输出日志时间（为了不显示太长的小数)
 type LogSecond float64
 

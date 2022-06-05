@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -30,11 +29,9 @@ func (w *WorkerHttp) Exec(t *Task) {
 }
 
 func (w *WorkerHttp) Cancel() {
-	log.Println("Cancel")
 	_resp := w.resp.Load()
 
 	if _resp != nil {
-		log.Println("Cancel Close")
 		fn := _resp.(context.CancelFunc)
 		if fn != nil {
 			fn()

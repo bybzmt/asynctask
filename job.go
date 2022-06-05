@@ -28,6 +28,7 @@ type Job struct {
 
 	Tasks list.List
 
+	LastTime time.Time
 	LoadTime time.Duration
 	LoadStat StatRow
 
@@ -107,7 +108,15 @@ func (j *Job) Score() int {
 		z = area - int(float64(j.Len())/float64(j.s.WaitNum)*float64(area))
 	}
 
-	return x*4 + y*3 + z*3
+	/*
+		t := int(j.s.now.Sub(j.LastTime) / time.Millisecond)
+		if t > area {
+			t = area
+		}
+		t = area - t
+	*/
+
+	return x + y + z
 }
 
 func (j *Job) Each(fn func(t *taskMini)) {

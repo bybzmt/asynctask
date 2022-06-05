@@ -39,6 +39,7 @@ type Scheduler struct {
 	cmd      chan Cmd
 	today    int
 	memFull  bool
+	now      time.Time
 
 	//己执行任务计数
 	RunNum int
@@ -84,7 +85,7 @@ func (s *Scheduler) addTask(o *Order) {
 	s.WaitNum++
 }
 
-func (s *Scheduler) dispatch(now time.Time) {
+func (s *Scheduler) dispatch() {
 	if !s.running {
 		return
 	}
@@ -98,8 +99,8 @@ func (s *Scheduler) dispatch(now time.Time) {
 	}
 
 	t := s.jobs.GetTask()
-	t.StartTime = now
-	t.StatTime = now
+	t.StartTime = s.now
+	t.StatTime = s.now
 
 	s.tasks[t] = struct{}{}
 
@@ -118,8 +119,8 @@ func (s *Scheduler) dispatch(now time.Time) {
 	w.Exec(t)
 }
 
-func (s *Scheduler) end(t *Task, now time.Time) {
-	t.EndTime = now
+func (s *Scheduler) end(t *Task) {
+	t.EndTime = s.now
 
 	s.logTask(t)
 
@@ -165,15 +166,16 @@ func (s *Scheduler) Run() {
 		select {
 		case o := <-s.order:
 			s.addTask(o)
-			now := time.Now()
-			s.dispatch(now)
+			s.now = time.Now()
+			s.dispatch()
 		case t := <-s.complete:
-			now := time.Now()
-			s.end(t, now)
-			s.dispatch(now)
+			s.now = time.Now()
+			s.end(t)
+			s.dispatch()
 		case now := <-tick:
-			s.statTick(now)
-			s.dayCheck(now)
+			s.now = now
+			s.statTick()
+			s.dayCheck()
 			s.memCheck()
 
 			if !s.running {
@@ -227,10 +229,10 @@ func (s *Scheduler) allTaskCancel() {
 	}
 }
 
-func (s *Scheduler) statTick(now time.Time) {
+func (s *Scheduler) statTick() {
 	for t, _ := range s.tasks {
-		us := now.Sub(t.StatTime)
-		t.StatTime = now
+		us := s.now.Sub(t.StatTime)
+		t.StatTime = s.now
 
 		s.LoadTime += us
 		t.job.LoadTime += us
@@ -255,8 +257,8 @@ func (s *Scheduler) memCheck() {
 	}
 }
 
-func (s *Scheduler) dayCheck(now time.Time) {
-	if s.today != now.Day() {
+func (s *Scheduler) dayCheck() {
+	if s.today != s.now.Day() {
 		s.OldNum = s.RunNum
 		s.RunNum = -1
 
@@ -265,7 +267,7 @@ func (s *Scheduler) dayCheck(now time.Time) {
 			j.RunNum = -1
 		})
 
-		s.today = now.Day()
+		s.today = s.now.Day()
 	}
 }
 

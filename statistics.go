@@ -40,14 +40,15 @@ type StatTask struct {
 }
 
 type Stat struct {
-	Name    string
-	Load    int
-	NowNum  int
-	RunNum  int
-	OldNum  int
-	WaitNum int
-	UseTime int
-	Score   int
+	Name     string
+	Load     int
+	NowNum   int
+	RunNum   int
+	OldNum   int
+	WaitNum  int
+	UseTime  int
+	LastTime int
+	Score    int
 }
 
 type Statistics struct {
@@ -97,15 +98,23 @@ func (s *Scheduler) getStatData() *Statistics {
 			useTime = int(j.UseTimeStat.GetAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
 		}
 
+		sec := 0
+
+		sec2 := j.LastTime.Unix()
+		if sec2 > 0 {
+			sec = int(now.Sub(j.LastTime) / time.Second)
+		}
+
 		t.Jobs = append(t.Jobs, Stat{
-			Name:    j.Name,
-			Load:    x,
-			RunNum:  j.RunNum,
-			OldNum:  j.OldNum,
-			NowNum:  j.NowNum,
-			WaitNum: j.Len(),
-			UseTime: useTime,
-			Score:   j.Score(),
+			Name:     j.Name,
+			Load:     x,
+			RunNum:   j.RunNum,
+			OldNum:   j.OldNum,
+			NowNum:   j.NowNum,
+			WaitNum:  j.Len(),
+			UseTime:  useTime,
+			LastTime: sec,
+			Score:    j.Score(),
 		})
 	})
 
