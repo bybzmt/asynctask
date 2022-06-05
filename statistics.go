@@ -49,6 +49,7 @@ type Stat struct {
 	UseTime  int
 	LastTime int
 	Score    int
+	Priority int
 }
 
 type Statistics struct {
@@ -115,6 +116,7 @@ func (s *Scheduler) getStatData() *Statistics {
 			UseTime:  useTime,
 			LastTime: sec,
 			Score:    j.Score(),
+			Priority: j.priority,
 		})
 	})
 

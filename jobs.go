@@ -74,17 +74,16 @@ func (js *Jobs) GetTask() *Task {
 	j.LastTime = js.s.now
 	j.NowNum++
 
+	//从运行链表中移聊
+	js.remove(j)
+
 	//如果运行数超过上限，移到block队列中
 	if j.NowNum >= int(j.parallel) {
-		js.remove(j)
 		js.blockAdd(j)
 	} else if j.Len() < 1 {
-		//从运行链表中移聊
-		js.remove(j)
 		//添加到idle链表中
 		js.idlePushBack(j)
 	} else {
-		js.remove(j)
 		js.pushBack(j)
 		js.Priority(j)
 	}

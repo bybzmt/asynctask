@@ -19,6 +19,7 @@ type Job struct {
 	next, prev *Job
 	mode       job_mode
 	parallel   uint
+	priority   int
 
 	Name string
 
@@ -108,15 +109,7 @@ func (j *Job) Score() int {
 		z = area - int(float64(j.Len())/float64(j.s.WaitNum)*float64(area))
 	}
 
-	/*
-		t := int(j.s.now.Sub(j.LastTime) / time.Millisecond)
-		if t > area {
-			t = area
-		}
-		t = area - t
-	*/
-
-	return x + y + z
+	return x + y + z + j.priority
 }
 
 func (j *Job) Each(fn func(t *taskMini)) {

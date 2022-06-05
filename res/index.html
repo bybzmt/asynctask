@@ -95,76 +95,87 @@ table td, table th{
 </div>
 
 <script>
-    var tab = 3;
-    function setTab(by) {
-        $("#tab span").removeClass("active")
-        $("#tasks").hide()
-        $("#jobs").hide()
+var tab = 3;
+function setTab(by) {
+    $("#tab span").removeClass("active")
+    $("#tasks").hide()
+    $("#jobs").hide()
 
-        tab = by;
+    tab = by;
 
-        switch(by) {
-            case 1:
-                $("#tab .run").addClass("active")
-                $("#tasks").show()
-                break;
-            case 2:
-                $("#tab .wait").addClass("active")
-                $("#jobs").show()
-                break;
-            case 3:
-                $("#tab .idle").addClass("active")
-                $("#jobs").show()
-                break;
-            case 4:
-                $("#tab .all").addClass("active")
-                $("#jobs").show()
-                break;
-        }
+    switch(by) {
+        case 1:
+            $("#tab .run").addClass("active")
+            $("#tasks").show()
+            break;
+        case 2:
+            $("#tab .wait").addClass("active")
+            $("#jobs").show()
+            break;
+        case 3:
+            $("#tab .idle").addClass("active")
+            $("#jobs").show()
+            break;
+        case 4:
+            $("#tab .all").addClass("active")
+            $("#jobs").show()
+            break;
+    }
+}
+
+var sortby = 2;
+var oldEle;
+
+function setSort(by, ele)
+{
+    if (oldEle) {
+        var txt = oldEle.innerHTML;
+        txt = txt.replace(/(\s|↓|↑)+/, "")
+        oldEle.innerHTML = txt;
+    }
+    oldEle = ele;
+
+
+    if (by == sortby) {
+        by = -by
+        ele.innerHTML += " ↑"
+    } else {
+        ele.innerHTML += " ↓"
     }
 
-    var sortby = 2;
-    var oldEle;
+    sortby = by
+}
 
-    function setSort(by, ele)
-    {
-        if (oldEle) {
-            var txt = oldEle.innerHTML;
-            txt = txt.replace(/(\s|↓|↑)+/, "")
-            oldEle.innerHTML = txt;
-        }
-        oldEle = ele;
+function taskCancel(task)
+{
+    var ok = confirm("Cancel Task?\r\nid: " + task.Id + " Params: " + JSON.stringify(task.Params))
+    if (ok) {
+        $.getJSON("/api/task/cancel?id="+encodeURIComponent(task.Id), function(json){
+            alert(JSON.stringify(json));
+        });
+    }
+}
 
+function jobEmpty(job)
+{
+    var ok = confirm("Empty Job?\r\nName: " + job.Name)
+    if (ok) {
+        $.getJSON("/api/job/empty?name="+encodeURIComponent(job.Name), function(json){
+            alert(JSON.stringify(json));
+        });
+    }
+}
 
-        if (by == sortby) {
-            by = -by
-            ele.innerHTML += " ↑"
-        } else {
-            ele.innerHTML += " ↓"
-        }
-
-        sortby = by
+function jobPriority(job)
+{
+    var txt = prompt("Job: "+job.Name+" Priority: ", "")
+    if (txt!=null && txt!="") {
+        $.getJSON("/api/job/priority?name="+encodeURIComponent(job.Name)+"&priority="+encodeURIComponent(txt), function(json){
+            alert(JSON.stringify(json));
+        });
     }
 
-    function taskCancel(task)
-    {
-        var ok = confirm("Cancel Task?\r\nid: " + task.Id + " Params: " + JSON.stringify(task.Params))
-        if (ok) {
-            $.getJSON("/api/task/cancel?id="+encodeURIComponent(task.Id), function(json){
-                alert(JSON.stringify(json));
-            });
-        }
-    }
-
-    function jobEmpty(job)
-    {
-        var ok = confirm("Empty Job?\r\nName: " + job.Name)
-        if (ok) {
-            $.getJSON("/api/task/empty?name="+encodeURIComponent(job.Name), function(json){
-                alert(JSON.stringify(json));
-            });
-        }
-    }
+}
 
 function showStatus() {
     $.getJSON("/api/status", function(json){
@@ -237,7 +248,9 @@ function showStatus() {
             html += '<td>'+j.OldNum+'</td>';
             html += "<td><span ondblclick='jobEmpty("+JSON.stringify(j)+")'>"+j.WaitNum+"</span></td>";
             html += '<td>'+(j.UseTime/1000)+'s</td>';
-            html += '<td>'+j.Score+'</td>';
+            html += "<td><span ondblclick='jobPriority("+JSON.stringify(j)+")'>";
+            html += j.Score + (j.Priority==0?"":(j.Priority > 0 ? "(+" + j.Priority+")" : "("+j.Priority+")"));
+            html += '<span></td>';
             html += '<td>'+j.LastTime+'s</td>';
             html += "</tr>"
         }

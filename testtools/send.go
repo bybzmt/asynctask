@@ -22,7 +22,7 @@ var ts_actions = []int{
 	1000,
 	3000,
 	6000,
-	//10000, 100000,
+	10000, 100000,
 }
 
 var ts_rand chan int

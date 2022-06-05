@@ -66,8 +66,9 @@ func main() {
 
 	http.HandleFunc("/api/status", page_status)
 	http.HandleFunc("/api/task/add", page_task_add)
-	http.HandleFunc("/api/task/empty", page_task_empty)
 	http.HandleFunc("/api/task/cancel", page_task_cancel)
+	http.HandleFunc("/api/job/empty", page_job_empty)
+	http.HandleFunc("/api/job/priority", page_job_priority)
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*addr, nil))
@@ -129,15 +130,29 @@ func page_status(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rs)
 }
 
-func page_task_empty(w http.ResponseWriter, r *http.Request) {
+func page_job_empty(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 
 	name := r.FormValue("name")
 	name = strings.TrimSpace(name)
 
-	hub.JobEmpty(name)
+	ok := hub.JobEmpty(name)
 
-	rs := &Result{Code: 0, Data: "ok"}
+	rs := &Result{Code: 0, Data: ok}
+	json.NewEncoder(w).Encode(rs)
+}
+
+func page_job_priority(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	_priority := strings.TrimSpace(r.FormValue("priority"))
+
+	priority, _ := strconv.Atoi(_priority)
+
+	ok := hub.JobPriority(name, priority)
+
+	rs := &Result{Code: 0, Data: ok}
 	json.NewEncoder(w).Encode(rs)
 }
 

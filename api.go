@@ -33,9 +33,26 @@ func (s *Scheduler) JobEmpty(name string) bool {
 		len := j.Tasks.Len()
 		s.WaitNum -= len
 		j.Tasks.Init()
+
+		if j.mode == JOB_MODE_RUNNABLE {
+			s.jobs.remove(j)
+			s.jobs.idlePushBack(j)
+		}
 	}
 
-	return true
+	return ok
+}
+
+func (s *Scheduler) JobPriority(name string, priority int) bool {
+	s.cmd <- CMD_SUSPEND
+	defer func() { s.cmd <- CMD_RESUME }()
+
+	j, ok := s.jobs.all[name]
+	if ok {
+		j.priority = priority
+	}
+
+	return ok
 }
 
 func (s *Scheduler) taskCancel(id string) bool {
@@ -46,10 +63,11 @@ func (s *Scheduler) taskCancel(id string) bool {
 		_id := fmt.Sprintf("%x", unsafe.Pointer(t))
 		if id == _id {
 			t.worker.Cancel()
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func (s *Scheduler) Status() *Statistics {
