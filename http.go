@@ -24,7 +24,7 @@ var timeout = flag.Int("timeout", 300, "task timeout Second")
 var cfg Config
 var hub Scheduler
 
-func Init() {
+func init() {
 	flag.StringVar(&cfg.Base, "base", os.Getenv("base"), "base url or cmd base [ENV]")
 	flag.IntVar(&cfg.WorkerNum, "num", 10, "worker number")
 	flag.UintVar(&cfg.Parallel, "parallel", 5, "one task default parallel")
@@ -67,6 +67,7 @@ func main() {
 	http.HandleFunc("/api/status", page_status)
 	http.HandleFunc("/api/task/add", page_task_add)
 	http.HandleFunc("/api/task/empty", page_task_empty)
+	http.HandleFunc("/api/task/cancel", page_task_cancel)
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*addr, nil))
@@ -137,5 +138,16 @@ func page_task_empty(w http.ResponseWriter, r *http.Request) {
 	hub.JobEmpty(name)
 
 	rs := &Result{Code: 0, Data: "ok"}
+	json.NewEncoder(w).Encode(rs)
+}
+
+func page_task_cancel(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
+	id := r.FormValue("id")
+
+	ok := hub.taskCancel(id)
+
+	rs := &Result{Code: 0, Data: ok}
 	json.NewEncoder(w).Encode(rs)
 }

@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 )
 
 type WorkerHttp struct {
 	Id int
 
-	resp *http.Response
+	resp atomic.Value
 
 	task chan *Task
 	s    *Scheduler
@@ -27,9 +30,15 @@ func (w *WorkerHttp) Exec(t *Task) {
 }
 
 func (w *WorkerHttp) Cancel() {
-	if w.resp != nil {
-		w.resp.Body.Close()
-		w.resp = nil
+	log.Println("Cancel")
+	_resp := w.resp.Load()
+
+	if _resp != nil {
+		log.Println("Cancel Close")
+		fn := _resp.(context.CancelFunc)
+		if fn != nil {
+			fn()
+		}
 	}
 }
 
@@ -63,15 +72,23 @@ func (w *WorkerHttp) doHttp(t *Task) (status int, msg string) {
 		url = url + "&" + strings.Join(t.Params, "&")
 	}
 
-	resp, err = w.s.cfg.Client.Get(url)
+	ctx, cancel := context.WithCancel(context.Background())
 
+	w.resp.Store(cancel)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		status = -1
 		msg = err.Error()
 		return
 	}
 
-	w.resp = resp
+	resp, err = w.s.cfg.Client.Do(req)
+	if err != nil {
+		status = -1
+		msg = err.Error()
+		return
+	}
 
 	defer resp.Body.Close()
 

@@ -20,9 +20,10 @@ var ts_actions = []int{
 	200, 230, 240, 270,
 	300, 350, 400, 500,
 	1000,
-	//3000,
-	//6000,
-	//10000,
+	3000,
+	6000,
+	10000,
+	100000,
 }
 
 var ts_rand chan int
@@ -52,33 +53,30 @@ func main() {
 		tmp := ts_getRand()
 		sl = tmp % sl
 
-
-
 		p := url.Values{}
 		p.Add("code", "200")
 		p.Add("sleep", strconv.Itoa(sl))
 
 		v := url.Values{}
 
-		if tmp % 13 == 0 {
-			//ac = "http://127.0.0.1:8081" + ac
-		}
-
-		if tmp % 10 == 0 {
-			v.Add("method", "GET")
-		} else {
-			v.Add("method", "POST")
-		}
-
-		v.Add("action", ac)
+		v.Add("id", strconv.Itoa(sl))
+		v.Add("name", ac)
 		v.Add("params", p.Encode())
 
-		resp, err := http.PostForm("http://"+*to+"/task/add", v)
+		l := "http://" + *to + "/api/task/add?" + v.Encode()
+		//log.Fatalln(l)
+
+		resp, err := http.Get(l)
 		if err != nil {
-			panic(err)
+			log.Fatalln(err)
 		}
-		_, err = ioutil.ReadAll(resp.Body)
+
+		msg, err := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			log.Fatalln(err, string(msg))
+		}
 
 		time.Sleep(time.Duration(*sleep) * time.Millisecond)
 	}

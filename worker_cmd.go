@@ -3,13 +3,14 @@ package main
 import (
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 type WorkerCmd struct {
 	Id int
 
-	cmd *exec.Cmd
+	cmd atomic.Value
 
 	task chan *Task
 	s    *Scheduler
@@ -27,11 +28,12 @@ func (w *WorkerCmd) Exec(t *Task) {
 }
 
 func (w *WorkerCmd) Cancel() {
-	if w.cmd != nil {
-		if w.cmd.Process != nil {
-			w.cmd.Process.Kill()
+	_cmd := w.cmd.Load()
+	if _cmd != nil {
+		cmd := _cmd.(*exec.Cmd)
+		if cmd.Process != nil {
+			cmd.Process.Kill()
 		}
-		w.cmd = nil
 	}
 }
 
@@ -61,7 +63,7 @@ func (w *WorkerCmd) doCMD(t *Task) (status int, msg string) {
 	params = append(params, t.Params...)
 
 	c := exec.Command(task, params...)
-	w.cmd = c
+	w.cmd.Store(c)
 
 	timer := time.AfterFunc(w.s.cfg.TaskTimeout, w.Cancel)
 	defer timer.Stop()

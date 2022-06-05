@@ -18,6 +18,8 @@ func (s *Scheduler) saveTask() {
 }
 
 func (s *Scheduler) saveToFile() {
+	s.log.Println("[Info] saving tasks to file")
+
 	f, err := os.OpenFile(s.cfg.DbFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)

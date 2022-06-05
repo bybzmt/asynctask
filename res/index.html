@@ -15,17 +15,17 @@ body{
 }
 .table td, .table th{
     border:1px solid #777;
+    padding: 0px 1em;
 }
-.th1{
-    width:200px;
+.load{
+    width:5em;
 }
-.th4{
-    width:100px;
+.time{
+    width:5em;
 }
-.th5{
-    width:150px;
+.center {
+    text-align:center;
 }
-
 .current .name{
     color:green;
 }
@@ -55,20 +55,17 @@ body{
 </head>
 <body>
 
-
-<div>异步任务状态</div>
-
 <div style="width:500px">
     <div id="All" style="float:left;">
         <table>
             <thead>
                 <tr>
-                   <th>名称</th>
-                   <th>负载</th>
-                   <th>执行中</th>
-                   <th>己执行</th>
-                   <th>昨天</th>
-                   <th>队列</th>
+                   <th class="name">名称</th>
+                   <th class="load">负载</th>
+                   <th class="now">执行中</th>
+                   <th class="run">己执行</th>
+                   <th class="old">昨天</th>
+                   <th class="wait">队列</th>
                </tr>
             </thead>
             <tbody>
@@ -87,23 +84,41 @@ body{
         <option value="5">昨天</option>
         <option value="6">队列</option>
         <option value="7">平均时间</option>
+        <option value="8">分值</option>
     </select>
     </div>
 
     <div style="clear:both;"></div>
 </div>
 
+<div id="tasks">
+    <table>
+        <thead>
+            <tr>
+               <th class="name">名称</th>
+               <th class="params">参数</th>
+               <th class="time">用时</th>
+               <th class="cmd"></th>
+           </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
 <div id="jobs">
     <table>
         <thead>
             <tr>
-               <th>名称</th>
-               <th>负载</th>
+               <th class="name">名称</th>
+               <th class="load">负载</th>
                <th>执行中</th>
                <th>己执行</th>
                <th>昨天</th>
                <th>队列</th>
-                <th>平均时间</th>
+               <th class="time">平均时间</th>
+               <th class="score">分值</th>
+               <th class="cmd"></th>
            </tr>
         </thead>
         <tbody>
@@ -115,47 +130,72 @@ body{
 
 function showStatus() {
     $.getJSON("/api/status", function(json){
-        j = json.Data.All;
+        var j = json.Data.All;
 
         var html = "";
 
         html = "<tr>"
-        html += '<td class="name">总体</td>';
-        html += '<td class="load">'+(j.Load/100)+'%</td>';
-        html += '<td class="now">'+j.NowNum+'</td>';
-        html += '<td class="run">'+j.RunNum+'</td>';
-        html += '<td class="old">'+j.OldNum+'</td>';
-        html += '<td class="wait">'+j.WaitNum+'</td>';
+        html += '<td>总体</td>';
+        html += '<td>'+(j.Load/100)+'%</td>';
+        html += '<td>'+j.NowNum+'</td>';
+        html += '<td>'+j.RunNum+'</td>';
+        html += '<td>'+j.OldNum+'</td>';
+        html += '<td>'+j.WaitNum+'</td>';
         html += "</tr>"
         $("#All table tbody").html(html);
 
         var sortby = $("#sortby").val();
 
+        json.Data.Tasks = json.Data.Tasks.sort(function(a, b){
+            return a.Id.localeCompare(b.Id)
+        });
+
         json.Data.Jobs = json.Data.Jobs.sort(function(a, b){
             switch (sortby) {
             case "0": return a.Name.localeCompare(b.Name)
             case "1": return b.Name.localeCompare(a.Name)
-            case "2": return (b.Load != a.Load) ? b.Load - a.Load : a.Name.localeCompare(b.Name);
-            case "3": return (b.NowNum != a.NowNum) ? b.NowNum - a.NowNum : a.Name.localeCompare(b.Name);
-            case "4": return (b.RunNum != a.RunNum) ? b.RunNum - a.RunNum : a.Name.localeCompare(b.Name);
-            case "5": return (b.OldNum != a.OldNum) ? b.OldNum - a.OldNum : a.Name.localeCompare(b.Name);
-            case "6": return (b.WaitNum != a.WaitNum) ? b.WaitNum - a.WaitNum : a.Name.localeCompare(b.Name);
-            case "7": return (b.UseTime != a.UseTime) ? b.UseTime - a.UseTime : a.Name.localeCompare(b.Name);
+            case "2": return (b.Load != a.Load) ? b.Load - a.Load : a.Score > b.Score;
+            case "3": return (b.NowNum != a.NowNum) ? b.NowNum - a.NowNum : a.Score > b.Score;
+            case "4": return (b.RunNum != a.RunNum) ? b.RunNum - a.RunNum : a.Score > b.Score;
+            case "5": return (b.OldNum != a.OldNum) ? b.OldNum - a.OldNum : a.Score > b.Score;
+            case "6": return (b.WaitNum != a.WaitNum) ? b.WaitNum - a.WaitNum : a.Score > b.Score;
+            case "7": return (b.UseTime != a.UseTime) ? b.UseTime - a.UseTime : a.Score > b.Score;
+            case "8": return (a.Score != b.Score) ? a.Score > b.Score : a.Name.localeCompare(b.Name);
             }
         });
 
         html = "";
-        for (var i=0; i<json.Data.Jobs.length; i++) {
-            j = json.Data.Jobs[i];
+        for (var i=0; i<json.Data.Tasks.length; i++) {
+            var j = json.Data.Tasks[i];
             html += "<tr>"
-            html += '<td class="name">'+j.Name+'</td>';
-            html += '<td class="load">'+(j.Load/100)+'%</td>';
-            html += '<td class="now">'+j.NowNum+'</td>';
-            html += '<td class="run">'+j.RunNum+'</td>';
-            html += '<td class="old">'+j.OldNum+'</td>';
-            html += '<td class="wait">'+j.WaitNum+'</td>';
-            html += '<td class="time">'+(j.UseTime/1000)+'s</td>';
+            html += '<td>'+j.Name+'</td>';
+            html += '<td>'+j.Params.join(" ")+'</td>';
+            html += '<td>'+(j.UseTime/1000)+'s</td>';
+            html += '<td></td>';
             html += "</tr>"
+        }
+        if (json.Data.Tasks.length == 0) {
+            html = "<tr><td colspan='4' class='center'>empty</td>";
+        }
+        $("#tasks table tbody").html(html);
+
+        html = "";
+        for (var i=0; i<json.Data.Jobs.length; i++) {
+            var j = json.Data.Jobs[i];
+            html += "<tr>"
+            html += '<td>'+j.Name+'</td>';
+            html += '<td>'+(j.Load/100)+'%</td>';
+            html += '<td>'+j.NowNum+'</td>';
+            html += '<td>'+j.RunNum+'</td>';
+            html += '<td>'+j.OldNum+'</td>';
+            html += '<td>'+j.WaitNum+'</td>';
+            html += '<td>'+(j.UseTime/1000)+'s</td>';
+            html += '<td>'+j.Score+'</td>';
+            html += '<td></td>';
+            html += "</tr>"
+        }
+        if (json.Data.Jobs.length == 0) {
+            html = "<tr><td colspan='9' class='center'>empty</td>";
         }
         $("#jobs table tbody").html(html);
     });

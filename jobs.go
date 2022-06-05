@@ -71,9 +71,7 @@ func (js *Jobs) GetTask() *Task {
 
 	t := j.PopTask()
 
-	//任务状态
 	j.NowNum++
-	j.RunNum++
 
 	//如果运行数超过上限，移到block队列中
 	if j.NowNum >= int(j.parallel) {
@@ -93,6 +91,7 @@ func (js *Jobs) GetTask() *Task {
 
 func (js *Jobs) end(j *Job, loadTime, useTime time.Duration) {
 	j.NowNum--
+	j.RunNum++
 	j.LoadTime += loadTime
 	j.UseTimeStat.Push(int64(useTime))
 

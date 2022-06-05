@@ -110,7 +110,6 @@ func (s *Scheduler) dispatch(now time.Time) {
 
 	//总状态
 	s.NowNum++
-	s.RunNum++
 	s.WaitNum--
 
 	//分配任务
@@ -129,6 +128,7 @@ func (s *Scheduler) end(t *Task, now time.Time) {
 
 	s.jobs.end(t.job, loadTime, useTime)
 
+	s.RunNum++
 	s.NowNum--
 	s.LoadTime += loadTime
 
@@ -214,6 +214,17 @@ func (s *Scheduler) close() {
 	}
 
 	s.saveTask()
+
+	time.AfterFunc(time.Second*3, s.allTaskCancel)
+}
+
+func (s *Scheduler) allTaskCancel() {
+	s.cmd <- CMD_SUSPEND
+	defer func() { s.cmd <- CMD_RESUME }()
+
+	for t, _ := range s.tasks {
+		t.worker.Cancel()
+	}
 }
 
 func (s *Scheduler) statTick(now time.Time) {
