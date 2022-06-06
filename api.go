@@ -76,6 +76,7 @@ func (s *Scheduler) JobParallel(name string, parallel int) bool {
 
 	parallel_abs := uint(math.Abs(float64(parallel)))
 	if parallel == 0 {
+		parallel = int(s.cfg.Parallel)
 		parallel_abs = s.cfg.Parallel
 	}
 
