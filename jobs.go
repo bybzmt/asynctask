@@ -98,6 +98,10 @@ func (js *Jobs) end(j *Job, loadTime, useTime time.Duration) {
 	j.UseTimeStat.Push(int64(useTime))
 
 	if j.mode == JOB_MODE_BLOCK {
+		if j.NowNum >= int(j.parallel) {
+			return
+		}
+
 		js.remove(j)
 
 		if j.Len() < 1 {

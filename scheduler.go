@@ -175,6 +175,7 @@ func (s *Scheduler) Run() {
 			s.now = now
 			s.statTick()
 			s.dayCheck()
+			s.dispatch()
 
 			if !s.running {
 				if s.workers.Len() == s.cfg.WorkerNum {

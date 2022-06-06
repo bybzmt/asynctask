@@ -23,7 +23,6 @@ func (s *Scheduler) redis_init() {
 		Password: s.cfg.RedisPwd,
 		DB:       db,
 	})
-	defer s.redis.Close()
 
 	for s.running {
 		if s.WaitNum > int(s.cfg.MaxTask) {
