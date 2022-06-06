@@ -44,6 +44,7 @@ func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.s = s
 	j.LoadStat.Init(j.s.cfg.StatSize)
 	j.UseTimeStat.Init(10)
+	j.parallel = int(j.s.cfg.Parallel)
 	j.parallel_abs = j.s.cfg.Parallel
 	return j
 }
@@ -59,6 +60,7 @@ func (j *Job) AddTask(o *Order) {
 	}
 
 	if o.Parallel > 0 && j.parallel >= 0 {
+		j.parallel = int(o.Parallel)
 		j.parallel_abs = o.Parallel
 	}
 
