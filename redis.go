@@ -26,7 +26,7 @@ func (s *Scheduler) redis_init() {
 	defer s.redis.Close()
 
 	for s.running {
-		if s.memFull {
+		if s.WaitNum > int(s.cfg.MaxTask) {
 			time.Sleep(time.Second * 3)
 			continue
 		}

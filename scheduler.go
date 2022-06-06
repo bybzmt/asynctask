@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -176,7 +175,6 @@ func (s *Scheduler) Run() {
 			s.now = now
 			s.statTick()
 			s.dayCheck()
-			s.memCheck()
 
 			if !s.running {
 				if s.workers.Len() == s.cfg.WorkerNum {
@@ -245,16 +243,6 @@ func (s *Scheduler) statTick() {
 		j.LoadStat.Push(int64(j.LoadTime))
 		j.LoadTime = 0
 	})
-}
-
-func (s *Scheduler) memCheck() {
-	st := runtime.MemStats{}
-	runtime.ReadMemStats(&st)
-	if st.Alloc > uint64(s.cfg.MaxMem*1024*1024) {
-		s.memFull = true
-	} else {
-		s.memFull = false
-	}
 }
 
 func (s *Scheduler) dayCheck() {

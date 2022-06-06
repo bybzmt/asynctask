@@ -30,7 +30,7 @@ func init() {
 	flag.UintVar(&cfg.Parallel, "parallel", 5, "one task default parallel")
 	flag.StringVar(&cfg.LogFile, "log", os.Getenv("log"), "log file e.g: my-[date].log [ENV]")
 	flag.StringVar(&cfg.DbFile, "dbfile", os.Getenv("dbfile"), "storage file [ENV]")
-	flag.UintVar(&cfg.MaxMem, "max_mem", 128, "max memory size(MB)")
+	flag.UintVar(&cfg.MaxTask, "max_task", 1000000, "max task num")
 
 	flag.StringVar(&cfg.RedisHost, "redis_host", os.Getenv("redis_host"), "redis host [ENV]")
 	flag.StringVar(&cfg.RedisPwd, "redis_pwd", os.Getenv("redis_pwd"), "redis password [ENV]")

@@ -26,8 +26,7 @@ type Config struct {
 
 	LogFile string
 	DbFile  string
-	//最大内存点用
-	MaxMem uint
+	MaxTask uint
 
 	RedisHost string
 	RedisPwd  string
