@@ -43,7 +43,7 @@ type Stat struct {
 	Name     string
 	Load     int
 	NowNum   int
-	Parallel uint
+	Parallel int
 	RunNum   int
 	OldNum   int
 	WaitNum  int

@@ -66,7 +66,7 @@ func (s *Scheduler) saveToRedis() {
 
 				row := Order{
 					Id:       t.Id,
-					Parallel: j.parallel,
+					Parallel: j.parallel_abs,
 					Name:     j.Name,
 					Params:   t.Params,
 					AddTime:  t.AddTime,

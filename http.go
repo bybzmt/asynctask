@@ -165,7 +165,7 @@ func page_job_parallel(w http.ResponseWriter, r *http.Request) {
 
 	parallel, _ := strconv.Atoi(tmp)
 
-	ok := hub.JobParallel(name, uint(parallel))
+	ok := hub.JobParallel(name, parallel)
 
 	rs := &Result{Code: 0, Data: ok}
 	json.NewEncoder(w).Encode(rs)

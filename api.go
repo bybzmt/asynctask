@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unsafe"
 )
@@ -69,17 +70,19 @@ func (s *Scheduler) JobPriority(name string, priority int) bool {
 	return ok
 }
 
-func (s *Scheduler) JobParallel(name string, parallel uint) bool {
+func (s *Scheduler) JobParallel(name string, parallel int) bool {
 	s.cmd <- CMD_SUSPEND
 	defer func() { s.cmd <- CMD_RESUME }()
 
-	if parallel < 1 {
-		parallel = 1
+	parallel_abs := uint(math.Abs(float64(parallel)))
+	if parallel == 0 {
+		parallel_abs = s.cfg.Parallel
 	}
 
 	j, ok := s.jobs.all[name]
 	if ok {
 		j.parallel = parallel
+		j.parallel_abs = parallel_abs
 	}
 
 	return ok

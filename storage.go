@@ -32,7 +32,7 @@ func (s *Scheduler) saveToFile() {
 		j.Each(func(t *taskMini) {
 			row := Order{
 				Id:       t.Id,
-				Parallel: j.parallel,
+				Parallel: j.parallel_abs,
 				Name:     j.Name,
 				Params:   t.Params,
 				AddTime:  t.AddTime,

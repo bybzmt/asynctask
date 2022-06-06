@@ -16,10 +16,11 @@ const (
 type Job struct {
 	s *Scheduler
 
-	next, prev *Job
-	mode       job_mode
-	parallel   uint
-	priority   int
+	next, prev   *Job
+	mode         job_mode
+	parallel_abs uint
+	parallel     int
+	priority     int
 
 	Name string
 
@@ -43,7 +44,7 @@ func (j *Job) Init(name string, s *Scheduler) *Job {
 	j.s = s
 	j.LoadStat.Init(j.s.cfg.StatSize)
 	j.UseTimeStat.Init(10)
-	j.parallel = j.s.cfg.Parallel
+	j.parallel_abs = j.s.cfg.Parallel
 	return j
 }
 
@@ -57,8 +58,8 @@ func (j *Job) AddTask(o *Order) {
 		AddTime: o.AddTime,
 	}
 
-	if o.Parallel > 0 {
-		j.parallel = o.Parallel
+	if o.Parallel > 0 && j.parallel >= 0 {
+		j.parallel_abs = o.Parallel
 	}
 
 	j.Tasks.PushBack(t)
