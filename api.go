@@ -24,6 +24,20 @@ func (s *Scheduler) AddOrder(o *Order) bool {
 	return true
 }
 
+func (s *Scheduler) AddOrderRel(o *Order) bool {
+	if !s.running {
+		return false
+	}
+
+	o.Name = strings.TrimSpace(o.Name)
+	if o.Name == "" {
+		return false
+	}
+
+	s.order <- o
+	return true
+}
+
 func (s *Scheduler) JobEmpty(name string) bool {
 	s.cmd <- CMD_SUSPEND
 	defer func() { s.cmd <- CMD_RESUME }()

@@ -13,7 +13,8 @@ func (s *Scheduler) redis_init() {
 		return
 	}
 
-	s.log.Println("[Info] use redis")
+	s.log.Println("[Info] redis init")
+	defer s.log.Println("[Info] redis close")
 
 	db, _ := strconv.Atoi(s.cfg.RedisDb)
 
@@ -41,7 +42,7 @@ func (s *Scheduler) redis_init() {
 			if err != nil {
 				s.log.Println("[Debug] redis data Unmarshal error:", err.Error())
 			} else {
-				ok := s.AddOrder(&o)
+				ok := s.AddOrderRel(&o)
 				if !ok {
 					out, _ := json.Marshal(&o)
 					s.log.Println("[Info] add Task Fail", out)
@@ -62,14 +63,14 @@ func (s *Scheduler) saveToRedis() {
 		if j.Len() > 0 {
 			ele := j.Tasks.Front()
 			for ele != nil {
-				t := ele.Value.(*Task)
+				t := ele.Value.(*taskMini)
 
 				row := Order{
 					Id:       t.Id,
 					Parallel: j.parallel,
 					Name:     j.Name,
 					Params:   t.Params,
-					AddTime:  uint(t.AddTime.Unix()),
+					AddTime:  t.AddTime,
 				}
 				s.redis_add(&row)
 
