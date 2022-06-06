@@ -78,7 +78,7 @@ func (js *Jobs) GetTask() *Task {
 	js.remove(j)
 
 	//如果运行数超过上限，移到block队列中
-	if j.NowNum >= int(j.parallel) {
+	if j.NowNum >= int(j.parallel_abs) {
 		js.blockAdd(j)
 	} else if j.Len() < 1 {
 		//添加到idle链表中
@@ -98,7 +98,7 @@ func (js *Jobs) end(j *Job, loadTime, useTime time.Duration) {
 	j.UseTimeStat.Push(int64(useTime))
 
 	if j.mode == JOB_MODE_BLOCK {
-		if j.NowNum >= int(j.parallel) {
+		if j.NowNum >= int(j.parallel_abs) {
 			return
 		}
 
