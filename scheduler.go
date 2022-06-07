@@ -249,11 +249,11 @@ func (s *Scheduler) statTick() {
 func (s *Scheduler) dayCheck() {
 	if s.today != s.now.Day() {
 		s.OldNum = s.RunNum
-		s.RunNum = -1
+		s.RunNum = 0
 
 		s.jobs.Each(func(j *Job) {
 			j.OldNum = j.RunNum
-			j.RunNum = -1
+			j.RunNum = 0
 		})
 
 		s.today = s.now.Day()
