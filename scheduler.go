@@ -257,6 +257,8 @@ func (s *Scheduler) dayCheck() {
 		})
 
 		s.today = s.now.Day()
+
+		s.openLog()
 	}
 }
 
