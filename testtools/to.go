@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-var addr = flag.String("addr", ":http", "listen addr:port")
+var addr = flag.String("addr", ":8081", "listen addr:port")
 
 func main() {
 	flag.Parse()

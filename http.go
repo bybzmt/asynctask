@@ -38,7 +38,7 @@ func init() {
 	flag.StringVar(&cfg.RedisKey, "redis_key", os.Getenv("redis_key"), "redis list key. [ENV] \njson: {id:uint, parallel:uint, name:string, params:[]string, add_time:uint}")
 }
 
-//go:embed res/*
+//go:embed dist/*
 var uifiles embed.FS
 
 func main() {
@@ -61,7 +61,7 @@ func main() {
 
 	hub.Init(&cfg)
 
-	tfs, _ := fs.Sub(uifiles, "res")
+	tfs, _ := fs.Sub(uifiles, "dist")
 	http.Handle("/", http.FileServer(http.FS(tfs)))
 
 	http.HandleFunc("/api/status", page_status)

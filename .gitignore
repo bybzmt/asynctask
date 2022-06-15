@@ -1,7 +1,12 @@
 
 asynctask
-asynctask.db
-*.log
+/*.db
+/*.log
+
+#js
+/dist
+/webUI/package-lock.json
+/webUI/node_modules
 
 #vim临时文件
 *.swp
