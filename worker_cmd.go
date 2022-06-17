@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
 )
+
+var ErrCmdStatus = errors.New("Code != 200")
 
 type WorkerCmd struct {
 	Id int
@@ -81,10 +84,16 @@ func (w *WorkerCmd) doCMD(t *Task) (status int, msg string) {
 		} else {
 			msg = string(out)
 		}
+		t.Err = err
 		return
 	}
 
 	status = c.ProcessState.ExitCode()
 	msg = string(out)
+
+	if status != 0 {
+		t.Err = ErrCmdStatus
+	}
+
 	return
 }

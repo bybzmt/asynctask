@@ -126,6 +126,10 @@ func (s *Scheduler) end(t *Task) {
 	loadTime := t.EndTime.Sub(t.StatTime)
 	useTime := t.EndTime.Sub(t.StartTime)
 
+	if t.Err != nil {
+		t.job.ErrNum++
+	}
+
 	s.jobs.end(t.job, loadTime, useTime)
 
 	s.RunNum++
@@ -254,6 +258,7 @@ func (s *Scheduler) dayCheck() {
 		s.jobs.Each(func(j *Job) {
 			j.OldNum = j.RunNum
 			j.RunNum = 0
+			j.ErrNum = 0
 		})
 
 		s.today = s.now.Day()

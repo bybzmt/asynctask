@@ -27,6 +27,7 @@ type Job struct {
 	RunNum int
 	OldNum int
 	NowNum int
+	ErrNum int
 
 	Tasks list.List
 

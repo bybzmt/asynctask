@@ -23,6 +23,7 @@ type Task struct {
 	Params []string
 	Status int
 	Msg    string
+	Err    error
 
 	AddTime   time.Time
 	StartTime time.Time

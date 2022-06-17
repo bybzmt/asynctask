@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync/atomic"
 )
+
+var ErrHttpStatus = errors.New("Code != 200")
 
 type WorkerHttp struct {
 	Id int
@@ -77,6 +80,7 @@ func (w *WorkerHttp) doHttp(t *Task) (status int, msg string) {
 	if err != nil {
 		status = -1
 		msg = err.Error()
+		t.Err = err
 		return
 	}
 
@@ -84,6 +88,7 @@ func (w *WorkerHttp) doHttp(t *Task) (status int, msg string) {
 	if err != nil {
 		status = -1
 		msg = err.Error()
+		t.Err = err
 		return
 	}
 
@@ -94,5 +99,8 @@ func (w *WorkerHttp) doHttp(t *Task) (status int, msg string) {
 	status = resp.StatusCode
 	msg = string(body)
 
+	if status != 200 {
+		t.Err = ErrHttpStatus
+	}
 	return
 }

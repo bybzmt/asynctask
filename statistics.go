@@ -45,6 +45,7 @@ type Stat struct {
 	NowNum   int
 	Parallel int
 	RunNum   int
+	ErrNum   int
 	OldNum   int
 	WaitNum  int
 	UseTime  int
@@ -113,6 +114,7 @@ func (s *Scheduler) getStatData() *Statistics {
 			RunNum:   j.RunNum,
 			OldNum:   j.OldNum,
 			NowNum:   j.NowNum,
+			ErrNum:   j.ErrNum,
 			Parallel: j.parallel,
 			WaitNum:  j.Len(),
 			UseTime:  useTime,

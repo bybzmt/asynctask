@@ -217,6 +217,7 @@
                             </th>
                         {/each}
                         <th>上次</th>
+                        <th>报错</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -235,9 +236,10 @@
                                     <span /></span
                                 ></td>
                             <td>{j.LastTime}s</td>
+                            <td>{j.ErrNum}</td>
                         </tr>
                     {:else}
-                        <tr><td colspan="9" class="center">empty</td> </tr>{/each}
+                        <tr><td colspan="10" class="center">empty</td> </tr>{/each}
                 </tbody>
             </table>
         </div>
