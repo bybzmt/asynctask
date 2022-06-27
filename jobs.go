@@ -54,12 +54,37 @@ func (js *Jobs) AddTask(o *Order) {
 	if j.mode == JOB_MODE_IDLE {
 		js.idleRmove(j)
 		js.pushBack(j)
+		js.Priority(j)
 	}
 
 	j.AddTask(o)
 
-	if j.mode == JOB_MODE_RUNNABLE {
-		js.Priority(j)
+	if o.Parallel > 0 && j.parallel > 0 {
+		if j.parallel_abs != o.Parallel {
+			j.parallel = int(o.Parallel)
+			j.parallel_abs = o.Parallel
+			js.modeCheck(j)
+		}
+	}
+}
+
+func (js *Jobs) modeCheck(j *Job) {
+	if j.NowNum >= int(j.parallel_abs) {
+		if j.mode == JOB_MODE_RUNNABLE {
+			js.remove(j)
+			js.blockAdd(j)
+		}
+	} else {
+		if j.mode == JOB_MODE_BLOCK {
+			js.remove(j)
+
+			if j.Len() < 1 {
+				js.idlePushBack(j)
+			} else {
+				js.pushBack(j)
+				js.Priority(j)
+			}
+		}
 	}
 }
 

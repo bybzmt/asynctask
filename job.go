@@ -60,11 +60,6 @@ func (j *Job) AddTask(o *Order) {
 		AddTime: o.AddTime,
 	}
 
-	if o.Parallel > 0 && j.parallel >= 0 {
-		j.parallel = int(o.Parallel)
-		j.parallel_abs = o.Parallel
-	}
-
 	j.Tasks.PushBack(t)
 }
 

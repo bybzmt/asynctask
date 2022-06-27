@@ -164,6 +164,9 @@ func page_job_parallel(w http.ResponseWriter, r *http.Request) {
 	tmp := strings.TrimSpace(r.FormValue("parallel"))
 
 	parallel, _ := strconv.Atoi(tmp)
+	if tmp == "-" {
+		parallel = int(hub.cfg.Parallel)
+	}
 
 	ok := hub.JobParallel(name, parallel)
 

@@ -75,15 +75,12 @@ func (s *Scheduler) JobParallel(name string, parallel int) bool {
 	defer func() { s.cmd <- CMD_RESUME }()
 
 	parallel_abs := uint(math.Abs(float64(parallel)))
-	if parallel == 0 {
-		parallel = int(s.cfg.Parallel)
-		parallel_abs = s.cfg.Parallel
-	}
 
 	j, ok := s.jobs.all[name]
 	if ok {
 		j.parallel = parallel
 		j.parallel_abs = parallel_abs
+		s.jobs.modeCheck(j)
 	}
 
 	return ok
