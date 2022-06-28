@@ -201,7 +201,7 @@
                         <tr>
                             <td><span on:dblclick={() => taskCancel(task)}>{task.Id}</span></td>
                             <td>{task.Name}</td>
-                            <td>{JSON.stringify(task.Params)}</td>
+                            <td class="params">{JSON.stringify(task.Params)}</td>
                             <td>{task.UseTime / 1000}s</td>
                         </tr>
                     {/each}
@@ -279,5 +279,9 @@
     #tab span.active {
         color: black;
         font-weight: bold;
+    }
+    .params {
+        max-width: 500px;
+        overflow: hidden;
     }
 </style>
