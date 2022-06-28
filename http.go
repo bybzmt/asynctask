@@ -70,6 +70,7 @@ func main() {
 	http.HandleFunc("/api/job/empty", page_job_empty)
 	http.HandleFunc("/api/job/priority", page_job_priority)
 	http.HandleFunc("/api/job/parallel", page_job_parallel)
+	http.HandleFunc("/api/job/delIdle", page_job_delIdle)
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*addr, nil))
@@ -138,6 +139,18 @@ func page_job_empty(w http.ResponseWriter, r *http.Request) {
 	name = strings.TrimSpace(name)
 
 	ok := hub.JobEmpty(name)
+
+	rs := &Result{Code: 0, Data: ok}
+	json.NewEncoder(w).Encode(rs)
+}
+
+func page_job_delIdle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+
+	name := r.FormValue("name")
+	name = strings.TrimSpace(name)
+
+	ok := hub.JobDelIdle(name)
 
 	rs := &Result{Code: 0, Data: ok}
 	json.NewEncoder(w).Encode(rs)

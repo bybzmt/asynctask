@@ -67,6 +67,18 @@
         }
     }
 
+    function jobDelIdle(job) {
+        var ok = confirm("Del Idle Job?\r\nName: " + job.Name);
+        if (ok) {
+            let url = API_BASE + "/api/job/delIdle?name=" + encodeURIComponent(job.Name);
+            fetch(url)
+                .then((t) => t.json())
+                .then((json) => {
+                    alert(JSON.stringify(json));
+                });
+        }
+    }
+
     function jobPriority(job) {
         var txt = prompt("Job: " + job.Name + " Priority: ", "");
         if (txt != null && txt != "") {
@@ -223,18 +235,16 @@
                 <tbody>
                     {#each JobsData as j}
                         <tr>
-                            <td>{j.Name}</td>
+                            <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
                             <td>{j.Load / 100}%</td>
-                            <td><span on:dblclick={() => jobParallel(j)}>{j.NowNum + "/" + j.Parallel}</span></td>
+                            <td on:dblclick={() => jobParallel(j)}>{j.NowNum + "/" + j.Parallel}</td>
                             <td>{j.RunNum}</td>
                             <td>{j.OldNum}</td>
-                            <td><span on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</span></td>
+                            <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
                             <td>{j.UseTime / 1000}s</td>
-                            <td
-                                ><span on:dblclick={() => jobPriority(j)}>
-                                    {j.Score + (j.Priority == 0 ? "" : j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")}
-                                    <span /></span
-                                ></td>
+                            <td on:dblclick={() => jobPriority(j)}>
+                                {j.Score + (j.Priority == 0 ? "" : j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")}
+                            </td>
                             <td>{j.LastTime}s</td>
                             <td>{j.ErrNum}</td>
                         </tr>

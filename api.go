@@ -58,6 +58,22 @@ func (s *Scheduler) JobEmpty(name string) bool {
 	return ok
 }
 
+func (s *Scheduler) JobDelIdle(name string) bool {
+	s.cmd <- CMD_SUSPEND
+	defer func() { s.cmd <- CMD_RESUME }()
+
+	j, ok := s.jobs.all[name]
+	if ok {
+		if j.mode == JOB_MODE_IDLE {
+			s.jobs.idleRmove(j)
+			delete(s.jobs.all, j.Name)
+			return true
+		}
+	}
+
+	return false
+}
+
 func (s *Scheduler) JobPriority(name string, priority int) bool {
 	s.cmd <- CMD_SUSPEND
 	defer func() { s.cmd <- CMD_RESUME }()
