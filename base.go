@@ -5,16 +5,17 @@ import (
 	"time"
 )
 
-//redis队列 json结构
+// redis队列 json结构
 type Order struct {
 	Id       uint     `json:"id,omitempty"`
 	Parallel uint     `json:"parallel,omitempty"`
 	Name     string   `json:"name"`
 	Params   []string `json:"params,omitempty"`
+	RunTime  uint     `json:"runTime,omitempty"`
 	AddTime  uint     `json:"add_time,omitempty"`
 }
 
-//运行的任务
+// 运行的任务
 type Task struct {
 	job    *Job
 	worker Worker
@@ -31,14 +32,14 @@ type Task struct {
 	EndTime   time.Time
 }
 
-//task去掉非必要字段，节省内存
+// task去掉非必要字段，节省内存
 type taskMini struct {
 	Id      uint
 	Params  []string
 	AddTime uint
 }
 
-//输出日志时间（为了不显示太长的小数)
+// 输出日志时间（为了不显示太长的小数)
 type LogSecond float64
 
 func (l LogSecond) MarshalJSON() ([]byte, error) {
@@ -46,7 +47,7 @@ func (l LogSecond) MarshalJSON() ([]byte, error) {
 	return []byte(str), nil
 }
 
-//task 日志记录
+// task 日志记录
 type TaskLog struct {
 	Id       uint
 	Name     string
@@ -57,7 +58,7 @@ type TaskLog struct {
 	Output   string
 }
 
-//工作线程
+// 工作线程
 type Worker interface {
 	Exec(t *Task)
 	Cancel()

@@ -30,7 +30,7 @@ func (s *Scheduler) redis_init() {
 			continue
 		}
 
-		out, err := s.redis.BLPop(time.Second*10, s.cfg.RedisKey).Result()
+		out, err := s.redis.BLPop(time.Second*5, s.cfg.RedisKey).Result()
 
 		if err != nil {
 			s.log.Println("[Debug] redis list empty.", err.Error())
@@ -76,5 +76,9 @@ func (s *Scheduler) saveToRedis() {
 				ele = ele.Next()
 			}
 		}
+	})
+
+	s.eachTimer(func(o *Order) {
+		s.redis_add(o)
 	})
 }

@@ -43,6 +43,13 @@ func (s *Scheduler) saveToFile() {
 			}
 		})
 	})
+
+	s.eachTimer(func(o *Order) {
+		err := encoder.Encode(o)
+		if err != nil {
+			s.log.Panicln("[Error] json encode error", err)
+		}
+	})
 }
 
 func (s *Scheduler) restoreFromFile() {

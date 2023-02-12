@@ -35,6 +35,13 @@ func (s *Scheduler) AddOrderRel(o *Order) bool {
 		return false
 	}
 
+	if o.RunTime > 0 {
+		s.timinglock.Lock()
+		s.timing.Insert(o.RunTime, o)
+		s.timinglock.Unlock()
+		return true
+	}
+
 	s.order <- o
 	return true
 }

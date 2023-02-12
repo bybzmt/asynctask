@@ -5,7 +5,6 @@ asynctask
 
 #js
 /dist
-/webUI/package-lock.json
 /webUI/node_modules
 
 #vim临时文件

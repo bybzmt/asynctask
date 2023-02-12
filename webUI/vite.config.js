@@ -1,13 +1,10 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import postcssImport from 'postcss-import';
 import tailwindcss from 'tailwindcss';
-import postcssNested from 'postcss-nested';
-import autoprefixer from 'autoprefixer';
 import path from 'path';
 
-//import { fileURLToPath } from 'url';
-//const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let dir_src = path.resolve(__dirname, './src');
 
@@ -18,15 +15,10 @@ export default defineConfig(({ command, mode }) => {
 
     let postcss_config = {
         plugins: [
-            postcssImport(),
-            postcssNested(),
             tailwindcss({
                 mode: 'jit',
                 enabled: true,
                 content: ["src/**/*.svelte"]
-            }),
-            autoprefixer({
-                cascade: true,
             }),
         ],
     }

@@ -7,9 +7,11 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/liyue201/gostl/ds/rbtree"
 )
 
 type Cmd int
@@ -31,6 +33,9 @@ type Scheduler struct {
 	tasks map[*Task]struct{}
 	//所有任务
 	jobs Jobs
+	//定时任务
+	timing     *rbtree.RbTree[uint, *Order]
+	timinglock sync.Mutex
 
 	running  bool
 	order    chan *Order
@@ -75,6 +80,8 @@ func (s *Scheduler) Init(env *Config) *Scheduler {
 	s.today = time.Now().Day()
 
 	s.openLog()
+
+	s.initTimer()
 
 	return s
 }
@@ -146,6 +153,7 @@ func (s *Scheduler) Run() {
 
 	s.running = true
 
+	go s.runTimer()
 	go s.restoreFromFile()
 	go s.redis_init()
 
@@ -220,7 +228,7 @@ func (s *Scheduler) close() {
 
 	s.saveTask()
 
-	time.AfterFunc(time.Second*3, s.allTaskCancel)
+	time.AfterFunc(time.Second*10, s.allTaskCancel)
 }
 
 func (s *Scheduler) allTaskCancel() {
