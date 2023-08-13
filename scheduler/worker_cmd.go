@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"errors"
@@ -10,65 +10,55 @@ import (
 
 var ErrCmdStatus = errors.New("Code != 200")
 
-type WorkerCmd struct {
+type workerCli struct {
 	Id int
 
 	cmd atomic.Value
-
-	task chan *Task
-	s    *Scheduler
 }
 
-func (w *WorkerCmd) Init(id int, s *Scheduler) *WorkerCmd {
-	w.Id = id
-	w.s = s
-	w.task = make(chan *Task)
-	return w
-}
-
-func (w *WorkerCmd) Exec(t *Task) {
-	w.task <- t
-}
-
-func (w *WorkerCmd) Cancel() {
+func (w *workerCli) Cancel() {
 	_cmd := w.cmd.Load()
 	if _cmd != nil {
 		cmd := _cmd.(*exec.Cmd)
 		if cmd.Process != nil {
 			cmd.Process.Kill()
 		}
+		w.cmd.Store(nil)
 	}
 }
 
-func (w *WorkerCmd) Run() {
-	for t := range w.task {
-		if t == nil {
-			return
-		}
+func (w *workerCli) Run(o *order) (status int, msg string) {
+	var task string
 
-		t.Status, t.Msg = w.doCMD(t)
-
-		w.s.complete <- t
+	if o.Base.CmdBase != "" {
+		task = o.Base.CmdBase + " " + o.Task.Cli.Cmd
+	} else {
+		task = o.Task.Cli.Cmd
 	}
-}
 
-func (w *WorkerCmd) Close() {
-	close(w.task)
-}
-
-func (w *WorkerCmd) doCMD(t *Task) (status int, msg string) {
-	task := w.s.cfg.Base + " " + t.job.Name
 	task = strings.TrimSpace(task)
 
 	params := strings.Split(task, " ")
 	task = params[0]
 	params = params[1:]
-	params = append(params, t.Params...)
+	params = append(params, o.Task.Cli.Params...)
 
 	c := exec.Command(task, params...)
 	w.cmd.Store(c)
 
-	timer := time.AfterFunc(w.s.cfg.TaskTimeout, w.Cancel)
+	defer w.cmd.Store(nil)
+
+	timeout := o.Task.Timeout
+	if o.Base.Timeout > 0 {
+		if timeout < 1 || timeout > o.Base.Timeout {
+			timeout = o.Base.Timeout
+		}
+	}
+	if timeout < 1 {
+		timeout = 60 * 60
+	}
+
+	timer := time.AfterFunc(time.Duration(timeout)*time.Second, w.Cancel)
 	defer timer.Stop()
 
 	out, err := c.CombinedOutput()
@@ -84,7 +74,7 @@ func (w *WorkerCmd) doCMD(t *Task) (status int, msg string) {
 		} else {
 			msg = string(out)
 		}
-		t.Err = err
+		o.Err = err
 		return
 	}
 
@@ -92,7 +82,7 @@ func (w *WorkerCmd) doCMD(t *Task) (status int, msg string) {
 	msg = string(out)
 
 	if status != 0 {
-		t.Err = ErrCmdStatus
+		o.Err = ErrCmdStatus
 	}
 
 	return

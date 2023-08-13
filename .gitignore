@@ -1,19 +1,15 @@
 
 asynctask
-/*.db
-/*.log
+*.bolt
+*.log
 
 #js
-/dist
-/webUI/node_modules
+/tool/dist/*
+/tool/webUI/node_modules
 
-#vim临时文件
+#vim
 *.swp
 *~
 
-#不排除占位文件
 !.empty
 
-#ctags
-tags
-ctags.sh

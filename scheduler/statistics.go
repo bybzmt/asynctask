@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"fmt"
@@ -60,8 +60,11 @@ type Statistics struct {
 	Jobs  []Stat
 }
 
-func (s *Scheduler) getStatData() *Statistics {
-	e1 := float64(len(s.LoadStat.data) * int(s.cfg.StatTick) * s.cfg.WorkerNum)
+func (s *group) getStatData() *Statistics {
+    s.l.Lock()
+    defer s.l.Unlock()
+
+	e1 := float64(len(s.LoadStat.data) * int(s.s.StatTick) * int(s.WorkerNum))
 
 	all := 0
 	if e1 > 0 {
@@ -70,7 +73,7 @@ func (s *Scheduler) getStatData() *Statistics {
 
 	t := &Statistics{}
 	t.Jobs = make([]Stat, 0, s.jobs.Len())
-	t.Tasks = make([]StatTask, 0, len(s.tasks))
+	t.Tasks = make([]StatTask, 0, len(s.orders))
 	t.All.Name = "all"
 	t.All.Load = all
 	t.All.RunNum = s.RunNum
@@ -80,49 +83,50 @@ func (s *Scheduler) getStatData() *Statistics {
 
 	now := time.Now()
 
-	for t2, _ := range s.tasks {
+	for t2 := range s.orders {
 		st := StatTask{
 			Id:      fmt.Sprintf("%x", unsafe.Pointer(t2)),
 			Name:    t2.job.Name,
-			Params:  t2.Params,
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
 		t.Tasks = append(t.Tasks, st)
 	}
 
-	s.jobs.Each(func(j *Job) {
-		x := 0
-		if e1 > 0 {
-			x = int(float64(j.LoadStat.GetAll()) / e1 * 10000)
-		}
+    for _, j := range s.jobs.all {
 
-		useTime := 0
-		if len(j.UseTimeStat.data) > 0 {
-			useTime = int(j.UseTimeStat.GetAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
-		}
+        x := 0
+        if e1 > 0 {
+            x = int(float64(j.LoadStat.GetAll()) / e1 * 10000)
+        }
 
-		sec := 0
+        useTime := 0
+        if len(j.UseTimeStat.data) > 0 {
+            useTime = int(j.UseTimeStat.GetAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
+        }
 
-		sec2 := j.LastTime.Unix()
-		if sec2 > 0 {
-			sec = int(now.Sub(j.LastTime) / time.Second)
-		}
+        sec := 0
 
-		t.Jobs = append(t.Jobs, Stat{
-			Name:     j.Name,
-			Load:     x,
-			RunNum:   j.RunNum,
-			OldNum:   j.OldNum,
-			NowNum:   j.NowNum,
-			ErrNum:   j.ErrNum,
-			Parallel: j.parallel,
-			WaitNum:  j.Len(),
-			UseTime:  useTime,
-			LastTime: sec,
-			Score:    j.Score(),
-			Priority: j.priority,
-		})
-	})
+        sec2 := j.LastTime.Unix()
+        if sec2 > 0 {
+            sec = int(now.Sub(j.LastTime) / time.Second)
+        }
+
+        t.Jobs = append(t.Jobs, Stat{
+            Name:     j.Name,
+            Load:     x,
+            RunNum:   j.RunNum,
+            OldNum:   j.OldNum,
+            NowNum:   j.NowNum,
+            ErrNum:   j.ErrNum,
+            Parallel: int(j.Parallel),
+            WaitNum:  j.Len(),
+            UseTime:  useTime,
+            LastTime: sec,
+            Score:    j.Score,
+            Priority: j.Priority,
+        })
+    }
 
 	return t
 }
+

@@ -7,7 +7,7 @@ go: ui
 	go build
 
 js-init:
-	cd ./webUI && npm i
+	cd ./tool/webUI && npm i
 
 ui:
-	cd ./webUI && npm run build
+	cd ./tool/webUI && npm run build
