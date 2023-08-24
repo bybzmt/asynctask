@@ -59,21 +59,22 @@ func New(c Config) (*Scheduler, error) {
 
 	s.groups = make(map[ID]*group)
 
-	err := s.initGroups()
+	err := s.loadGroups()
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.initRouters()
+	err = s.loadRouters()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, g := range s.groups {
-		g.s = s
-		err := g.init()
-		if err != nil {
-			return nil, err
+	if len(s.groups) < 1 && len(s.routers) < 1 {
+		s.AddGroup()
+		s.AddRouter()
+
+		for gid := range s.groups {
+			s.routers[0].Groups = append(s.routers[0].Groups, gid)
 		}
 	}
 
@@ -99,9 +100,10 @@ func (s *Scheduler) Run() {
 	}
 
 	s.running = true
-	s.l.Unlock()
 
 	s.ticker = time.NewTicker(s.StatTick)
+
+	s.l.Unlock()
 
 	for now := range s.ticker.C {
 		s.l.Lock()
@@ -129,7 +131,7 @@ func (s *Scheduler) Run() {
 
 	for g := range s.end {
 		s.l.Lock()
-		delete(s.groups, g.Id)
+		delete(s.groups, g.id)
 		l := len(s.groups)
 		s.l.Unlock()
 
@@ -144,7 +146,7 @@ func (s *Scheduler) Run() {
 	s.Log.Debugln("Scheduler closd")
 }
 
-func (s *Scheduler) initGroups() error {
+func (s *Scheduler) loadGroups() error {
 
 	//key: config/group/:id
 	err := s.Db.View(func(tx *bolt.Tx) error {
@@ -153,42 +155,63 @@ func (s *Scheduler) initGroups() error {
 			return nil
 		}
 
-		c := bucket.Cursor()
-
-		for {
-			key, val := c.Next()
-			if key == nil {
-				break
-			}
-
+		return bucket.ForEach(func(key, val []byte) error {
 			var cfg GroupConfig
 			err := json.Unmarshal(val, &cfg)
 			if err != nil {
 				s.Log.Warnln("[store] key=config/group/"+string(key), "json.Unmarshal:", err)
-				continue
+				return nil
 			}
 
 			g := new(group)
 			g.GroupConfig = cfg
+			g.id = atoiId(key)
 
-			s.groups[g.Id] = g
-		}
+            if err := g.init(s); err != nil {
+                return err
+            }
 
-		return nil
+			s.groups[g.id] = g
+
+			return nil
+		})
 	})
 
 	if err != nil {
 		return err
 	}
 
-	if len(s.groups) < 1 {
-		return s.AddGroup()
-	}
+	//key: task/:gid/:jname
+	return s.Db.View(func(tx *bolt.Tx) error {
+		bucket := getBucket(tx, "task")
+		if bucket == nil {
+			return nil
+		}
 
-	return nil
+		return bucket.ForEachBucket(func(key []byte) error {
+			id := atoiId(key)
+
+			if _, ok := s.groups[id]; ok {
+				return nil
+			}
+
+			s.Log.Warnln("[store] key=task/"+string(key), "Miss Config")
+
+			g := new(group)
+			g.id = id
+
+            if err := g.init(s); err != nil {
+                return err
+            }
+
+			s.groups[g.id] = g
+
+			return nil
+		})
+	})
 }
 
-func (s *Scheduler) initRouters() error {
+func (s *Scheduler) loadRouters() error {
 
 	//key: config/router/:id
 	err := s.Db.View(func(tx *bolt.Tx) error {
@@ -197,28 +220,22 @@ func (s *Scheduler) initRouters() error {
 			return nil
 		}
 
-		c := bucket.Cursor()
-
-		for {
-			key, val := c.Next()
-			if key == nil {
-				break
-			}
-
+		return bucket.ForEach(func(key, val []byte) error {
 			var cfg RouterConfig
 			err := json.Unmarshal(val, &cfg)
 			if err != nil {
 				s.Log.Warnln("[store] key=config/router/"+string(key), "json.Unmarshal:", err)
-				continue
+				return nil
 			}
 
 			r := new(router)
 			r.RouterConfig = cfg
+			r.id = atoiId(key)
+            r.init()
 
 			s.routers = append(s.routers, r)
-		}
-
-		return nil
+			return nil
+		})
 	})
 
 	if err != nil {
@@ -233,6 +250,11 @@ func (s *Scheduler) initRouters() error {
 }
 
 func (s *Scheduler) AddGroup() error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	g := new(group)
+	var cfg GroupConfig
 
 	//key: config/group/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -241,14 +263,62 @@ func (s *Scheduler) AddGroup() error {
 			return err
 		}
 
-		var cfg GroupConfig
-
 		id, err := bucket.NextSequence()
 		if err != nil {
 			return err
 		}
 
-		cfg.Id = ID(id)
+		val, err := json.Marshal(&cfg)
+		if err != nil {
+			return err
+		}
+		
+		if err = bucket.Put([]byte(fmtId(id)), val); err != nil {
+			return err
+		}
+
+		g.id = ID(id)
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	g.GroupConfig = cfg
+
+    if err := g.init(s); err != nil {
+		return err
+    }
+
+	s.groups[g.id] = g
+
+    if s.running {
+        go g.Run()
+    }
+
+	return nil
+}
+
+func (s *Scheduler) AddRouter() error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	r := new(router)
+	var cfg RouterConfig
+
+	//key: config/group/:id
+	err := s.Db.Update(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "config", "group")
+		if err != nil {
+			return err
+		}
+
+		id, err := bucket.NextSequence()
+		if err != nil {
+			return err
+		}
 
 		key := []byte(fmt.Sprintf("%d", id))
 		val, err := json.Marshal(&cfg)
@@ -262,10 +332,7 @@ func (s *Scheduler) AddGroup() error {
 			return err
 		}
 
-		r := new(group)
-		r.GroupConfig = cfg
-
-		s.groups[r.Id] = r
+		r.id = ID(id)
 
 		return nil
 	})
@@ -273,6 +340,11 @@ func (s *Scheduler) AddGroup() error {
 	if err != nil {
 		return err
 	}
+
+	r.RouterConfig = cfg
+	r.init()
+
+	s.routers = append(s.routers, r)
 
 	return nil
 }

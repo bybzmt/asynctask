@@ -3,36 +3,11 @@ package scheduler
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
-
-// redis队列 json结构
-type Task struct {
-	Id      uint      `json:"id,omitempty"`
-	Name    string    `json:"name,omitempty"`
-	Trigger uint      `json:"trigger,omitempty"`
-	Http    *TaskHttp `json:"http,omitempty"`
-	Cli     *TaskCli  `json:"cli,omitempty"`
-	Timeout uint      `json:"timeout,omitempty"`
-	Hold    string    `json:"hold,omitempty"`
-}
-
-type TaskHttp struct {
-	Method string            `json:"method,omitempty"`
-	Url    string            `json:"url"`
-	Header map[string]string `json:"header,omitempty"`
-	Body   string            `json:"body,omitempty"`
-	Get    map[string]string `json:"get,omitempty"`
-	Post   map[string]string `json:"post,omitempty"`
-	Json   string            `json:"json,omitempty"`
-}
-
-type TaskCli struct {
-	Cmd    string   `json:"cmd"`
-	Params []string `json:"params,omitempty"`
-}
 
 // 运行的任务
 type order struct {
@@ -41,7 +16,7 @@ type order struct {
 	worker *worker
 
 	Task *Task
-    Base JobBase
+	Base JobBase
 
 	Status int
 	Msg    string
@@ -70,48 +45,6 @@ type taskLog struct {
 	WaitTime logSecond
 	RunTime  logSecond
 	Output   string
-}
-
-type JobBase struct {
-	Timeout    uint //默认超时时间
-	CmdBase    string
-	CmdEnv     map[string]string
-	HttpBase   string
-	HttpHeader map[string]string
-}
-
-func (b *JobBase) init() {
-    b.HttpHeader = make(map[string]string)
-    b.CmdEnv = make(map[string]string)
-}
-
-type RouterConfig struct {
-	JobBase
-	Id     ID
-	Match  string
-	Name   string
-	Groups []ID
-	Weights []uint32
-	Mode   Mode
-    Sort   int
-}
-
-type GroupConfig struct {
-	JobBase
-
-	Parallel  uint32 //默认并发数
-	WorkerNum uint32
-	Weight    uint32
-	Id        ID
-	Match     string
-	Name      string
-}
-
-type JobConfig struct {
-	Id       ID
-	Name     string
-	Priority int
-	Parallel uint32 //默认并发数
 }
 
 type bucketer interface {
@@ -159,24 +92,29 @@ func fmtId(id any) string {
 	return fmt.Sprintf("%12d", id)
 }
 
+func atoiId(key []byte) ID {
+	id, _ := strconv.Atoi(string(key))
+	return ID(id)
+}
+
 func copyBase(src, dst *JobBase) {
-    if src.Timeout > 0 {
-        dst.Timeout = src.Timeout
-    }
+	if src.Timeout > 0 {
+		dst.Timeout = src.Timeout
+	}
 
-    if src.CmdBase != "" {
-        dst.CmdBase = src.CmdBase
-    }
+	if src.CmdBase != "" {
+		dst.CmdBase = src.CmdBase
+	}
 
-    if src.HttpBase != "" {
-        dst.HttpBase = src.HttpBase
-    }
+	if src.HttpBase != "" {
+		dst.HttpBase = src.HttpBase
+	}
 
-    for k, v := range src.CmdEnv {
-        dst.CmdEnv[k] = v
-    }
+	for k, v := range src.CmdEnv {
+		dst.CmdEnv[k] = v
+	}
 
-    for k, v := range src.HttpHeader {
-        dst.HttpHeader[k] = v
-    }
+	for k, v := range src.HttpHeader {
+		dst.HttpHeader[k] = v
+	}
 }

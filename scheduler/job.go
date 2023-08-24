@@ -19,6 +19,9 @@ const (
 type job struct {
 	JobConfig
 
+    id ID
+	Name     string
+
 	g *group
 
 	next, prev *job
@@ -40,7 +43,56 @@ type job struct {
 	UseTimeStat StatRow
 }
 
-func (j *job) Init(name string, g *group) *job {
+func newJob(js *jobs, name string) *job {
+	var cfg JobConfig
+
+	//key: config/job/:name
+	err := js.g.s.Db.View(func(tx *bolt.Tx) error {
+        bucket := getBucket(tx, "config", "job")
+		if bucket == nil {
+			return nil
+		}
+
+		val := bucket.Get([]byte(name))
+		if val == nil {
+			return nil
+		}
+
+		return json.Unmarshal(val, &cfg)
+	})
+
+	if err != nil {
+        js.g.s.Log.Warnln("job", name, "config Error", err)
+	}
+
+	j := new(job)
+	j.JobConfig = cfg
+	j.init(name, js.g)
+
+	return j
+}
+
+func setJobConfig(db *bolt.DB, name string, cfg JobConfig) error {
+
+	//key: config/job/:name
+	err := db.Update(func(tx *bolt.Tx) error {
+        bucket := getBucket(tx, "config", "job")
+		if bucket == nil {
+			return nil
+		}
+
+        val, err := json.Marshal(&cfg)
+        if err != nil {
+            return err
+        }
+
+		return bucket.Put([]byte(name), val)
+	})
+
+	return err
+}
+
+func (j *job) init(name string, g *group) *job {
 	j.Name = name
 	j.g = g
 	j.LoadStat.Init(j.g.s.StatSize)
@@ -56,8 +108,9 @@ func (j *job) addOrder(o *order) error {
 		return err
 	}
 
+    //key: task/:gid/:jname
 	err = j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", fmtId(j.g.Id), fmtId(j.Id))
+		bucket, err := getBucketMust(tx, "task", fmtId(j.g.id), j.Name)
 		if err != nil {
 			return err
 		}
@@ -84,8 +137,9 @@ func (j *job) addOrder(o *order) error {
 func (j *job) delOrder(oid ID) error {
     has:= false
 
+    //key: task/:gid/:jname
     err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", fmtId(j.g.Id), fmtId(j.Id))
+		bucket, err := getBucketMust(tx, "task", fmtId(j.g.id), j.Name)
 		if err != nil {
 			return err
 		}
@@ -116,7 +170,7 @@ func (j *job) popOrder() (*order, error) {
 	o := order{}
 
 	err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.Id))
+		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.id))
 		if err != nil {
 			return err
 		}
@@ -156,7 +210,7 @@ func (j *job) popOrder() (*order, error) {
 func (j *job) delAllTask() error {
     err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
         prefix := []byte("scheduler")
-        sid := []byte(fmt.Sprintf("%d", j.g.Id))
+        sid := []byte(fmt.Sprintf("%d", j.g.id))
 
         bucket, err := tx.CreateBucketIfNotExists(prefix)
         if err != nil {
@@ -177,7 +231,7 @@ func (j *job) delAllTask() error {
 func (j *job) loadLen() error {
 
 	err := j.g.s.Db.View(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.Id))
+		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.id))
 		if err != nil {
 			return err
 		}

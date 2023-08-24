@@ -4,10 +4,10 @@ import (
 	"asynctask/scheduler"
 	"embed"
 	"encoding/json"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"io/fs"
 )
 
 var hub *scheduler.Scheduler
@@ -25,152 +25,130 @@ func init_http() {
 	tfs, _ := fs.Sub(uifiles, "dist")
 	http.Handle("/", http.FileServer(http.FS(tfs)))
 
-	http.HandleFunc("/api/status", page_status)
-	http.HandleFunc("/api/task/add", page_task_add)
-	http.HandleFunc("/api/task/cancel", page_task_cancel)
-	http.HandleFunc("/api/job/empty", page_job_empty)
-	http.HandleFunc("/api/job/priority", page_job_priority)
-	http.HandleFunc("/api/job/parallel", page_job_parallel)
-	http.HandleFunc("/api/job/delIdle", page_job_delIdle)
+	http.HandleFunc("/api/status", page_error(page_status))
+	http.HandleFunc("/api/task/add", page_error(page_task_add))
+	http.HandleFunc("/api/task/cancel", page_error(page_task_cancel))
+	http.HandleFunc("/api/job/emptyAll", page_error(page_job_empty))
+	http.HandleFunc("/api/job/delIdle", page_error(page_job_delIdle))
+	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
+	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
+	http.HandleFunc("/api/router/setConfig", page_error(page_router_config))
 }
 
-func page_task_add(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_status(r *http.Request) any {
+	return hub.GetStatData()
+}
 
-	data, err := ioutil.ReadAll(r.Body)
-    if err != nil {
-        //todo log
-        w.WriteHeader(400)
-        return
-    }
+func page_task_add(r *http.Request) any {
+	var o scheduler.Task
 
-	o := scheduler.Task{}
-    err = json.Unmarshal(data, &o)
-    if err != nil {
-        //todo log
-        w.WriteHeader(400)
-        return
-    }
-
-	err = addOrder(&o)
-
-	rs := &Result{Code: 0, Data: "ok"}
-	if err != nil {
-		rs.Code = 1
-		rs.Data = err.Error()
+	if err := httpReadJson(r, &o); err != nil {
+		return err
 	}
 
-	json.NewEncoder(w).Encode(rs)
+	return addOrder(&o)
 }
 
-func page_status(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_job_empty(r *http.Request) any {
+	sid, _ := strconv.Atoi(r.FormValue("sid"))
+	jid, _ := strconv.Atoi(r.FormValue("jid"))
 
-	t := hub.GetStatData()
-
-	rs := &Result{Code: 0, Data: t}
-	json.NewEncoder(w).Encode(rs)
+	return hub.JobEmpty(scheduler.ID(sid), scheduler.ID(jid))
 }
 
-func page_job_empty(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_job_delIdle(r *http.Request) any {
+	sid, _ := strconv.Atoi(r.FormValue("sid"))
+	jid, _ := strconv.Atoi(r.FormValue("jid"))
 
-    sid, _ := strconv.Atoi(r.FormValue("sid"))
-    jid, _ := strconv.Atoi(r.FormValue("jid"))
-
-	err := hub.JobEmpty(scheduler.ID(sid), scheduler.ID(jid))
-
-	rs := &Result{Code: 0, Data: "ok"}
-
-    if err != nil {
-        rs.Code = 1
-		rs.Data = err.Error()
-    }
-
-	json.NewEncoder(w).Encode(rs)
+	return hub.JobDelIdle(scheduler.ID(sid), scheduler.ID(jid))
 }
 
-func page_job_delIdle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_job_config(r *http.Request) any {
 
-    sid, _ := strconv.Atoi(r.FormValue("sid"))
-    jid, _ := strconv.Atoi(r.FormValue("jid"))
+	name := r.FormValue("name")
+	var cfg scheduler.JobConfig
 
-	err := hub.JobDelIdle(scheduler.ID(sid), scheduler.ID(jid))
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	rs := &Result{Code: 0, Data: "ok"}
-
-    if err != nil {
-        rs.Code = 1
-		rs.Data = err.Error()
-    }
-
-	json.NewEncoder(w).Encode(rs)
+	return hub.SetJobConfig(name, cfg)
 }
 
-func page_job_priority(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_group_config(r *http.Request) any {
 
-    sid, _ := strconv.Atoi(r.FormValue("sid"))
-    jid, _ := strconv.Atoi(r.FormValue("jid"))
-	priority, _ := strconv.Atoi(r.FormValue("priority"))
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
+	var cfg scheduler.GroupConfig
 
-	err := hub.JobPriority(scheduler.ID(sid), scheduler.ID(jid), priority)
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	rs := &Result{Code: 0, Data: "ok"}
-
-    if err != nil {
-        rs.Code = 1
-		rs.Data = err.Error()
-    }
-
-	json.NewEncoder(w).Encode(rs)
+	return hub.SetGroupConfig(scheduler.ID(gid), cfg)
 }
 
-func page_job_parallel(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_router_config(r *http.Request) any {
 
-    sid, _ := strconv.Atoi(r.FormValue("sid"))
-    jid, _ := strconv.Atoi(r.FormValue("jid"))
-	parallel, _ := strconv.Atoi(r.FormValue("parallel"))
+	rid, _ := strconv.Atoi(r.FormValue("rid"))
+	var cfg scheduler.RouterConfig
 
-	err := hub.JobParallel(scheduler.ID(sid), scheduler.ID(jid), uint32(parallel))
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	rs := &Result{Code: 0, Data: "ok"}
-
-    if err != nil {
-        rs.Code = 1
-		rs.Data = err.Error()
-    }
-
-	json.NewEncoder(w).Encode(rs)
+	return hub.SetRouterConfig(scheduler.ID(rid), cfg)
 }
 
-func page_task_cancel(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+func page_task_cancel(r *http.Request) any {
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
+	oid, _ := strconv.Atoi(r.FormValue("oid"))
 
-    sid, _ := strconv.Atoi(r.FormValue("sid"))
-	tid, _ := strconv.Atoi(r.FormValue("tid"))
-
-	err := hub.OrderCancel(scheduler.ID(sid), scheduler.ID(tid))
-
-	rs := &Result{Code: 0, Data: "ok"}
-
-    if err != nil {
-        rs.Code = 1
-		rs.Data = err.Error()
-    }
-
-	json.NewEncoder(w).Encode(rs)
+	return hub.OrderCancel(scheduler.ID(gid), scheduler.ID(oid))
 }
-
 
 func InitHub(h *scheduler.Scheduler) {
-    hub = h
+	hub = h
 }
 
 func HttpRun(addr string) {
-    init_http()
+	init_http()
 
 	hub.Log.Fatalln(http.ListenAndServe(addr, nil))
+}
+
+func httpReadJson(r *http.Request, out any) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(body, out)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *http.Request) {
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var rs Result
+
+		defer func() {
+			if err := recover(); err != nil {
+				rs.Code = 1
+				rs.Data = err
+			}
+
+			w.Header().Add("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(rs)
+		}()
+
+		rs.Data = fn(r)
+
+		if _, ok := rs.Data.(error); ok {
+			rs.Code = 1
+		}
+	}
 }

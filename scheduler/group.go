@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 type group struct {
 	GroupConfig
+
+	id ID
 
 	s *Scheduler
 
@@ -46,18 +50,42 @@ type group struct {
 	LoadStat StatRow
 }
 
-func (g *group) init() error {
+func (g *group) init(s *Scheduler) error {
+    g.s = s
 
 	g.complete = make(chan *order)
 
-	g.jobs.Init(100, g)
+	g.jobs.init(100, g)
 
 	g.workers.Init()
 	g.orders = make(map[*order]struct{})
 
 	g.LoadStat.Init(g.s.StatSize)
 
+	if err := g.loadJobs(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (g *group) loadJobs() error {
+
+	//key: task/:gid/:jname
+	err := g.s.Db.View(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "task", fmtId(g.id))
+		if err != nil {
+			return err
+		}
+
+		return bucket.ForEachBucket(func(k []byte) error {
+			g.jobs.addJob(string(k))
+
+			return nil
+		})
+	})
+
+	return err
 }
 
 func (g *group) addOrder(o *order) error {
@@ -95,7 +123,7 @@ func (g *group) workerNumCheck() {
 			g.workers.Remove(ew)
 			w := ew.Value.(*worker)
 
-            w.Close()
+			w.Close()
 
 			workers := make([]*worker, 0, g.WorkerNum)
 			for _, t := range g.allWorkers {
@@ -172,13 +200,13 @@ func (g *group) end(t *order) {
 	g.LoadTime += loadTime
 
 	g.workers.PushBack(t.worker)
-    t.worker = nil
+	t.worker = nil
 
 	delete(g.orders, t)
 }
 
 func (g *group) Run() {
-	g.s.Log.Debugln("scheduler group", g.Id, "run")
+	g.s.Log.Debugln("scheduler group", g.id, "run")
 
 	g.today = time.Now().Day()
 	g.running = true

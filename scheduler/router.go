@@ -9,6 +9,7 @@ import (
 type router struct {
 	RouterConfig
 
+	id      ID
 	exp     *regexp.Regexp
 	weights []uint32
 	total   uint32
@@ -25,6 +26,7 @@ func (r *router) init() {
 		r.weights[i] = r.total
 	}
 }
+
 func (r *router) match(t *Task) bool {
 	if r.exp == nil {
 		return true

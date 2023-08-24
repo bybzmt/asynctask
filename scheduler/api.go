@@ -29,19 +29,23 @@ func (s *Scheduler) JobDelIdle(gid, jid ID) error {
 	return g.jobs.jobDelIdle(jid)
 }
 
-func (s *Scheduler) JobPriority(gid, jid ID, priority int) error {
+func (s *Scheduler) SetJobConfig(name string, cfg JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
-	if !ok {
-		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
-	}
+    err := setJobConfig(s.Db, name, cfg)
+    if err != nil {
+        return err
+    }
 
-	return g.jobs.jobPriority(jid, priority)
+    for _, g := range s.groups {
+        g.jobs.jobConfig(name, cfg)
+    }
+
+    return nil
 }
 
-func (s *Scheduler) JobParallel(gid, jid ID, parallel uint32) error {
+func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -50,7 +54,25 @@ func (s *Scheduler) JobParallel(gid, jid ID, parallel uint32) error {
 		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
 	}
 
-	return g.jobs.jobParallel(jid, parallel)
+    g.GroupConfig = cfg
+
+    return nil
+}
+
+func (s *Scheduler) SetRouterConfig(rid ID, cfg RouterConfig) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    err := Empty
+
+    for _, g := range s.routers {
+        if g.id == rid {
+            err = nil
+            g.RouterConfig = cfg
+        }
+    }
+
+    return err
 }
 
 func (s *Scheduler) OrderCancel(gid, oid ID) error {

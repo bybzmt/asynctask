@@ -1,12 +1,9 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 var Empty = errors.New("empty")
@@ -21,10 +18,10 @@ type jobs struct {
 	idle    *job
 	block   *job
 
-	root *job
+	run *job
 }
 
-func (js *jobs) Init(max int, g *group) *jobs {
+func (js *jobs) init(max int, g *group) *jobs {
 	js.idleMax = max
 
 	js.all = make(map[string]*job, max*2)
@@ -37,18 +34,33 @@ func (js *jobs) Init(max int, g *group) *jobs {
 	js.block.next = js.block
 	js.block.prev = js.block
 
-	js.root = &job{}
-	js.root.next = js.root
-	js.root.prev = js.root
+	js.run = &job{}
+	js.run.next = js.run
+	js.run.prev = js.run
 
 	js.g = g
 	return js
 }
 
+
+func (js *jobs) addJob(name string) {
+	
+	if _, ok := js.all[name]; ok {
+        return
+    }
+
+    j := newJob(js, name)
+
+    js.all[name] = j
+
+    //添加到idle链表
+    js.idlePushBack(j)
+}
+
 func (js *jobs) addOrder(o *order) error {
 	j, ok := js.all[o.Task.Name]
 	if !ok {
-		j = js.newJob(o)
+		j = newJob(js, o.Task.Name)
 
 		js.all[o.Task.Name] = j
 
@@ -61,14 +73,7 @@ func (js *jobs) addOrder(o *order) error {
 		return err
 	}
 
-    j.countScore()
-
-	//从idle移除
-	if j.mode == job_mode_idle {
-		js.idleRmove(j)
-		js.pushBack(j)
-		js.Priority(j)
-	}
+    js.modeCheck(j)
 
 	return nil
 }
@@ -84,10 +89,7 @@ func (js *jobs) jobEmpty(jid ID) error {
 		return err
 	}
 
-	if j.mode == job_mode_runnable {
-		js.remove(j)
-		js.idlePushBack(j)
-	}
+    js.modeCheck(j)
 
 	return nil
 }
@@ -107,84 +109,48 @@ func (js *jobs) jobDelIdle(jid ID) error {
 	return nil
 }
 
-func (js *jobs) jobPriority(jid ID, priority int) error {
-	j := js.getJob(jid)
-	if j == nil {
-		return errors.New(fmt.Sprintf("job:%d not found", jid))
-	}
+func (js *jobs) jobConfig(name string, cfg JobConfig) error {
+    j, ok := js.all[name]
+    if !ok {
+        return Empty
+    }
 
-    j.Priority = priority
-
-	return nil
-}
-
-func (js *jobs) jobParallel(jid ID, parallel uint32) error {
-	j := js.getJob(jid)
-	if j == nil {
-		return errors.New(fmt.Sprintf("job:%d not found", jid))
-	}
-
-    j.Parallel = parallel
+    j.JobConfig = cfg
+    js.modeCheck(j)
 
 	return nil
 }
 
 func (js *jobs) getJob(jid ID) *job {
 	for _, j := range js.all {
-		if j.Id == jid {
+		if j.id == jid {
 			return j
 		}
 	}
 	return nil
 }
 
-func (js *jobs) newJob(o *order) *job {
-	var cfg JobConfig
-
-	//key: config/job/:name
-	err := js.g.s.Db.View(func(tx *bolt.Tx) error {
-        bucket := getBucket(tx, "config", "job")
-		if bucket == nil {
-			return nil
-		}
-
-		val := bucket.Get([]byte(o.Task.Name))
-		if val == nil {
-			return nil
-		}
-
-		return json.Unmarshal(val, &cfg)
-	})
-
-	if err != nil {
-        js.g.s.Log.Warnln("job", o.Task.Name, "config Error", err)
-	}
-
-	j := new(job)
-	j.JobConfig = cfg
-	j.Init(o.Task.Name, js.g)
-
-	return j
-}
-
 func (js *jobs) modeCheck(j *job) {
-	if j.NowNum >= int(j.Parallel) {
-		if j.mode == job_mode_runnable {
-			js.remove(j)
-			js.blockAdd(j)
-		}
-	} else {
-		if j.mode == job_mode_block {
-			js.remove(j)
+	if j.Len() < 1 {
+        if j.mode != job_mode_idle {
 
-			if j.Len() < 1 {
-				js.idlePushBack(j)
-			} else {
-				js.pushBack(j)
-				js.Priority(j)
-			}
+			js.remove(j)
+			js.idlePushBack(j)
+        }
+    } else if j.NowNum >= int(j.Parallel) {
+		if j.mode != job_mode_block {
+			js.remove(j)
+            js.blockAdd(j)
+        }
+    } else {
+        j.countScore()
+
+		if j.mode != job_mode_runnable {
+			js.remove(j)
+            js.pushBack(j)
+            js.Priority(j)
 		}
-	}
+    }
 }
 
 func (js *jobs) GetOrder() (*order, error) {
@@ -203,21 +169,7 @@ func (js *jobs) GetOrder() (*order, error) {
 	j.LastTime = js.g.now
 	j.NowNum++
 
-    j.countScore()
-
-	//从运行链表中移聊
-	js.remove(j)
-
-	//如果运行数超过上限，移到block队列中
-	if j.NowNum >= int(j.Parallel) {
-		js.blockAdd(j)
-	} else if j.Len() < 1 {
-		//添加到idle链表中
-		js.idlePushBack(j)
-	} else {
-		js.pushBack(j)
-		js.Priority(j)
-	}
+    js.modeCheck(j)
 
 	return o, nil
 }
@@ -228,36 +180,14 @@ func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
 	j.LoadTime += loadTime
 	j.UseTimeStat.Push(int64(useTime))
 
-    j.countScore()
-
-	if j.mode == job_mode_block {
-		if j.NowNum >= int(j.Parallel) {
-			return
-		}
-
-		js.remove(j)
-
-		if j.Len() < 1 {
-			js.idlePushBack(j)
-		} else {
-			js.pushBack(j)
-			js.Priority(j)
-		}
-	}
-}
-
-func (js *jobs) HasTask() bool {
-	if js.root == js.root.next {
-		return false
-	}
-	return true
+    js.modeCheck(j)
 }
 
 func (js *jobs) front() *job {
-	if js.root == js.root.next {
+	if js.run == js.run.next {
 		return nil
 	}
-	return js.root.next
+	return js.run.next
 }
 
 func (js *jobs) append(j, at *job) {
@@ -281,7 +211,7 @@ func (js *jobs) blockAdd(j *job) {
 
 func (js *jobs) pushBack(j *job) {
 	j.mode = job_mode_runnable
-	js.append(j, js.root.prev)
+	js.append(j, js.run.prev)
 }
 
 func (js *jobs) idleFront() *job {
@@ -299,7 +229,7 @@ func (js *jobs) idlePushBack(j *job) {
 	js.idleLen++
 
 	//移除多余的idle
-	if js.idleLen > js.idleMax {
+	for js.idleLen > js.idleMax {
 		j := js.idleFront()
 		if j != nil {
 			js.idleRmove(j)
@@ -317,11 +247,11 @@ func (js *jobs) idleRmove(j *job) {
 func (js *jobs) Priority(j *job) {
 	x := j
 
-	for x.next != nil && x.next != js.root && j.Score > x.next.Score {
+	for x.next != nil && x.next != js.run && j.Score > x.next.Score {
 		x = x.next
 	}
 
-	for x.prev != nil && x.prev != js.root && j.Score < x.prev.Score {
+	for x.prev != nil && x.prev != js.run && j.Score < x.prev.Score {
 		x = x.prev
 	}
 
