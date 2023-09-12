@@ -29,6 +29,10 @@ func (s *Scheduler) JobDelIdle(gid, jid ID) error {
 	return g.jobs.jobDelIdle(jid)
 }
 
+func (s *Scheduler) GetJobConfig(gid, jid ID, cfg *JobConfig) error {
+    return nil
+}
+
 func (s *Scheduler) SetJobConfig(name string, cfg JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -42,6 +46,11 @@ func (s *Scheduler) SetJobConfig(name string, cfg JobConfig) error {
         g.jobs.jobConfig(name, cfg)
     }
 
+    return nil
+}
+
+
+func (s *Scheduler) GetGroupConfig(gid ID, cfg *GroupConfig) error {
     return nil
 }
 
@@ -73,6 +82,11 @@ func (s *Scheduler) SetRouterConfig(rid ID, cfg RouterConfig) error {
     }
 
     return err
+}
+
+
+func (s *Scheduler) GetRouterConfig(rid ID, cfg *RouterConfig) error {
+    return nil
 }
 
 func (s *Scheduler) OrderCancel(gid, oid ID) error {
@@ -115,7 +129,9 @@ func (s *Scheduler) DelOrder(gid, jid, oid ID) error {
 
 func (s *Scheduler) GetStatData() (out []*Statistics) {
 	s.l.Lock()
-	defer s.l.Lock()
+	defer s.l.Unlock()
+
+    s.Log.Debugln("GetStatData")
 
 	for _, s := range s.groups {
 		out = append(out, s.getStatData())

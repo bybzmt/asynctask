@@ -19,9 +19,8 @@ type Scheduler struct {
 
 	l sync.Mutex
 
-	now    time.Time
-	ticker *time.Ticker
-	end    chan *group
+	now time.Time
+	end chan *group
 
 	orderId ID
 
@@ -57,6 +56,7 @@ func New(c Config) (*Scheduler, error) {
 	s.StatSize = 60 * 5
 	s.StatTick = time.Second
 
+	s.end = make(chan *group)
 	s.groups = make(map[ID]*group)
 
 	err := s.loadGroups()
@@ -95,55 +95,39 @@ func (s *Scheduler) Run() {
 		panic(errors.New("Run only run once"))
 	}
 
-	for _, s := range s.groups {
-		go s.Run()
+	for _, g := range s.groups {
+		s.Log.Println("groups")
+		go g.Run()
 	}
 
 	s.running = true
 
-	s.ticker = time.NewTicker(s.StatTick)
-
 	s.l.Unlock()
 
-	for now := range s.ticker.C {
-		s.l.Lock()
-		s.now = now
-		for _, s := range s.groups {
-			s.tick <- now
-		}
-		s.l.Unlock()
-	}
+    ticker := time.NewTicker(s.StatTick)
+    defer ticker.Stop()
 
-	s.ticker.Reset(time.Second * 10)
+	for {
+		select {
+        case now := <-ticker.C:
+            s.Log.Debugln("tick")
 
-	go func() {
-		for range s.ticker.C {
-			s.allTaskCancel()
-		}
-		s.ticker.Stop()
-	}()
+            s.l.Lock()
+            s.now = now
+            for _, s := range s.groups {
+                s.tick <- now
+            }
 
-	s.l.Lock()
-	for _, s := range s.groups {
-		s.close()
-	}
-	s.l.Unlock()
+            l := len(s.groups)
 
-	for g := range s.end {
-		s.l.Lock()
-		delete(s.groups, g.id)
-		l := len(s.groups)
-		s.l.Unlock()
+            s.l.Unlock()
 
-		if l == 0 {
-			break
+            if !s.running && l == 0{
+                s.Log.Debugln("all close")
+                return;
+            }
 		}
 	}
-
-	s.running = false
-	close(s.end)
-
-	s.Log.Debugln("Scheduler closd")
 }
 
 func (s *Scheduler) loadGroups() error {
@@ -167,9 +151,9 @@ func (s *Scheduler) loadGroups() error {
 			g.GroupConfig = cfg
 			g.id = atoiId(key)
 
-            if err := g.init(s); err != nil {
-                return err
-            }
+			if err := g.init(s); err != nil {
+				return err
+			}
 
 			s.groups[g.id] = g
 
@@ -200,9 +184,9 @@ func (s *Scheduler) loadGroups() error {
 			g := new(group)
 			g.id = id
 
-            if err := g.init(s); err != nil {
-                return err
-            }
+			if err := g.init(s); err != nil {
+				return err
+			}
 
 			s.groups[g.id] = g
 
@@ -231,7 +215,7 @@ func (s *Scheduler) loadRouters() error {
 			r := new(router)
 			r.RouterConfig = cfg
 			r.id = atoiId(key)
-            r.init()
+			r.init()
 
 			s.routers = append(s.routers, r)
 			return nil
@@ -272,7 +256,7 @@ func (s *Scheduler) AddGroup() error {
 		if err != nil {
 			return err
 		}
-		
+
 		if err = bucket.Put([]byte(fmtId(id)), val); err != nil {
 			return err
 		}
@@ -288,15 +272,15 @@ func (s *Scheduler) AddGroup() error {
 
 	g.GroupConfig = cfg
 
-    if err := g.init(s); err != nil {
+	if err := g.init(s); err != nil {
 		return err
-    }
+	}
 
 	s.groups[g.id] = g
 
-    if s.running {
-        go g.Run()
-    }
+	if s.running {
+		go g.Run()
+	}
 
 	return nil
 }
@@ -308,9 +292,9 @@ func (s *Scheduler) AddRouter() error {
 	r := new(router)
 	var cfg RouterConfig
 
-	//key: config/group/:id
+	//key: config/router/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "group")
+		bucket, err := getBucketMust(tx, "config", "router")
 		if err != nil {
 			return err
 		}
@@ -369,8 +353,8 @@ func (s *Scheduler) AddOrder(t *Task) error {
 			o.Task = t
 			o.AddTime = time.Now()
 			o.Base.init()
-			copyBase(&o.Base, &g.JobBase)
-			copyBase(&o.Base, &r.JobBase)
+			copyBase(&o.Base, &g.OrderBase)
+			copyBase(&o.Base, &r.OrderBase)
 
 			return g.addOrder(o)
 		}
@@ -381,23 +365,72 @@ func (s *Scheduler) AddOrder(t *Task) error {
 
 func (s *Scheduler) Close() {
 	s.l.Lock()
-	defer s.l.Unlock()
 
 	if !s.running {
+        s.l.Unlock()
 		return
 	}
 
 	s.running = false
-	s.Log.Println("Scheduler closing...")
 
-	s.ticker.Stop()
+	s.Log.Debugln("Scheduler closing...")
+
+	for _, s := range s.groups {
+		s.close()
+	}
+
+	s.l.Unlock()
+    
+    ticker := time.NewTicker(time.Second)
+    defer ticker.Stop()
+
+	num := 0
+
+	for {
+		select {
+		case <-ticker.C:
+			num++
+
+            s.Log.Debugln("close tick", num)
+
+			if num == 10 {
+				s.allTaskCancel()
+			}
+
+			s.l.Lock()
+			l := len(s.groups)
+			s.l.Unlock()
+
+			if l == 0 {
+                s.Log.Debugln("close end")
+                return;
+			}
+
+		case g := <-s.end:
+            s.Log.Debugln("end", g.id)
+
+            s.l.Lock()
+            delete(s.groups, g.id)
+            l := len(s.groups)
+            s.l.Unlock()
+
+            if l == 0 {
+                close(s.end)
+                s.Log.Debugln("Scheduler closd")
+                return;
+            }
+		}
+	}
 }
 
 func (s *Scheduler) allTaskCancel() {
+	s.Log.Debugln("allTaskCancel start")
+	defer s.Log.Debugln("allTaskCancel end")
+
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	for _, s := range s.groups {
-		s.allTaskCancel()
+	for _, g := range s.groups {
+		g.allTaskCancel()
 	}
 }

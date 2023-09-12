@@ -1,9 +1,7 @@
 package scheduler
 
 import (
-	"fmt"
 	"time"
-	"unsafe"
 )
 
 type StatRow struct {
@@ -33,17 +31,16 @@ func (s *StatRow) GetAll() int64 {
 }
 
 type StatTask struct {
-	Id      string
+	Id      ID
 	Name    string
-	Params  []string
 	UseTime int
 }
 
-type Stat struct {
+type JobStat struct {
+    JobConfig
 	Name     string
 	Load     int
 	NowNum   int
-	Parallel int
 	RunNum   int
 	ErrNum   int
 	OldNum   int
@@ -51,13 +48,14 @@ type Stat struct {
 	UseTime  int
 	LastTime int
 	Score    int
-	Priority int
 }
 
 type Statistics struct {
-	All   Stat
+    Id ID
+    Config GroupConfig
+	All   JobStat
 	Tasks []StatTask
-	Jobs  []Stat
+	Jobs  []JobStat
 }
 
 func (s *group) getStatData() *Statistics {
@@ -72,7 +70,9 @@ func (s *group) getStatData() *Statistics {
 	}
 
 	t := &Statistics{}
-	t.Jobs = make([]Stat, 0, s.jobs.Len())
+    t.Id = s.id
+    t.Config = s.GroupConfig
+	t.Jobs = make([]JobStat, 0, s.jobs.Len())
 	t.Tasks = make([]StatTask, 0, len(s.orders))
 	t.All.Name = "all"
 	t.All.Load = all
@@ -85,7 +85,7 @@ func (s *group) getStatData() *Statistics {
 
 	for t2 := range s.orders {
 		st := StatTask{
-			Id:      fmt.Sprintf("%x", unsafe.Pointer(t2)),
+			Id:      t2.Id,
 			Name:    t2.job.Name,
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
@@ -111,19 +111,18 @@ func (s *group) getStatData() *Statistics {
             sec = int(now.Sub(j.LastTime) / time.Second)
         }
 
-        t.Jobs = append(t.Jobs, Stat{
+        t.Jobs = append(t.Jobs, JobStat{
+            JobConfig: j.JobConfig,
             Name:     j.Name,
             Load:     x,
             RunNum:   j.RunNum,
             OldNum:   j.OldNum,
             NowNum:   j.NowNum,
             ErrNum:   j.ErrNum,
-            Parallel: int(j.Parallel),
-            WaitNum:  j.Len(),
+            WaitNum:  j.WaitNum,
             UseTime:  useTime,
             LastTime: sec,
             Score:    j.Score,
-            Priority: j.Priority,
         })
     }
 

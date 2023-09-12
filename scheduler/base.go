@@ -16,7 +16,7 @@ type order struct {
 	worker *worker
 
 	Task *Task
-	Base JobBase
+	Base OrderBase
 
 	Status int
 	Msg    string
@@ -89,7 +89,7 @@ func getBucket(bk bucketer, keys ...string) *bolt.Bucket {
 }
 
 func fmtId(id any) string {
-	return fmt.Sprintf("%12d", id)
+	return fmt.Sprintf("%015d", id)
 }
 
 func atoiId(key []byte) ID {
@@ -97,7 +97,7 @@ func atoiId(key []byte) ID {
 	return ID(id)
 }
 
-func copyBase(src, dst *JobBase) {
+func copyBase(src, dst *OrderBase) {
 	if src.Timeout > 0 {
 		dst.Timeout = src.Timeout
 	}

@@ -54,7 +54,7 @@ type TaskCli struct {
 	Params []string `json:"params,omitempty"`
 }
 
-type JobBase struct {
+type OrderBase struct {
 	Timeout    uint //默认超时时间
 	CmdBase    string
 	CmdEnv     map[string]string
@@ -62,13 +62,13 @@ type JobBase struct {
 	HttpHeader map[string]string
 }
 
-func (b *JobBase) init() {
+func (b *OrderBase) init() {
     b.HttpHeader = make(map[string]string)
     b.CmdEnv = make(map[string]string)
 }
 
 type RouterConfig struct {
-	JobBase
+	OrderBase
 	Match  string
 	Note   string
 	Groups []ID
@@ -78,7 +78,7 @@ type RouterConfig struct {
 }
 
 type GroupConfig struct {
-	JobBase
+	OrderBase
 
 	Parallel  uint32 //默认并发数
 	WorkerNum uint32

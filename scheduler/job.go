@@ -31,7 +31,7 @@ type job struct {
 	OldNum   int
 	NowNum   int
 	ErrNum   int
-	WaitNum uint
+	WaitNum  int
 
     Score int
 
@@ -237,16 +237,12 @@ func (j *job) loadLen() error {
 		}
 
 		s := bucket.Stats()
-		j.WaitNum = uint(s.BucketN)
+		j.WaitNum = s.BucketN
 
 		return nil
 	})
 
 	return err
-}
-
-func (j *job) Len() int {
-	return int(j.WaitNum)
 }
 
 func (j *job) countScore() {
@@ -261,7 +257,7 @@ func (j *job) countScore() {
 	}
 
 	if j.g.WaitNum > 0 {
-		z = area - float64(j.Len())/float64(j.g.WaitNum)*area
+		z = area - float64(j.WaitNum)/float64(j.g.WaitNum)*area
 	}
 
 	j.Score = int(x + y + z + float64(j.Priority))

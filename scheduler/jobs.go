@@ -131,7 +131,7 @@ func (js *jobs) getJob(jid ID) *job {
 }
 
 func (js *jobs) modeCheck(j *job) {
-	if j.Len() < 1 {
+	if j.WaitNum < 1 {
         if j.mode != job_mode_idle {
 
 			js.remove(j)

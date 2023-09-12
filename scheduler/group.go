@@ -54,6 +54,7 @@ func (g *group) init(s *Scheduler) error {
     g.s = s
 
 	g.complete = make(chan *order)
+	g.tick = make(chan time.Time)
 
 	g.jobs.init(100, g)
 
@@ -73,9 +74,9 @@ func (g *group) loadJobs() error {
 
 	//key: task/:gid/:jname
 	err := g.s.Db.View(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", fmtId(g.id))
-		if err != nil {
-			return err
+		bucket := getBucket(tx, "task", fmtId(g.id))
+		if bucket == nil {
+			return nil
 		}
 
 		return bucket.ForEachBucket(func(k []byte) error {
@@ -103,6 +104,9 @@ func (g *group) addOrder(o *order) error {
 }
 
 func (g *group) workerNumCheck() {
+	g.l.Lock()
+	defer g.l.Unlock()
+
 	for len(g.allWorkers) != int(g.WorkerNum) {
 		if len(g.allWorkers) < int(g.WorkerNum) {
 			g.workerId++
@@ -139,8 +143,6 @@ func (g *group) workerNumCheck() {
 func (g *group) dispatch() {
 	g.l.Lock()
 	defer g.l.Unlock()
-
-	g.workerNumCheck()
 
 	//得到工人
 	ew := g.workers.Back()
@@ -218,6 +220,7 @@ func (g *group) Run() {
 
 		case now := <-g.tick:
 			g.statTick(now)
+            g.workerNumCheck()
 		}
 
 		if g.running {
@@ -233,11 +236,14 @@ func (g *group) Run() {
 }
 
 func (g *group) close() {
+	g.l.Lock()
+
+    g.running = false
 	g.WorkerNum = 0
 
-	for _, w := range g.allWorkers {
-		w.Close()
-	}
+	g.l.Unlock()
+
+    g.workerNumCheck()
 }
 
 func (g *group) allTaskCancel() {

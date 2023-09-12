@@ -22,7 +22,6 @@ var redisDb string
 var redisKey string
 
 var cfg scheduler.Config
-var hub *scheduler.Scheduler
 var logFile string
 var dbFile string
 
@@ -55,6 +54,8 @@ func flagCheck() {
 func main() {
 	flag.Parse()
 
+
+    logrus.SetLevel(logrus.DebugLevel)
 	cfg.Log = logrus.StandardLogger()
 
 	flagCheck()
@@ -86,16 +87,18 @@ func main() {
 			go tool.RedisRun(redisHost, redisPwd, redisDb, redisKey)
 		}
 
-		exitSignal()
+		waitSignal()
+
+        hub.Close()
 	}()
 
 	hub.Run()
+
+	cfg.Log.Debugln("main close")
 }
 
-func exitSignal() {
+func waitSignal() {
 	co := make(chan os.Signal, 1)
 	signal.Notify(co, os.Interrupt, syscall.SIGTERM)
 	<-co
-
-	hub.Close()
 }

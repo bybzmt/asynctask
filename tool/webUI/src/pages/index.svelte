@@ -15,6 +15,8 @@
         clearInterval(timer);
     });
 
+    let GroupIdx = 0;
+    let Group = null;
     let AllData = [];
     let JobsData = [];
     let TasksData = [];
@@ -44,9 +46,15 @@
     }
 
     function taskCancel(task) {
-        var ok = confirm("Cancel Task?\r\nid: " + task.Id + " Params: " + JSON.stringify(task.Params));
+        let params = new URLSearchParams();
+        params.set("gid", Group.Id);
+        params.set("oid", task.id);
+
+        var ok = confirm(
+            "Cancel Task?\r\nName: " + task.Name + " " + params.toString()
+        );
         if (ok) {
-            let url = API_BASE + "/api/task/cancel?id=" + encodeURIComponent(task.Id);
+            let url = API_BASE + "/api/task/cancel?" + params.toString();
             fetch(url)
                 .then((t) => t.json())
                 .then((json) => {
@@ -56,9 +64,15 @@
     }
 
     function jobEmpty(job) {
-        var ok = confirm("Empty Job?\r\nName: " + job.Name);
+        let params = new URLSearchParams();
+        params.set("gid", Group.Id);
+        params.set("jid", job.Id);
+
+        var ok = confirm(
+            "Empty Job?\r\nName: " + job.Name + " " + params.toString()
+        );
         if (ok) {
-            let url = API_BASE + "/api/job/empty?name=" + encodeURIComponent(job.Name);
+            let url = API_BASE + "/api/job/empty?name=" + params.toString();
             fetch(url)
                 .then((t) => t.json())
                 .then((json) => {
@@ -68,9 +82,15 @@
     }
 
     function jobDelIdle(job) {
-        var ok = confirm("Del Idle Job?\r\nName: " + job.Name);
+        let params = new URLSearchParams();
+        params.set("gid", Group.Id);
+        params.set("jid", job.Id);
+
+        var ok = confirm(
+            "Del Idle Job?\r\nName: " + job.Name + " " + params.toString()
+        );
         if (ok) {
-            let url = API_BASE + "/api/job/delIdle?name=" + encodeURIComponent(job.Name);
+            let url = API_BASE + "/api/job/delIdle?name=" + params.toString();
             fetch(url)
                 .then((t) => t.json())
                 .then((json) => {
@@ -80,10 +100,23 @@
     }
 
     function jobPriority(job) {
-        var txt = prompt("Job: " + job.Name + " Priority: ", "");
+        var txt = prompt("Job: " + job.Name + " Priority: ", job.Priority);
         if (txt != null && txt != "") {
-            let url = API_BASE + "/api/job/priority?name=" + encodeURIComponent(job.Name) + "&priority=" + encodeURIComponent(txt);
-            fetch(url)
+            let params = new URLSearchParams();
+            params.set("name", job.Name);
+
+            let url = API_BASE + "/api/job/setConfig?" + params.toString();
+
+            let he = new Headers();
+            he.append("Content-Type", "application/json; charset=utf-8");
+
+            job.Priority = parseInt(txt);
+
+            fetch(url, {
+                method: "POST",
+                headers: he,
+                body: JSON.stringify(job),
+            })
                 .then((t) => t.json())
                 .then((json) => {
                     alert(JSON.stringify(json));
@@ -94,8 +127,21 @@
     function jobParallel(job) {
         var txt = prompt("Job: " + job.Name + " Parallel: ", job.Parallel);
         if (txt != null && txt != "") {
-            let url = API_BASE + "/api/job/parallel?name=" + encodeURIComponent(job.Name) + "&parallel=" + encodeURIComponent(txt);
-            fetch(url)
+            let params = new URLSearchParams();
+            params.set("name", job.Name);
+
+            let url = API_BASE + "/api/job/setConfig?" + params.toString();
+
+            let he = new Headers();
+            he.append("Content-Type", "application/json; charset=utf-8");
+
+            job.Parallel = parseInt(txt);
+
+            fetch(url, {
+                method: "POST",
+                headers: he,
+                body: JSON.stringify(job),
+            })
                 .then((t) => t.json())
                 .then((json) => {
                     alert(JSON.stringify(json));
@@ -108,15 +154,26 @@
         fetch(url)
             .then((t) => t.json())
             .then((json) => {
-                AllData = json.Data.All;
+                if (json.Data.length == 0) {
+                    return;
+                }
 
-                json.Data.Tasks.sort(function (a, b) {
+                if (GroupIdx >= json.Data.length) {
+                    GroupIdx = 0;
+                }
+
+                let Data = json.Data[GroupIdx];
+
+                Group = Data;
+                AllData = Data.All;
+
+                Data.Tasks.sort(function (a, b) {
                     return a.Id.localeCompare(b.Id);
                 });
-                TasksData = json.Data.Tasks;
+                TasksData = Data.Tasks;
 
                 if (tab == 2 || tab == 3) {
-                    json.Data.Jobs = json.Data.Jobs.filter(function (job) {
+                    Data.Jobs = Data.Jobs.filter(function (job) {
                         if (tab == 3) {
                             return job.NowNum == 0 && job.WaitNum == 0;
                         }
@@ -124,30 +181,44 @@
                     });
                 }
 
-                json.Data.Jobs.sort(function (a, b) {
+                Data.Jobs.sort(function (a, b) {
                     var x = (function () {
                         switch (Math.abs(sortby)) {
                             case 1:
                                 return b.Name.localeCompare(a.Name);
                             case 2:
-                                return b.Load != a.Load ? b.Load - a.Load : b.Score - a.Score;
+                                return b.Load != a.Load
+                                    ? b.Load - a.Load
+                                    : b.Score - a.Score;
                             case 3:
-                                return b.NowNum != a.NowNum ? b.NowNum - a.NowNum : b.Score - a.Score;
+                                return b.NowNum != a.NowNum
+                                    ? b.NowNum - a.NowNum
+                                    : b.Score - a.Score;
                             case 4:
-                                return b.RunNum != a.RunNum ? b.RunNum - a.RunNum : b.Score - a.Score;
+                                return b.RunNum != a.RunNum
+                                    ? b.RunNum - a.RunNum
+                                    : b.Score - a.Score;
                             case 5:
-                                return b.OldNum != a.OldNum ? b.OldNum - a.OldNum : b.Score - a.Score;
+                                return b.OldNum != a.OldNum
+                                    ? b.OldNum - a.OldNum
+                                    : b.Score - a.Score;
                             case 6:
-                                return b.WaitNum != a.WaitNum ? b.WaitNum - a.WaitNum : b.Score - a.Score;
+                                return b.WaitNum != a.WaitNum
+                                    ? b.WaitNum - a.WaitNum
+                                    : b.Score - a.Score;
                             case 7:
-                                return b.UseTime != a.UseTime ? b.UseTime - a.UseTime : b.Score - a.Score;
+                                return b.UseTime != a.UseTime
+                                    ? b.UseTime - a.UseTime
+                                    : b.Score - a.Score;
                             case 8:
-                                return a.Score != b.Score ? b.Score - a.Score : b.Name.localeCompare(a.Name);
+                                return a.Score != b.Score
+                                    ? b.Score - a.Score
+                                    : b.Name.localeCompare(a.Name);
                         }
                     })();
                     return sortby > 0 ? x : -x;
                 });
-                JobsData = json.Data.Jobs;
+                JobsData = Data.Jobs;
             });
     }
 </script>
@@ -179,10 +250,18 @@
     </div>
 
     <div id="tab">
-        <span class="run {tab == 1 ? 'active' : ''}" on:click={() => setTab(1)}>runing</span>
-        <span class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}>waiting</span>
-        <span class="idle {tab == 3 ? 'active' : ''}" on:click={() => setTab(3)}>idle</span>
-        <span class="all {tab == 4 ? 'active' : ''}" on:click={() => setTab(4)}>all</span>
+        <span class="run {tab == 1 ? 'active' : ''}" on:click={() => setTab(1)}
+            >runing</span
+        >
+        <span class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}
+            >waiting</span
+        >
+        <span class="idle {tab == 3 ? 'active' : ''}" on:click={() => setTab(3)}
+            >idle</span
+        >
+        <span class="all {tab == 4 ? 'active' : ''}" on:click={() => setTab(4)}
+            >all</span
+        >
     </div>
 
     {#if tab == 1}
@@ -199,9 +278,14 @@
                 <tbody>
                     {#each TasksData as task}
                         <tr>
-                            <td><span on:dblclick={() => taskCancel(task)}>{task.Id}</span></td>
+                            <td
+                                ><span on:dblclick={() => taskCancel(task)}
+                                    >{task.Id}</span
+                                ></td
+                            >
                             <td>{task.Name}</td>
-                            <td class="params">{JSON.stringify(task.Params)}</td>
+                            <td class="params">{JSON.stringify(task.Params)}</td
+                            >
                             <td>{task.UseTime / 1000}s</td>
                         </tr>
                     {/each}
@@ -237,19 +321,28 @@
                         <tr>
                             <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
                             <td>{j.Load / 100}%</td>
-                            <td on:dblclick={() => jobParallel(j)}>{j.NowNum + "/" + j.Parallel}</td>
+                            <td on:dblclick={() => jobParallel(j)}
+                                >{j.NowNum + "/" + j.Parallel}</td
+                            >
                             <td>{j.RunNum}</td>
                             <td>{j.OldNum}</td>
                             <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
                             <td>{j.UseTime / 1000}s</td>
                             <td on:dblclick={() => jobPriority(j)}>
-                                {j.Score + (j.Priority == 0 ? "" : j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")}
+                                {j.Score +
+                                    (j.Priority == 0
+                                        ? ""
+                                        : j.Priority > 0
+                                        ? "(+" + j.Priority + ")"
+                                        : "(" + j.Priority + ")")}
                             </td>
                             <td>{j.LastTime}s</td>
                             <td>{j.ErrNum}</td>
                         </tr>
                     {:else}
-                        <tr><td colspan="10" class="center">empty</td> </tr>{/each}
+                        <tr
+                            ><td colspan="10" class="center">empty</td>
+                        </tr>{/each}
                 </tbody>
             </table>
         </div>

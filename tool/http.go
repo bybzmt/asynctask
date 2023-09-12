@@ -5,7 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 )
@@ -50,21 +50,20 @@ func page_task_add(r *http.Request) any {
 }
 
 func page_job_empty(r *http.Request) any {
-	sid, _ := strconv.Atoi(r.FormValue("sid"))
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	jid, _ := strconv.Atoi(r.FormValue("jid"))
 
-	return hub.JobEmpty(scheduler.ID(sid), scheduler.ID(jid))
+	return hub.JobEmpty(scheduler.ID(gid), scheduler.ID(jid))
 }
 
 func page_job_delIdle(r *http.Request) any {
-	sid, _ := strconv.Atoi(r.FormValue("sid"))
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	jid, _ := strconv.Atoi(r.FormValue("jid"))
 
-	return hub.JobDelIdle(scheduler.ID(sid), scheduler.ID(jid))
+	return hub.JobDelIdle(scheduler.ID(gid), scheduler.ID(jid))
 }
 
 func page_job_config(r *http.Request) any {
-
 	name := r.FormValue("name")
 	var cfg scheduler.JobConfig
 
@@ -117,7 +116,7 @@ func HttpRun(addr string) {
 }
 
 func httpReadJson(r *http.Request, out any) error {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
 	}
