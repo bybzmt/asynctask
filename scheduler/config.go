@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 	"net/http"
+    "time"
 )
 
 const (
@@ -30,13 +31,14 @@ type Config struct {
 }
 
 type Task struct {
-	Id      uint      `json:"id,omitempty"`
 	Name    string    `json:"name,omitempty"`
 	Trigger uint      `json:"trigger,omitempty"`
 	Http    *TaskHttp `json:"http,omitempty"`
 	Cli     *TaskCli  `json:"cli,omitempty"`
 	Timeout uint      `json:"timeout,omitempty"`
 	Hold    string    `json:"hold,omitempty"`
+	Id      uint      `json:",omitempty"`
+	AddTime uint      `json:",omitempty"`
 }
 
 type TaskHttp struct {
@@ -54,7 +56,27 @@ type TaskCli struct {
 	Params []string `json:"params,omitempty"`
 }
 
-type OrderBase struct {
+// 运行的任务
+type order struct {
+	Id     ID
+	job    *job
+	worker *worker
+
+	Task *Task
+	Base *TaskBase
+
+	Status int
+	Msg    string
+	Err    error
+
+	AddTime   time.Time
+	StartTime time.Time
+	StatTime  time.Time
+	EndTime   time.Time
+}
+
+type TaskBase struct {
+	Mode   Mode
 	Timeout    uint //默认超时时间
 	CmdBase    string
 	CmdEnv     map[string]string
@@ -62,24 +84,28 @@ type OrderBase struct {
 	HttpHeader map[string]string
 }
 
-func (b *OrderBase) init() {
+func (b *TaskBase) init() {
     b.HttpHeader = make(map[string]string)
     b.CmdEnv = make(map[string]string)
 }
 
+type GroupJobConfig struct {
+	GroupId ID
+	Note     string
+	Priority int
+	Parallel uint32
+}
+
 type RouterConfig struct {
-	OrderBase
+	TaskBase
 	Match  string
 	Note   string
-	Groups []ID
-	Weights []uint32
-	Mode   Mode
+    Groups []GroupJobConfig
     Sort   int
+    Used   bool
 }
 
 type GroupConfig struct {
-	OrderBase
-
 	Parallel  uint32 //默认并发数
 	WorkerNum uint32
 	Weight    uint32

@@ -1,11 +1,8 @@
 package scheduler
 
 import (
-	"encoding/json"
-	"fmt"
+	"sync/atomic"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 type job_mode int
@@ -23,15 +20,12 @@ type job struct {
 	Name     string
 
 	g *group
+    task *jobTask
 
 	next, prev *job
 	mode       job_mode
 
-	RunNum   int
-	OldNum   int
 	NowNum   int
-	ErrNum   int
-	WaitNum  int
 
     Score int
 
@@ -43,53 +37,15 @@ type job struct {
 	UseTimeStat StatRow
 }
 
-func newJob(js *jobs, name string) *job {
+func newJob(js *jobs, jtask *jobTask) *job {
 	var cfg JobConfig
-
-	//key: config/job/:name
-	err := js.g.s.Db.View(func(tx *bolt.Tx) error {
-        bucket := getBucket(tx, "config", "job")
-		if bucket == nil {
-			return nil
-		}
-
-		val := bucket.Get([]byte(name))
-		if val == nil {
-			return nil
-		}
-
-		return json.Unmarshal(val, &cfg)
-	})
-
-	if err != nil {
-        js.g.s.Log.Warnln("job", name, "config Error", err)
-	}
 
 	j := new(job)
 	j.JobConfig = cfg
-	j.init(name, js.g)
+    j.task = jtask
+	j.init(jtask.name, js.g)
 
 	return j
-}
-
-func setJobConfig(db *bolt.DB, name string, cfg JobConfig) error {
-
-	//key: config/job/:name
-	err := db.Update(func(tx *bolt.Tx) error {
-        bucket := getBucket(tx, "config", "job")
-		if bucket == nil {
-			return nil
-		}
-
-        val, err := json.Marshal(&cfg)
-        if err != nil {
-            return err
-        }
-
-		return bucket.Put([]byte(name), val)
-	})
-
-	return err
 }
 
 func (j *job) init(name string, g *group) *job {
@@ -99,150 +55,6 @@ func (j *job) init(name string, g *group) *job {
 	j.UseTimeStat.Init(10)
 	j.Parallel = j.g.Parallel
 	return j
-}
-
-func (j *job) addOrder(o *order) error {
-
-	val, err := json.Marshal(o)
-	if err != nil {
-		return err
-	}
-
-    //key: task/:gid/:jname
-	err = j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", fmtId(j.g.id), j.Name)
-		if err != nil {
-			return err
-		}
-
-        id, err := bucket.NextSequence()
-		if err != nil {
-			return err
-		}
-
-        key := []byte(fmtId(id))
-
-		return bucket.Put(key, val)
-	})
-
-	if err != nil {
-		return err
-	}
-
-	j.WaitNum++
-
-	return nil
-}
-
-func (j *job) delOrder(oid ID) error {
-    has:= false
-
-    //key: task/:gid/:jname
-    err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", fmtId(j.g.id), j.Name)
-		if err != nil {
-			return err
-		}
-
-        key := []byte(fmtId(oid))
-
-        v := bucket.Get(key)
-        if v != nil {
-            has = true
-        }
-
-		return bucket.Delete(key)
-	})
-
-    if err != nil {
-        return err
-    }
-
-    if has {
-        j.WaitNum--
-    }
-
-    return nil
-}
-
-func (j *job) popOrder() (*order, error) {
-
-	o := order{}
-
-	err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.id))
-		if err != nil {
-			return err
-		}
-
-		c := bucket.Cursor()
-
-		for {
-			key, val := c.First()
-
-			if key == nil {
-				return nil
-			}
-
-			err = bucket.Delete(key)
-			if err != nil {
-				return err
-			}
-
-			err = json.Unmarshal(val, &o)
-			if err == nil {
-				return nil
-			}
-
-			//log
-		}
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	j.WaitNum--
-
-	return &o, nil
-}
-
-func (j *job) delAllTask() error {
-    err := j.g.s.Db.Update(func(tx *bolt.Tx) error {
-        prefix := []byte("scheduler")
-        sid := []byte(fmt.Sprintf("%d", j.g.id))
-
-        bucket, err := tx.CreateBucketIfNotExists(prefix)
-        if err != nil {
-            return err
-        }
-        return bucket.DeleteBucket(sid)
-    })
-
-	if err != nil {
-		return err
-	}
-
-    j.WaitNum = 0
-
-    return nil
-}
-
-func (j *job) loadLen() error {
-
-	err := j.g.s.Db.View(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "scheduler group", fmtId(j.id))
-		if err != nil {
-			return err
-		}
-
-		s := bucket.Stats()
-		j.WaitNum = s.BucketN
-
-		return nil
-	})
-
-	return err
 }
 
 func (j *job) countScore() {
@@ -257,8 +69,59 @@ func (j *job) countScore() {
 	}
 
 	if j.g.WaitNum > 0 {
-		z = area - float64(j.WaitNum)/float64(j.g.WaitNum)*area
+		z = area - float64(j.waitNum())/float64(j.g.WaitNum)*area
 	}
 
 	j.Score = int(x + y + z + float64(j.Priority))
+}
+
+
+func (j *job) popOrder() (*order, error) {
+    t, err := j.task.popTask()
+    if err != nil {
+        return nil, err
+    }
+
+    o := new(order)
+    o.Id = ID(t.Id)
+    o.Task = t
+    o.Base = j.task.base
+    o.AddTime = time.Unix(int64(t.AddTime), 0)
+
+    return o, nil
+}
+
+
+func (j *job) errAdd() {
+    atomic.AddInt32(&j.task.errNum, 1)
+}
+
+func (j *job) runAdd() {
+    atomic.AddInt32(&j.task.runNum, 1)
+}
+
+func (j *job) runNum() int {
+    v := atomic.LoadInt32(&j.task.runNum)
+    return int(v)
+}
+
+func (j *job) errNum() int {
+    v := atomic.LoadInt32(&j.task.errNum)
+    return int(v)
+}
+
+func (j *job) waitNum() int {
+    v := atomic.LoadInt32(&j.task.waitNum)
+    return int(v)
+}
+
+func (j *job) oldNum() int {
+    v := atomic.LoadInt32(&j.task.oldNum)
+    return int(v)
+}
+
+func (j *job) dayChange() {
+    n1 := atomic.SwapInt32(&j.task.runNum, 0)
+    atomic.StoreInt32(&j.task.errNum, 0)
+    atomic.StoreInt32(&j.task.oldNum, n1)
 }

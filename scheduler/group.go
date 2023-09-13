@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 type group struct {
@@ -62,43 +60,6 @@ func (g *group) init(s *Scheduler) error {
 	g.orders = make(map[*order]struct{})
 
 	g.LoadStat.Init(g.s.StatSize)
-
-	if err := g.loadJobs(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (g *group) loadJobs() error {
-
-	//key: task/:gid/:jname
-	err := g.s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task", fmtId(g.id))
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.ForEachBucket(func(k []byte) error {
-			g.jobs.addJob(string(k))
-
-			return nil
-		})
-	})
-
-	return err
-}
-
-func (g *group) addOrder(o *order) error {
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	err := g.jobs.addOrder(o)
-	if err != nil {
-		return err
-	}
-
-	g.WaitNum++
 
 	return nil
 }
@@ -192,7 +153,7 @@ func (g *group) end(t *order) {
 	useTime := t.EndTime.Sub(t.StartTime)
 
 	if t.Err != nil {
-		t.job.ErrNum++
+		t.job.errAdd()
 	}
 
 	g.jobs.end(t.job, loadTime, useTime)
@@ -283,9 +244,7 @@ func (g *group) dayCheck() {
 		g.RunNum = 0
 
 		for _, j := range g.jobs.all {
-			j.OldNum = j.RunNum
-			j.RunNum = 0
-			j.ErrNum = 0
+            j.dayChange()
 		}
 
 		g.today = g.now.Day()

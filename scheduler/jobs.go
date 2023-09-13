@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -43,82 +42,27 @@ func (js *jobs) init(max int, g *group) *jobs {
 }
 
 
-func (js *jobs) addJob(name string) {
+func (js *jobs) addJob(jtask *jobTask) *job {
 	
-	if _, ok := js.all[name]; ok {
-        return
+	if j, ok := js.all[jtask.name]; ok {
+        return j
     }
 
-    j := newJob(js, name)
+    j := newJob(js, jtask)
 
-    js.all[name] = j
+    js.all[jtask.name] = j
 
     //添加到idle链表
-    js.idlePushBack(j)
+    js.idleAdd(j)
+
+    return j
 }
 
-func (js *jobs) addOrder(o *order) error {
-	j, ok := js.all[o.Task.Name]
-	if !ok {
-		j = newJob(js, o.Task.Name)
+func (js *jobs) addNotify(jtask *jobTask) {
 
-		js.all[o.Task.Name] = j
-
-		//添加到idle链表
-		js.idlePushBack(j)
-	}
-
-	err := j.addOrder(o)
-	if err != nil {
-		return err
-	}
+    j := js.addJob(jtask)
 
     js.modeCheck(j)
-
-	return nil
-}
-
-func (js *jobs) jobEmpty(jid ID) error {
-	j := js.getJob(jid)
-	if j == nil {
-		return errors.New(fmt.Sprintf("job:%d not found", jid))
-	}
-
-	err := j.delAllTask()
-	if err != nil {
-		return err
-	}
-
-    js.modeCheck(j)
-
-	return nil
-}
-
-func (js *jobs) jobDelIdle(jid ID) error {
-	j := js.getJob(jid)
-	if j == nil {
-		return errors.New(fmt.Sprintf("job:%d not found", jid))
-	}
-
-	if j.mode != job_mode_idle {
-		return errors.New(fmt.Sprintf("job:%d not idle", jid))
-	}
-
-	js.idleRmove(j)
-	delete(js.all, j.Name)
-	return nil
-}
-
-func (js *jobs) jobConfig(name string, cfg JobConfig) error {
-    j, ok := js.all[name]
-    if !ok {
-        return Empty
-    }
-
-    j.JobConfig = cfg
-    js.modeCheck(j)
-
-	return nil
 }
 
 func (js *jobs) getJob(jid ID) *job {
@@ -131,11 +75,10 @@ func (js *jobs) getJob(jid ID) *job {
 }
 
 func (js *jobs) modeCheck(j *job) {
-	if j.WaitNum < 1 {
+	if j.waitNum() < 1 {
         if j.mode != job_mode_idle {
-
 			js.remove(j)
-			js.idlePushBack(j)
+			js.idleAdd(j)
         }
     } else if j.NowNum >= int(j.Parallel) {
 		if j.mode != job_mode_block {
@@ -147,9 +90,10 @@ func (js *jobs) modeCheck(j *job) {
 
 		if j.mode != job_mode_runnable {
 			js.remove(j)
-            js.pushBack(j)
-            js.Priority(j)
+            js.runAdd(j)
 		}
+
+        js.Priority(j)
     }
 }
 
@@ -176,7 +120,7 @@ func (js *jobs) GetOrder() (*order, error) {
 
 func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
 	j.NowNum--
-	j.RunNum++
+	j.runAdd()
 	j.LoadTime += loadTime
 	j.UseTimeStat.Push(int64(useTime))
 
@@ -209,7 +153,7 @@ func (js *jobs) blockAdd(j *job) {
 	js.append(j, js.block.prev)
 }
 
-func (js *jobs) pushBack(j *job) {
+func (js *jobs) runAdd(j *job) {
 	j.mode = job_mode_runnable
 	js.append(j, js.run.prev)
 }
@@ -221,7 +165,7 @@ func (js *jobs) idleFront() *job {
 	return js.idle.next
 }
 
-func (js *jobs) idlePushBack(j *job) {
+func (js *jobs) idleAdd(j *job) {
 	j.mode = job_mode_idle
 
 	js.append(j, js.idle.prev)

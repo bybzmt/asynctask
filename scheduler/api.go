@@ -5,46 +5,14 @@ import (
 	"fmt"
 )
 
-func (s *Scheduler) JobEmpty(gid, jid ID) error {
-	s.l.Lock()
-	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
-	if !ok {
-		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
-	}
-
-	return g.jobs.jobEmpty(jid)
+func (s *Scheduler) GetJobConfig(gid, jid ID) (*JobConfig, error) {
+    return nil, nil
 }
 
-func (s *Scheduler) JobDelIdle(gid, jid ID) error {
+func (s *Scheduler) SetJobConfig(gid, jid ID, cfg *JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-
-	g, ok := s.groups[gid]
-	if !ok {
-		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
-	}
-
-	return g.jobs.jobDelIdle(jid)
-}
-
-func (s *Scheduler) GetJobConfig(gid, jid ID, cfg *JobConfig) error {
-    return nil
-}
-
-func (s *Scheduler) SetJobConfig(name string, cfg JobConfig) error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-    err := setJobConfig(s.Db, name, cfg)
-    if err != nil {
-        return err
-    }
-
-    for _, g := range s.groups {
-        g.jobs.jobConfig(name, cfg)
-    }
 
     return nil
 }
@@ -107,24 +75,29 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 	return nil
 }
 
-func (s *Scheduler) DelOrder(gid, jid, oid ID) error {
+
+func (s *Scheduler) JobEmpty(jname string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
+	jt, ok := s.jobTask[jname]
 	if !ok {
-		return errors.New(fmt.Sprintf("group:%d not found", gid))
+		return errors.New(fmt.Sprintf("group:%d not found", jname))
 	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+    return jt.delAllTask()
+}
 
-    j := g.jobs.getJob(jid)
-    if j == nil {
-		return errors.New(fmt.Sprintf("job:%d not found", jid))
-    }
+func (s *Scheduler) DelOrder(jname string, tid ID) error {
+	s.l.Lock()
+	defer s.l.Unlock()
 
-    return j.delOrder(oid)
+	jt, ok := s.jobTask[jname]
+	if !ok {
+		return errors.New(fmt.Sprintf("group:%d not found", jname))
+	}
+
+    return jt.delTask(tid)
 }
 
 func (s *Scheduler) GetStatData() (out []*Statistics) {
