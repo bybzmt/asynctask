@@ -31,29 +31,24 @@ type job struct {
 
 	LastTime time.Time
 	LoadTime time.Duration
-	LoadStat StatRow
+	LoadStat statRow
 
 	//任务执行所用时间
-	UseTimeStat StatRow
+	UseTimeStat statRow
 }
 
-func newJob(js *jobs, jtask *jobTask) *job {
-	var cfg JobConfig
-
+func newJob(js *jobs, jt *jobTask) *job {
 	j := new(job)
-	j.JobConfig = cfg
-    j.task = jtask
-	j.init(jtask.name, js.g)
+	j.JobConfig = jt.JobConfig
+    j.task = jt
 
-	return j
-}
+	j.Name = jt.name
+	j.Parallel = jt.Parallel
+	j.Priority = jt.Priority
+	j.g = js.g
+	j.LoadStat.init(j.g.s.StatSize)
+	j.UseTimeStat.init(10)
 
-func (j *job) init(name string, g *group) *job {
-	j.Name = name
-	j.g = g
-	j.LoadStat.Init(j.g.s.StatSize)
-	j.UseTimeStat.Init(10)
-	j.Parallel = j.g.Parallel
 	return j
 }
 
@@ -64,8 +59,8 @@ func (j *job) countScore() {
 
 	x = float64(j.NowNum) * (area / float64(j.g.WorkerNum))
 
-	if j.g.LoadStat.GetAll() > 0 {
-		y = float64(j.LoadStat.GetAll()) / float64(j.g.LoadStat.GetAll()) * area
+	if j.g.LoadStat.getAll() > 0 {
+		y = float64(j.LoadStat.getAll()) / float64(j.g.LoadStat.getAll()) * area
 	}
 
 	if j.g.WaitNum > 0 {
@@ -91,6 +86,9 @@ func (j *job) popOrder() (*order, error) {
     return o, nil
 }
 
+func (j *job) hasTask() bool {
+    return j.task.hasTask()
+}
 
 func (j *job) errAdd() {
     atomic.AddInt32(&j.task.errNum, 1)
@@ -121,7 +119,11 @@ func (j *job) oldNum() int {
 }
 
 func (j *job) dayChange() {
-    n1 := atomic.SwapInt32(&j.task.runNum, 0)
-    atomic.StoreInt32(&j.task.errNum, 0)
+    n1 := atomic.LoadInt32(&j.task.runNum)
+    atomic.AddInt32(&j.task.runNum, -n1)
+
+    n2 := atomic.LoadInt32(&j.task.errNum)
+    atomic.AddInt32(&j.task.errNum, -n2)
+
     atomic.StoreInt32(&j.task.oldNum, n1)
 }

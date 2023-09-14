@@ -29,7 +29,6 @@ func init_http() {
 	http.HandleFunc("/api/task/add", page_error(page_task_add))
 	http.HandleFunc("/api/task/cancel", page_error(page_task_cancel))
 	http.HandleFunc("/api/job/emptyAll", page_error(page_job_empty))
-	http.HandleFunc("/api/job/delIdle", page_error(page_job_delIdle))
 	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
 	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
 	http.HandleFunc("/api/router/setConfig", page_error(page_router_config))
@@ -50,28 +49,22 @@ func page_task_add(r *http.Request) any {
 }
 
 func page_job_empty(r *http.Request) any {
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	jid, _ := strconv.Atoi(r.FormValue("jid"))
+	name := r.FormValue("name")
 
-	return hub.JobEmpty(scheduler.ID(gid), scheduler.ID(jid))
-}
-
-func page_job_delIdle(r *http.Request) any {
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	jid, _ := strconv.Atoi(r.FormValue("jid"))
-
-	return hub.JobDelIdle(scheduler.ID(gid), scheduler.ID(jid))
+	return hub.JobEmpty(name)
 }
 
 func page_job_config(r *http.Request) any {
-	name := r.FormValue("name")
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
+	jid, _ := strconv.Atoi(r.FormValue("jid"))
+
 	var cfg scheduler.JobConfig
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err
 	}
 
-	return hub.SetJobConfig(name, cfg)
+	return hub.SetJobConfig(scheduler.ID(gid), scheduler.ID(jid), &cfg)
 }
 
 func page_group_config(r *http.Request) any {

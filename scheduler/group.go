@@ -45,7 +45,7 @@ type group struct {
 
 	//负载数据
 	LoadTime time.Duration
-	LoadStat StatRow
+	LoadStat statRow
 }
 
 func (g *group) init(s *Scheduler) error {
@@ -59,7 +59,7 @@ func (g *group) init(s *Scheduler) error {
 	g.workers.Init()
 	g.orders = make(map[*order]struct{})
 
-	g.LoadStat.Init(g.s.StatSize)
+	g.LoadStat.init(g.s.StatSize)
 
 	return nil
 }
@@ -220,18 +220,18 @@ func (g *group) statTick(now time.Time) {
 	g.now = now
 
 	for t := range g.orders {
-		us := g.now.Sub(t.StatTime)
-		t.StatTime = g.now
+		us := now.Sub(t.StatTime)
+		t.StatTime = now
 
 		g.LoadTime += us
 		t.job.LoadTime += us
 	}
 
-	g.LoadStat.Push(int64(g.LoadTime))
+	g.LoadStat.push(int64(g.LoadTime))
 	g.LoadTime = 0
 
 	for _, j := range g.jobs.all {
-		j.LoadStat.Push(int64(j.LoadTime))
+		j.LoadStat.push(int64(j.LoadTime))
 		j.LoadTime = 0
 	}
 

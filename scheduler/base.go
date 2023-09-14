@@ -8,6 +8,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+var Empty = errors.New("empty")
 
 // 输出日志时间（为了不显示太长的小数)
 type logSecond float64

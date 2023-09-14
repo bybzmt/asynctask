@@ -19,12 +19,13 @@ type Scheduler struct {
 
 	l sync.Mutex
 
-	now time.Time
-	end chan *group
+	now          time.Time
+	end          chan *group
+	notifyRemove chan string
 
 	orderId ID
 
-	jl sync.Mutex
+	jl      sync.Mutex
 	jobTask map[string]*jobTask
 
 	groups  map[ID]*group
@@ -62,6 +63,8 @@ func New(c Config) (*Scheduler, error) {
 	s.end = make(chan *group)
 	s.groups = make(map[ID]*group)
 	s.jobTask = make(map[string]*jobTask)
+
+	s.notifyRemove = make(chan string, 10)
 
 	err := s.loadGroups()
 	if err != nil {
@@ -126,6 +129,33 @@ func (s *Scheduler) Run() {
 				s.Log.Debugln("all close")
 				return
 			}
+
+		case name := <-s.notifyRemove:
+			s.onNotifyRemove(name)
+		}
+	}
+}
+
+func (s *Scheduler) onNotifyRemove(name string) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	jt, ok := s.jobTask[name]
+	if ok {
+		has := false
+		for _, g := range jt.groups {
+			g.l.Lock()
+			_, ok := g.jobs.all[name];
+			g.l.Unlock()
+
+			if ok {
+				has = true
+                break;
+			}
+		}
+
+		if !has {
+			delete(s.jobTask, name)
 		}
 	}
 }
@@ -133,7 +163,7 @@ func (s *Scheduler) Run() {
 func (s *Scheduler) loadGroups() error {
 
 	//key: config/group/:id
-	err := s.Db.View(func(tx *bolt.Tx) error {
+	return s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "config", "group")
 		if bucket == nil {
 			return nil
@@ -150,39 +180,6 @@ func (s *Scheduler) loadGroups() error {
 			g := new(group)
 			g.GroupConfig = cfg
 			g.id = atoiId(key)
-
-			if err := g.init(s); err != nil {
-				return err
-			}
-
-			s.groups[g.id] = g
-
-			return nil
-		})
-	})
-
-	if err != nil {
-		return err
-	}
-
-	//key: task/:gid/:jname
-	return s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task")
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.ForEachBucket(func(key []byte) error {
-			id := atoiId(key)
-
-			if _, ok := s.groups[id]; ok {
-				return nil
-			}
-
-			s.Log.Warnln("[store] key=task/"+string(key), "Miss Config")
-
-			g := new(group)
-			g.id = id
 
 			if err := g.init(s); err != nil {
 				return err
@@ -347,12 +344,12 @@ func (s *Scheduler) loadJobs() error {
 
 			_, ok := s.jobTask[name]
 			if !ok {
-                jt, err := s.addJobTask(name)
-                if err != nil {
-                    return err
-                }
+				jt, err := s.addJobTask(name)
+				if err != nil {
+					return err
+				}
 
-			    s.jobTask[name] = jt
+				s.jobTask[name] = jt
 			}
 
 			return nil
@@ -370,29 +367,25 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 			jt.base = &r.TaskBase
 			jt.name = name
 
-            err := jt.loadWait()
-            if err != nil {
-                return nil, err
-            }
+			err := jt.loadWait()
+			if err != nil {
+				return nil, err
+			}
 
-			for _, c := range r.Groups {
-				g, ok := s.groups[c.GroupId]
+			for _, id := range r.Groups {
+				g, ok := s.groups[id]
 				if !ok {
-					err := errors.New(fmt.Sprintf("router id:%d (%s) GroupId:%d", r.id, r.Note, c.GroupId))
+					err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.id, id))
 
 					s.Log.Warning(err)
 
 					return nil, err
 				}
 
-				g.l.Lock()
-				g.jobs.addJob(jt)
-				g.l.Unlock()
-
 				jt.groups = append(jt.groups, g)
 			}
 
-            return jt, nil
+			return jt, nil
 		}
 	}
 
@@ -409,12 +402,12 @@ func (s *Scheduler) AddOrder(t *Task) error {
 	jt, ok := s.jobTask[t.Name]
 
 	if !ok {
-        var err error
+		var err error
 
-        jt, err = s.addJobTask(t.Name)
-        if err != nil {
-            return err
-        }
+		jt, err = s.addJobTask(t.Name)
+		if err != nil {
+			return err
+		}
 
 		s.jobTask[t.Name] = jt
 	}

@@ -4,19 +4,19 @@ import (
 	"time"
 )
 
-type StatRow struct {
+type statRow struct {
 	offset int
 	all    int64
 	data   []int64
 }
 
-func (s *StatRow) Init(num int) {
+func (s *statRow) init(num int) {
 	s.offset = 0
 	s.all = 0
 	s.data = make([]int64, 0, num)
 }
 
-func (s *StatRow) Push(val int64) {
+func (s *statRow) push(val int64) {
 	if len(s.data) < cap(s.data) {
 		s.data = append(s.data, 0)
 	}
@@ -26,7 +26,7 @@ func (s *StatRow) Push(val int64) {
 	s.offset = (s.offset + 1) % cap(s.data)
 }
 
-func (s *StatRow) GetAll() int64 {
+func (s *statRow) getAll() int64 {
 	return s.all
 }
 
@@ -66,13 +66,13 @@ func (s *group) getStatData() *Statistics {
 
 	all := 0
 	if e1 > 0 {
-		all = int(float64(s.LoadStat.GetAll()) / e1 * 10000)
+		all = int(float64(s.LoadStat.getAll()) / e1 * 10000)
 	}
 
 	t := &Statistics{}
     t.Id = s.id
     t.Config = s.GroupConfig
-	t.Jobs = make([]JobStat, 0, s.jobs.Len())
+	t.Jobs = make([]JobStat, 0, s.jobs.len())
 	t.Tasks = make([]StatTask, 0, len(s.orders))
 	t.All.Name = "all"
 	t.All.Load = all
@@ -96,12 +96,12 @@ func (s *group) getStatData() *Statistics {
 
         x := 0
         if e1 > 0 {
-            x = int(float64(j.LoadStat.GetAll()) / e1 * 10000)
+            x = int(float64(j.LoadStat.getAll()) / e1 * 10000)
         }
 
         useTime := 0
         if len(j.UseTimeStat.data) > 0 {
-            useTime = int(j.UseTimeStat.GetAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
+            useTime = int(j.UseTimeStat.getAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
         }
 
         sec := 0

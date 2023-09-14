@@ -107,7 +107,7 @@ func (j *jobTask) popTask() (*Task, error) {
 			key, val := c.First()
 
 			if key == nil {
-				return nil
+				return Empty
 			}
 
 			err = bucket.Delete(key)
@@ -134,6 +134,29 @@ func (j *jobTask) popTask() (*Task, error) {
 	return &t, nil
 }
 
+
+func (j *jobTask) hasTask() bool {
+    has := false
+
+	//key: task/:jname
+	j.s.Db.View(func(tx *bolt.Tx) error {
+		bucket := getBucket(tx, "task", j.name)
+		if bucket == nil {
+			return nil
+		}
+
+        key, _ := bucket.Cursor().First()
+
+        if key != nil {
+            has = true
+        }
+
+        return nil
+	})
+
+    return has
+}
+
 func (j *jobTask) delAllTask() error {
 	//key: task/:jname
 	err := j.s.Db.Update(func(tx *bolt.Tx) error {
@@ -157,7 +180,7 @@ func (j *jobTask) delAllTask() error {
 }
 
 func (j *jobTask) loadWait() error {
-
+	//key: task/:jname
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "task", j.name)
 		if bucket == nil {

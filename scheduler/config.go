@@ -4,14 +4,14 @@ import (
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 	"net/http"
-    "time"
+	"time"
 )
 
 const (
-	MODE_HTTP Mode = 1
-	MODE_HTTP_OVER_FASTCGI = 4
+	MODE_HTTP              Mode = 1
+	MODE_HTTP_OVER_FASTCGI      = 4
 
-	MODE_CMD = 2
+	MODE_CMD          = 2
 	MODE_CMD_OVER_SSH = 8
 )
 
@@ -76,7 +76,7 @@ type order struct {
 }
 
 type TaskBase struct {
-	Mode   Mode
+	Mode       Mode
 	Timeout    uint //默认超时时间
 	CmdBase    string
 	CmdEnv     map[string]string
@@ -85,35 +85,26 @@ type TaskBase struct {
 }
 
 func (b *TaskBase) init() {
-    b.HttpHeader = make(map[string]string)
-    b.CmdEnv = make(map[string]string)
-}
-
-type GroupJobConfig struct {
-	GroupId ID
-	Note     string
-	Priority int
-	Parallel uint32
+	b.HttpHeader = make(map[string]string)
+	b.CmdEnv = make(map[string]string)
 }
 
 type RouterConfig struct {
 	TaskBase
+	JobConfig
 	Match  string
 	Note   string
-    Groups []GroupJobConfig
-    Sort   int
-    Used   bool
+	Groups []ID
+	Sort   int
+	Used   bool
 }
 
 type GroupConfig struct {
-	Parallel  uint32 //默认并发数
 	WorkerNum uint32
-	Weight    uint32
 	Note      string
 }
 
 type JobConfig struct {
-	Note     string
-	Priority int
+	Priority int32  //权重系数
 	Parallel uint32 //默认并发数
 }

@@ -1,11 +1,8 @@
 package scheduler
 
 import (
-	"errors"
 	"time"
 )
-
-var Empty = errors.New("empty")
 
 type jobs struct {
 	g *group
@@ -75,7 +72,7 @@ func (js *jobs) getJob(jid ID) *job {
 }
 
 func (js *jobs) modeCheck(j *job) {
-	if j.waitNum() < 1 {
+	if !j.hasTask() {
         if j.mode != job_mode_idle {
 			js.remove(j)
 			js.idleAdd(j)
@@ -93,7 +90,7 @@ func (js *jobs) modeCheck(j *job) {
             js.runAdd(j)
 		}
 
-        js.Priority(j)
+        js.priority(j)
     }
 }
 
@@ -122,7 +119,7 @@ func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
 	j.NowNum--
 	j.runAdd()
 	j.LoadTime += loadTime
-	j.UseTimeStat.Push(int64(useTime))
+	j.UseTimeStat.push(int64(useTime))
 
     js.modeCheck(j)
 }
@@ -178,6 +175,10 @@ func (js *jobs) idleAdd(j *job) {
 		if j != nil {
 			js.idleRmove(j)
 			delete(js.all, j.Name)
+
+            js.g.s.notifyRemove <- j.Name
+
+            j.task = nil
 		}
 	}
 }
@@ -188,14 +189,14 @@ func (js *jobs) idleRmove(j *job) {
 	js.idleLen--
 }
 
-func (js *jobs) Priority(j *job) {
+func (js *jobs) priority(j *job) {
 	x := j
 
-	for x.next != nil && x.next != js.run && j.Score > x.next.Score {
+	for x.next != js.run && j.Score > x.next.Score {
 		x = x.next
 	}
 
-	for x.prev != nil && x.prev != js.run && j.Score < x.prev.Score {
+	for x.prev != js.run && j.Score < x.prev.Score {
 		x = x.prev
 	}
 
@@ -211,6 +212,6 @@ func (js *jobs) moveBefore(j, x *job) {
 	js.append(j, x.prev)
 }
 
-func (js *jobs) Len() int {
+func (js *jobs) len() int {
 	return len(js.all)
 }
