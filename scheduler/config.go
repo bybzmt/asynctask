@@ -89,9 +89,9 @@ func (b *TaskBase) init() {
 	b.CmdEnv = make(map[string]string)
 }
 
-type RouterConfig struct {
-	TaskBase
+type RouteConfig struct {
 	JobConfig
+	TaskBase
 	Match  string
 	Note   string
 	Groups []ID
@@ -100,11 +100,13 @@ type RouterConfig struct {
 }
 
 type GroupConfig struct {
+	Id        ID
 	WorkerNum uint32
 	Note      string
 }
 
 type JobConfig struct {
+	Id       ID
 	Priority int32  //权重系数
 	Parallel uint32 //默认并发数
 }

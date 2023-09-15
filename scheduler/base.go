@@ -9,6 +9,8 @@ import (
 )
 
 var Empty = errors.New("empty")
+var NotFound = errors.New("NotFound")
+var TaskError = errors.New("TaskError")
 
 // 输出日志时间（为了不显示太长的小数)
 type logSecond float64

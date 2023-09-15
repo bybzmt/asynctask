@@ -40,7 +40,7 @@ func RedisRun(addr, pwd, db, key string) {
 			if err != nil {
 				hub.Log.Warnln("redis data Unmarshal error:", err.Error(), data)
 			} else {
-				err := addOrder(&o)
+				err := addTask(&o)
 				if err != nil {
 					hub.Log.Warnln("redis add Task Fail", data)
 				}

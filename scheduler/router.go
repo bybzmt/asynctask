@@ -5,9 +5,8 @@ import (
 )
 
 type router struct {
-	RouterConfig
+	RouteConfig
 
-	id      ID
 	exp     *regexp.Regexp
 }
 
@@ -25,4 +24,5 @@ func (r *router) match(name string) bool {
 
 	return r.exp.MatchString(name)
 }
+
 

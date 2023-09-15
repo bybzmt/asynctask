@@ -44,7 +44,7 @@ func timerChecker(now time.Time) {
 			if err != nil {
 				hub.Log.Warnln("[timed] Unmarshal err:", err, "form:", string(v))
 			} else {
-				err = hub.AddOrder(&o)
+				err = hub.AddTask(&o)
 				if err != nil {
 					hub.Log.Warnln("[timed] AddOrder err:", err, "form:", string(v))
 				}
@@ -92,10 +92,10 @@ func timerAddOrder(o *scheduler.Task) error {
 	return err
 }
 
-func addOrder(o *scheduler.Task) error {
+func addTask(o *scheduler.Task) error {
 	if o.Trigger > uint(time.Now().Unix()) {
 		return timerAddOrder(o)
 	}
 
-	return hub.AddOrder(o)
+	return hub.AddTask(o)
 }

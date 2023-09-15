@@ -10,8 +10,6 @@ import (
 type group struct {
 	GroupConfig
 
-	id ID
-
 	s *Scheduler
 
 	l sync.Mutex
@@ -59,7 +57,7 @@ func (g *group) init(s *Scheduler) error {
 	g.workers.Init()
 	g.orders = make(map[*order]struct{})
 
-	g.LoadStat.init(g.s.StatSize)
+	g.LoadStat.init(g.s.statSize)
 
 	return nil
 }
@@ -169,7 +167,7 @@ func (g *group) end(t *order) {
 }
 
 func (g *group) Run() {
-	g.s.Log.Debugln("scheduler group", g.id, "run")
+	g.s.Log.Debugln("scheduler group", g.Id, "run")
 
 	g.today = time.Now().Day()
 	g.running = true
@@ -272,4 +270,24 @@ func (g *group) logTask(t *order) {
 	msg, _ := json.Marshal(d)
 
 	g.s.Log.Infoln("[Task] %s\n", msg)
+}
+
+func (g *group) notifyDelJob(jname string) {
+    g.l.Lock()
+    defer g.l.Unlock()
+
+    j, ok := g.jobs.all[jname]
+    if ok {
+        g.jobs.remove(j)
+        delete(g.jobs.all, jname)
+    }
+}
+
+func (g *group) notifyAddJob(jtask *jobTask) {
+    g.l.Lock()
+    defer g.l.Unlock()
+
+    j := g.jobs.addJob(jtask)
+
+    g.jobs.modeCheck(j)
 }

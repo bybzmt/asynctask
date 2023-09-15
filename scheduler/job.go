@@ -46,7 +46,7 @@ func newJob(js *jobs, jt *jobTask) *job {
 	j.Parallel = jt.Parallel
 	j.Priority = jt.Priority
 	j.g = js.g
-	j.LoadStat.init(j.g.s.StatSize)
+	j.LoadStat.init(j.g.s.statSize)
 	j.UseTimeStat.init(10)
 
 	return j

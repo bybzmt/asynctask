@@ -55,13 +55,6 @@ func (js *jobs) addJob(jtask *jobTask) *job {
     return j
 }
 
-func (js *jobs) addNotify(jtask *jobTask) {
-
-    j := js.addJob(jtask)
-
-    js.modeCheck(j)
-}
-
 func (js *jobs) getJob(jid ID) *job {
 	for _, j := range js.all {
 		if j.id == jid {
@@ -72,6 +65,10 @@ func (js *jobs) getJob(jid ID) *job {
 }
 
 func (js *jobs) modeCheck(j *job) {
+    if j.next == nil || j.prev == nil {
+        return
+    }
+
 	if !j.hasTask() {
         if j.mode != job_mode_idle {
 			js.remove(j)

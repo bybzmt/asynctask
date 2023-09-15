@@ -4,10 +4,11 @@ import (
 	"asynctask/scheduler"
 	"embed"
 	"encoding/json"
-	"io/fs"
 	"io"
+	"io/fs"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 var hub *scheduler.Scheduler
@@ -45,7 +46,7 @@ func page_task_add(r *http.Request) any {
 		return err
 	}
 
-	return addOrder(&o)
+	return addTask(&o)
 }
 
 func page_job_empty(r *http.Request) any {
@@ -56,7 +57,7 @@ func page_job_empty(r *http.Request) any {
 
 func page_job_config(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	jid, _ := strconv.Atoi(r.FormValue("jid"))
+	jname := strings.TrimSpace(r.FormValue("jname")) 
 
 	var cfg scheduler.JobConfig
 
@@ -64,7 +65,7 @@ func page_job_config(r *http.Request) any {
 		return err
 	}
 
-	return hub.SetJobConfig(scheduler.ID(gid), scheduler.ID(jid), &cfg)
+	return hub.SetJobConfig(scheduler.ID(gid), jname, cfg)
 }
 
 func page_group_config(r *http.Request) any {
@@ -82,7 +83,7 @@ func page_group_config(r *http.Request) any {
 func page_router_config(r *http.Request) any {
 
 	rid, _ := strconv.Atoi(r.FormValue("rid"))
-	var cfg scheduler.RouterConfig
+	var cfg scheduler.RouteConfig
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err

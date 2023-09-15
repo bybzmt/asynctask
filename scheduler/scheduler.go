@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,17 +24,16 @@ type Scheduler struct {
 	end          chan *group
 	notifyRemove chan string
 
-	orderId ID
+	taskId ID
 
-	jl      sync.Mutex
 	jobTask map[string]*jobTask
 
 	groups  map[ID]*group
 	routers []*router
 
 	//统计周期
-	StatTick time.Duration
-	StatSize int
+	statTick time.Duration
+	statSize int
 
 	running bool
 }
@@ -57,8 +57,8 @@ func New(c Config) (*Scheduler, error) {
 
 	s := new(Scheduler)
 	s.Config = c
-	s.StatSize = 60 * 5
-	s.StatTick = time.Second
+	s.statSize = 60 * 5
+	s.statTick = time.Second
 
 	s.end = make(chan *group)
 	s.groups = make(map[ID]*group)
@@ -77,9 +77,24 @@ func New(c Config) (*Scheduler, error) {
 	}
 
 	if len(s.groups) < 1 && len(s.routers) < 1 {
-		s.AddGroup()
-		s.AddRouter()
+        _, err := s.AddGroup()
+        if err != nil {
+            return nil, err
+        }
+
+        id, err := s.AddRouter()
+        if err != nil {
+            return nil, err
+        }
+
+        r := s.routers[id]
+        r.Used = true
+        r.Note = "Default Router"
+        r.init()
+        s.saveRouter(r)
 	}
+
+    s.loadJobs()
 
 	return s, nil
 }
@@ -107,7 +122,7 @@ func (s *Scheduler) Run() {
 
 	s.l.Unlock()
 
-	ticker := time.NewTicker(s.StatTick)
+	ticker := time.NewTicker(s.statTick)
 	defer ticker.Stop()
 
 	for {
@@ -160,6 +175,7 @@ func (s *Scheduler) onNotifyRemove(name string) {
 	}
 }
 
+
 func (s *Scheduler) loadGroups() error {
 
 	//key: config/group/:id
@@ -179,13 +195,13 @@ func (s *Scheduler) loadGroups() error {
 
 			g := new(group)
 			g.GroupConfig = cfg
-			g.id = atoiId(key)
+			g.Id = atoiId(key)
 
 			if err := g.init(s); err != nil {
 				return err
 			}
 
-			s.groups[g.id] = g
+			s.groups[g.Id] = g
 
 			return nil
 		})
@@ -202,7 +218,7 @@ func (s *Scheduler) loadRouters() error {
 		}
 
 		return bucket.ForEach(func(key, val []byte) error {
-			var cfg RouterConfig
+			var cfg RouteConfig
 			err := json.Unmarshal(val, &cfg)
 			if err != nil {
 				s.Log.Warnln("[store] key=config/router/"+string(key), "json.Unmarshal:", err)
@@ -210,8 +226,8 @@ func (s *Scheduler) loadRouters() error {
 			}
 
 			r := new(router)
-			r.RouterConfig = cfg
-			r.id = atoiId(key)
+			r.RouteConfig = cfg
+			r.Id = atoiId(key)
 			r.init()
 
 			s.routers = append(s.routers, r)
@@ -223,14 +239,18 @@ func (s *Scheduler) loadRouters() error {
 		return err
 	}
 
-	sort.Slice(s.routers, func(i, j int) bool {
-		return s.routers[i].Sort < s.routers[j].Sort
-	})
+    s.routersSort()
 
 	return nil
 }
 
-func (s *Scheduler) AddGroup() error {
+func (s *Scheduler) routersSort() {
+	sort.Slice(s.routers, func(i, j int) bool {
+		return s.routers[i].Sort < s.routers[j].Sort
+	})
+}
+
+func (s *Scheduler) AddGroup() (ID, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -249,6 +269,8 @@ func (s *Scheduler) AddGroup() error {
 			return err
 		}
 
+		cfg.Id = ID(id)
+
 		val, err := json.Marshal(&cfg)
 		if err != nil {
 			return err
@@ -258,36 +280,57 @@ func (s *Scheduler) AddGroup() error {
 			return err
 		}
 
-		g.id = ID(id)
-
 		return nil
 	})
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	g.GroupConfig = cfg
 
 	if err := g.init(s); err != nil {
-		return err
+		return 0, err
 	}
 
-	s.groups[g.id] = g
+	s.groups[g.Id] = g
 
 	if s.running {
 		go g.Run()
 	}
 
-	return nil
+	return g.Id, nil
 }
 
-func (s *Scheduler) AddRouter() error {
+func (s *Scheduler) saveGroup(g *group) error {
+	//key: config/group/:id
+	err := s.Db.Update(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "config", "group")
+		if err != nil {
+			return err
+		}
+
+		val, err := json.Marshal(&g.GroupConfig)
+		if err != nil {
+			return err
+		}
+
+		if err = bucket.Put([]byte(fmtId(g.Id)), val); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+    return err
+}
+
+func (s *Scheduler) AddRouter() (ID, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	r := new(router)
-	var cfg RouterConfig
+	var cfg RouteConfig
 
 	//key: config/router/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -301,6 +344,8 @@ func (s *Scheduler) AddRouter() error {
 			return err
 		}
 
+		cfg.Id = ID(id)
+
 		key := []byte(fmt.Sprintf("%d", id))
 		val, err := json.Marshal(&cfg)
 
@@ -313,21 +358,90 @@ func (s *Scheduler) AddRouter() error {
 			return err
 		}
 
-		r.id = ID(id)
-
 		return nil
 	})
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	r.RouterConfig = cfg
+	r.RouteConfig = cfg
 	r.init()
 
 	s.routers = append(s.routers, r)
 
-	return nil
+    s.routersSort()
+
+	return r.Id, nil
+}
+
+func (s *Scheduler) saveRouter(r *router) error {
+	//key: config/router/:id
+	err := s.Db.Update(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "config", "router")
+		if err != nil {
+			return err
+		}
+
+		key := []byte(fmt.Sprintf("%d", r.Id))
+		val, err := json.Marshal(&r.RouteConfig)
+
+		if err != nil {
+			return err
+		}
+
+		err = bucket.Put(key, val)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+    return err
+}
+
+
+func (s *Scheduler) routerChanged(r *router) {
+    for _, jt := range s.jobTask {
+        if r.match(jt.name) {
+            var out []*group
+
+            for _, g := range jt.groups {
+                has := false
+                for _, id := range r.Groups {
+                    if id == g.Id {
+                        has = true
+                        break;
+                    }
+                }
+                if has {
+                    out = append(out, g)
+                } else {
+                    g.notifyDelJob(jt.name)
+                }
+            }
+
+            for _, id := range r.Groups {
+                has := false
+
+                for _, g := range jt.groups {
+                    if g.Id == id {
+                        has = true
+                        break;
+                    }
+                }
+
+                if !has {
+                    if g, ok := s.groups[id]; ok {
+                        out = append(out, g)
+                    }
+                }
+            }
+
+            jt.groups = out
+        }
+    }
 }
 
 func (s *Scheduler) loadJobs() error {
@@ -350,6 +464,10 @@ func (s *Scheduler) loadJobs() error {
 				}
 
 				s.jobTask[name] = jt
+
+                for _, g := range jt.groups {
+                    g.notifyAddJob(jt)
+                }
 			}
 
 			return nil
@@ -375,7 +493,7 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 			for _, id := range r.Groups {
 				g, ok := s.groups[id]
 				if !ok {
-					err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.id, id))
+					err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.Id, id))
 
 					s.Log.Warning(err)
 
@@ -392,12 +510,23 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 	return nil, errors.New("no match router")
 }
 
-func (s *Scheduler) AddOrder(t *Task) error {
+func (s *Scheduler) AddTask(t *Task) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	s.jl.Lock()
-	defer s.jl.Unlock()
+    t.Name = strings.TrimSpace(t.Name)
+
+    if t.Name == "" {
+        return TaskError
+    }
+
+    if t.Http == nil && t.Cli == nil {
+        return TaskError
+    }
+
+    s.taskId++
+    t.Id = uint(s.taskId)
+    t.AddTime = uint(s.now.Unix())
 
 	jt, ok := s.jobTask[t.Name]
 
@@ -459,10 +588,10 @@ func (s *Scheduler) Close() {
 			}
 
 		case g := <-s.end:
-			s.Log.Debugln("end", g.id)
+			s.Log.Debugln("end", g.Id)
 
 			s.l.Lock()
-			delete(s.groups, g.id)
+			delete(s.groups, g.Id)
 			l := len(s.groups)
 			s.l.Unlock()
 

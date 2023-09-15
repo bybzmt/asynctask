@@ -6,20 +6,60 @@ import (
 )
 
 
-func (s *Scheduler) GetJobConfig(gid, jid ID) (*JobConfig, error) {
-    return nil, nil
-}
-
-func (s *Scheduler) SetJobConfig(gid, jid ID, cfg *JobConfig) error {
+func (s *Scheduler) GetJobConfig(gid ID, jname string) (c JobConfig, err error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
+    g, ok := s.groups[gid]
+    if !ok {
+        return c, NotFound
+    }
+
+    g.l.Lock()
+    defer g.l.Unlock()
+
+
+    j, ok := g.jobs.all[jname]
+    if !ok {
+        return c, NotFound
+    }
+
+    return j.JobConfig, nil
+}
+
+func (s *Scheduler) SetJobConfig(gid ID, jname string, cfg JobConfig) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    g, ok := s.groups[gid]
+    if !ok {
+        return NotFound
+    }
+
+    g.l.Lock()
+    defer g.l.Unlock()
+
+
+    j, ok := g.jobs.all[jname]
+    if !ok {
+        return NotFound
+    }
+
+    j.JobConfig = cfg
+
     return nil
 }
 
 
-func (s *Scheduler) GetGroupConfig(gid ID, cfg *GroupConfig) error {
-    return nil
+func (s *Scheduler) GetGroupConfigs() (out []GroupConfig) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    for _, g := range s.groups {
+        out = append(out, g.GroupConfig)
+    }
+
+    return
 }
 
 func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
@@ -28,7 +68,7 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
 
 	g, ok := s.groups[gid]
 	if !ok {
-		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
+		return NotFound
 	}
 
     g.GroupConfig = cfg
@@ -36,25 +76,34 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
     return nil
 }
 
-func (s *Scheduler) SetRouterConfig(rid ID, cfg RouterConfig) error {
+func (s *Scheduler) SetRouterConfig(rid ID, cfg RouteConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    err := Empty
+    for _, r := range s.routers {
+        if r.Id == rid {
+            r.RouteConfig = cfg
+            r.init()
 
-    for _, g := range s.routers {
-        if g.id == rid {
-            err = nil
-            g.RouterConfig = cfg
+            s.routerChanged(r)
+
+            return nil
         }
     }
 
-    return err
+    return Empty
 }
 
 
-func (s *Scheduler) GetRouterConfig(rid ID, cfg *RouterConfig) error {
-    return nil
+func (s *Scheduler) GetRouteConfigs() (out []RouteConfig) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    for _, r := range s.routers {
+        out = append(out, r.RouteConfig)
+    }
+
+    return
 }
 
 func (s *Scheduler) OrderCancel(gid, oid ID) error {
@@ -112,3 +161,4 @@ func (s *Scheduler) GetStatData() (out []*Statistics) {
 
 	return
 }
+

@@ -51,9 +51,7 @@ func (j *jobTask) addTask(t *Task) error {
 	atomic.AddInt32(&j.waitNum, 1)
 
 	for _, g := range j.groups {
-		g.l.Lock()
-		g.jobs.addNotify(j)
-		g.l.Unlock()
+		g.notifyAddJob(j)
 	}
 
 	return nil

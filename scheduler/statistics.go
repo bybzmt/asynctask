@@ -52,7 +52,6 @@ type JobStat struct {
 
 type Statistics struct {
     Id ID
-    Config GroupConfig
 	All   JobStat
 	Tasks []StatTask
 	Jobs  []JobStat
@@ -62,7 +61,7 @@ func (s *group) getStatData() *Statistics {
     s.l.Lock()
     defer s.l.Unlock()
 
-	e1 := float64(len(s.LoadStat.data) * int(s.s.StatTick) * int(s.WorkerNum))
+	e1 := float64(len(s.LoadStat.data) * int(s.s.statTick) * int(s.WorkerNum))
 
 	all := 0
 	if e1 > 0 {
@@ -70,8 +69,7 @@ func (s *group) getStatData() *Statistics {
 	}
 
 	t := &Statistics{}
-    t.Id = s.id
-    t.Config = s.GroupConfig
+    t.Id = s.Id
 	t.Jobs = make([]JobStat, 0, s.jobs.len())
 	t.Tasks = make([]StatTask, 0, len(s.orders))
 	t.All.Name = "all"
