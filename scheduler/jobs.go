@@ -55,15 +55,6 @@ func (js *jobs) addJob(jtask *jobTask) *job {
     return j
 }
 
-func (js *jobs) getJob(jid ID) *job {
-	for _, j := range js.all {
-		if j.id == jid {
-			return j
-		}
-	}
-	return nil
-}
-
 func (js *jobs) modeCheck(j *job) {
     if j.next == nil || j.prev == nil {
         return
@@ -74,7 +65,7 @@ func (js *jobs) modeCheck(j *job) {
 			js.remove(j)
 			js.idleAdd(j)
         }
-    } else if j.NowNum >= int(j.Parallel) {
+    } else if j.nowNum >= int(j.Parallel) {
 		if j.mode != job_mode_block {
 			js.remove(j)
             js.blockAdd(j)
@@ -104,8 +95,8 @@ func (js *jobs) GetOrder() (*order, error) {
 
     o.job = j
 
-	j.LastTime = js.g.now
-	j.NowNum++
+	j.lastTime = js.g.now
+	j.nowNum++
 
     js.modeCheck(j)
 
@@ -113,10 +104,10 @@ func (js *jobs) GetOrder() (*order, error) {
 }
 
 func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
-	j.NowNum--
+	j.nowNum--
 	j.runAdd()
-	j.LoadTime += loadTime
-	j.UseTimeStat.push(int64(useTime))
+	j.loadTime += loadTime
+	j.useTimeStat.push(int64(useTime))
 
     js.modeCheck(j)
 }
@@ -171,9 +162,9 @@ func (js *jobs) idleAdd(j *job) {
 		j := js.idleFront()
 		if j != nil {
 			js.idleRmove(j)
-			delete(js.all, j.Name)
+			delete(js.all, j.task.name)
 
-            js.g.s.notifyRemove <- j.Name
+            js.g.s.notifyRemove <- j.task.name
 
             j.task = nil
 		}
@@ -189,11 +180,11 @@ func (js *jobs) idleRmove(j *job) {
 func (js *jobs) priority(j *job) {
 	x := j
 
-	for x.next != js.run && j.Score > x.next.Score {
+	for x.next != js.run && x.score > x.next.score {
 		x = x.next
 	}
 
-	for x.prev != js.run && j.Score < x.prev.Score {
+	for x.prev != js.run && x.score < x.prev.score {
 		x = x.prev
 	}
 

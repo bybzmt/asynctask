@@ -7,16 +7,31 @@ import (
 type router struct {
 	RouteConfig
 
-	exp     *regexp.Regexp
+    Id ID
+
+	exp *regexp.Regexp
 }
 
-func (r *router) init() {
+func (r *router) init() error {
+    if r.Match == "" {
+        return nil
+    }
+
+	exp, err := regexp.CompilePOSIX(r.Match)
+
+	if err != nil {
+		return err
+	}
+
+	r.exp = exp
+
+	return nil
 }
 
 func (r *router) match(name string) bool {
-    if !r.Used {
-        return false
-    }
+	if !r.Used {
+		return false
+	}
 
 	if r.exp == nil {
 		return true
@@ -24,5 +39,3 @@ func (r *router) match(name string) bool {
 
 	return r.exp.MatchString(name)
 }
-
-

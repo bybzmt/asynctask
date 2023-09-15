@@ -16,25 +16,22 @@ const (
 type job struct {
 	JobConfig
 
-    id ID
-	Name     string
-
 	g *group
     task *jobTask
 
 	next, prev *job
 	mode       job_mode
 
-	NowNum   int
+	nowNum   int
 
-    Score int
+    score int
 
-	LastTime time.Time
-	LoadTime time.Duration
-	LoadStat statRow
+	lastTime time.Time
+	loadTime time.Duration
+	loadStat statRow
 
 	//任务执行所用时间
-	UseTimeStat statRow
+	useTimeStat statRow
 }
 
 func newJob(js *jobs, jt *jobTask) *job {
@@ -42,12 +39,9 @@ func newJob(js *jobs, jt *jobTask) *job {
 	j.JobConfig = jt.JobConfig
     j.task = jt
 
-	j.Name = jt.name
-	j.Parallel = jt.Parallel
-	j.Priority = jt.Priority
 	j.g = js.g
-	j.LoadStat.init(j.g.s.statSize)
-	j.UseTimeStat.init(10)
+	j.loadStat.init(j.g.s.statSize)
+	j.useTimeStat.init(10)
 
 	return j
 }
@@ -57,17 +51,17 @@ func (j *job) countScore() {
 
 	area = 10000
 
-	x = float64(j.NowNum) * (area / float64(j.g.WorkerNum))
+	x = float64(j.nowNum) * (area / float64(j.g.WorkerNum))
 
-	if j.g.LoadStat.getAll() > 0 {
-		y = float64(j.LoadStat.getAll()) / float64(j.g.LoadStat.getAll()) * area
+	if j.g.loadStat.getAll() > 0 {
+		y = float64(j.loadStat.getAll()) / float64(j.g.loadStat.getAll()) * area
 	}
 
-	if j.g.WaitNum > 0 {
-		z = area - float64(j.waitNum())/float64(j.g.WaitNum)*area
+	if j.g.waitNum > 0 {
+		z = area - float64(j.waitNum())/float64(j.g.waitNum)*area
 	}
 
-	j.Score = int(x + y + z + float64(j.Priority))
+	j.score = int(x + y + z + float64(j.Priority))
 }
 
 
@@ -80,7 +74,7 @@ func (j *job) popOrder() (*order, error) {
     o := new(order)
     o.Id = ID(t.Id)
     o.Task = t
-    o.Base = j.task.base
+    o.Base = &j.task.TaskBase
     o.AddTime = time.Unix(int64(t.AddTime), 0)
 
     return o, nil

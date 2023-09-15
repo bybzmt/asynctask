@@ -10,6 +10,8 @@ import (
 type group struct {
 	GroupConfig
 
+	Id ID
+
 	s *Scheduler
 
 	l sync.Mutex
@@ -33,21 +35,21 @@ type group struct {
 	workerId int
 
 	//己执行任务计数
-	RunNum int
+	runNum int
 	//昨天任务计数
-	OldNum int
+	oldNum int
 	//执行中的任务
-	NowNum int
+	nowNum int
 	//总队列长度
-	WaitNum int
+	waitNum int
 
 	//负载数据
-	LoadTime time.Duration
-	LoadStat statRow
+	loadTime time.Duration
+	loadStat statRow
 }
 
 func (g *group) init(s *Scheduler) error {
-    g.s = s
+	g.s = s
 
 	g.complete = make(chan *order)
 	g.tick = make(chan time.Time)
@@ -57,7 +59,7 @@ func (g *group) init(s *Scheduler) error {
 	g.workers.Init()
 	g.orders = make(map[*order]struct{})
 
-	g.LoadStat.init(g.s.statSize)
+	g.loadStat.init(g.s.statSize)
 
 	return nil
 }
@@ -128,8 +130,8 @@ func (g *group) dispatch() {
 	w := ew.Value.(*worker)
 
 	//总状态
-	g.NowNum++
-	g.WaitNum--
+	g.nowNum++
+	g.waitNum--
 
 	//分配任务
 	t.worker = w
@@ -156,9 +158,9 @@ func (g *group) end(t *order) {
 
 	g.jobs.end(t.job, loadTime, useTime)
 
-	g.RunNum++
-	g.NowNum--
-	g.LoadTime += loadTime
+	g.runNum++
+	g.nowNum--
+	g.loadTime += loadTime
 
 	g.workers.PushBack(t.worker)
 	t.worker = nil
@@ -179,7 +181,7 @@ func (g *group) Run() {
 
 		case now := <-g.tick:
 			g.statTick(now)
-            g.workerNumCheck()
+			g.workerNumCheck()
 		}
 
 		if g.running {
@@ -197,12 +199,12 @@ func (g *group) Run() {
 func (g *group) close() {
 	g.l.Lock()
 
-    g.running = false
+	g.running = false
 	g.WorkerNum = 0
 
 	g.l.Unlock()
 
-    g.workerNumCheck()
+	g.workerNumCheck()
 }
 
 func (g *group) allTaskCancel() {
@@ -221,16 +223,16 @@ func (g *group) statTick(now time.Time) {
 		us := now.Sub(t.StatTime)
 		t.StatTime = now
 
-		g.LoadTime += us
-		t.job.LoadTime += us
+		g.loadTime += us
+		t.job.loadTime += us
 	}
 
-	g.LoadStat.push(int64(g.LoadTime))
-	g.LoadTime = 0
+	g.loadStat.push(int64(g.loadTime))
+	g.loadTime = 0
 
 	for _, j := range g.jobs.all {
-		j.LoadStat.push(int64(j.LoadTime))
-		j.LoadTime = 0
+		j.loadStat.push(int64(j.loadTime))
+		j.loadTime = 0
 	}
 
 	g.dayCheck()
@@ -238,11 +240,11 @@ func (g *group) statTick(now time.Time) {
 
 func (g *group) dayCheck() {
 	if g.today != g.now.Day() {
-		g.OldNum = g.RunNum
-		g.RunNum = 0
+		g.oldNum = g.runNum
+		g.runNum = 0
 
 		for _, j := range g.jobs.all {
-            j.dayChange()
+			j.dayChange()
 		}
 
 		g.today = g.now.Day()
@@ -260,7 +262,7 @@ func (g *group) logTask(t *order) {
 
 	d := taskLog{
 		Id:       t.Id,
-		Name:     t.job.Name,
+		Name:     t.job.task.name,
 		Status:   t.Status,
 		WaitTime: logSecond(waitTime),
 		RunTime:  logSecond(runTime),
@@ -273,21 +275,21 @@ func (g *group) logTask(t *order) {
 }
 
 func (g *group) notifyDelJob(jname string) {
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
-    j, ok := g.jobs.all[jname]
-    if ok {
-        g.jobs.remove(j)
-        delete(g.jobs.all, jname)
-    }
+	j, ok := g.jobs.all[jname]
+	if ok {
+		g.jobs.remove(j)
+		delete(g.jobs.all, jname)
+	}
 }
 
 func (g *group) notifyAddJob(jtask *jobTask) {
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
-    j := g.jobs.addJob(jtask)
+	j := g.jobs.addJob(jtask)
 
-    g.jobs.modeCheck(j)
+	g.jobs.modeCheck(j)
 }

@@ -76,16 +76,19 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
     return nil
 }
 
-func (s *Scheduler) SetRouterConfig(rid ID, cfg RouteConfig) error {
+func (s *Scheduler) SetRouteConfig(rid ID, cfg RouteConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
     for _, r := range s.routers {
         if r.Id == rid {
             r.RouteConfig = cfg
-            r.init()
+            err := r.init()
+            if err != nil {
+                return err
+            }
 
-            s.routerChanged(r)
+            s.routeChanged(r)
 
             return nil
         }

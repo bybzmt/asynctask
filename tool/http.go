@@ -32,7 +32,7 @@ func init_http() {
 	http.HandleFunc("/api/job/emptyAll", page_error(page_job_empty))
 	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
 	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
-	http.HandleFunc("/api/router/setConfig", page_error(page_router_config))
+	http.HandleFunc("/api/route/setConfig", page_error(page_route_config))
 }
 
 func page_status(r *http.Request) any {
@@ -80,7 +80,7 @@ func page_group_config(r *http.Request) any {
 	return hub.SetGroupConfig(scheduler.ID(gid), cfg)
 }
 
-func page_router_config(r *http.Request) any {
+func page_route_config(r *http.Request) any {
 
 	rid, _ := strconv.Atoi(r.FormValue("rid"))
 	var cfg scheduler.RouteConfig
@@ -89,7 +89,7 @@ func page_router_config(r *http.Request) any {
 		return err
 	}
 
-	return hub.SetRouterConfig(scheduler.ID(rid), cfg)
+	return hub.SetRouteConfig(scheduler.ID(rid), cfg)
 }
 
 func page_task_cancel(r *http.Request) any {

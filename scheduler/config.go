@@ -100,13 +100,15 @@ type RouteConfig struct {
 }
 
 type GroupConfig struct {
-	Id        ID
 	WorkerNum uint32
 	Note      string
 }
 
 type JobConfig struct {
-	Id       ID
 	Priority int32  //权重系数
 	Parallel uint32 //默认并发数
+}
+
+type schedulerConfig struct {
+	TaskNextId ID
 }

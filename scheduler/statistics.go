@@ -37,9 +37,9 @@ type StatTask struct {
 }
 
 type JobStat struct {
-    JobConfig
+	JobConfig
 	Name     string
-	Load     int
+	Load     int64
 	NowNum   int
 	RunNum   int
 	ErrNum   int
@@ -51,79 +51,72 @@ type JobStat struct {
 }
 
 type Statistics struct {
-    Id ID
-	All   JobStat
-	Tasks []StatTask
-	Jobs  []JobStat
+	Id       ID
+	Tasks    []StatTask
+	Jobs     []JobStat
+	Capacity int64
+	Load     int64
+	NowNum   int
+	RunNum   int
+	ErrNum   int
+	OldNum   int
+	WaitNum  int
 }
 
 func (s *group) getStatData() *Statistics {
-    s.l.Lock()
-    defer s.l.Unlock()
-
-	e1 := float64(len(s.LoadStat.data) * int(s.s.statTick) * int(s.WorkerNum))
-
-	all := 0
-	if e1 > 0 {
-		all = int(float64(s.LoadStat.getAll()) / e1 * 10000)
-	}
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	t := &Statistics{}
-    t.Id = s.Id
+	t.Id = s.Id
+    t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
 	t.Jobs = make([]JobStat, 0, s.jobs.len())
 	t.Tasks = make([]StatTask, 0, len(s.orders))
-	t.All.Name = "all"
-	t.All.Load = all
-	t.All.RunNum = s.RunNum
-	t.All.OldNum = s.OldNum
-	t.All.NowNum = s.NowNum
-	t.All.WaitNum = s.WaitNum
+	t.Load = s.loadStat.getAll()
+	t.RunNum = s.runNum
+	t.OldNum = s.oldNum
+	t.NowNum = s.nowNum
+	t.WaitNum = s.waitNum
 
 	now := time.Now()
 
 	for t2 := range s.orders {
 		st := StatTask{
 			Id:      t2.Id,
-			Name:    t2.job.Name,
+			Name:    t2.job.task.name,
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
 		t.Tasks = append(t.Tasks, st)
 	}
 
-    for _, j := range s.jobs.all {
+	for _, j := range s.jobs.all {
 
-        x := 0
-        if e1 > 0 {
-            x = int(float64(j.LoadStat.getAll()) / e1 * 10000)
-        }
+		useTime := 0
+		if len(j.useTimeStat.data) > 0 {
+			useTime = int(j.useTimeStat.getAll() / int64(len(j.useTimeStat.data)) / int64(time.Millisecond))
+		}
 
-        useTime := 0
-        if len(j.UseTimeStat.data) > 0 {
-            useTime = int(j.UseTimeStat.getAll() / int64(len(j.UseTimeStat.data)) / int64(time.Millisecond))
-        }
+		sec := 0
 
-        sec := 0
+		sec2 := j.lastTime.Unix()
+		if sec2 > 0 {
+			sec = int(now.Sub(j.lastTime) / time.Second)
+		}
 
-        sec2 := j.LastTime.Unix()
-        if sec2 > 0 {
-            sec = int(now.Sub(j.LastTime) / time.Second)
-        }
-
-        t.Jobs = append(t.Jobs, JobStat{
-            JobConfig: j.JobConfig,
-            Name:     j.Name,
-            Load:     x,
-            RunNum:   j.runNum(),
-            OldNum:   j.oldNum(),
-            NowNum:   j.NowNum,
-            ErrNum:   j.errNum(),
-            WaitNum:  j.waitNum(),
-            UseTime:  useTime,
-            LastTime: sec,
-            Score:    j.Score,
-        })
-    }
+		t.Jobs = append(t.Jobs, JobStat{
+			JobConfig: j.JobConfig,
+			Name:      j.task.name,
+			Load:      j.loadStat.getAll(),
+			RunNum:    j.runNum(),
+			OldNum:    j.oldNum(),
+			NowNum:    j.nowNum,
+			ErrNum:    j.errNum(),
+			WaitNum:   j.waitNum(),
+			UseTime:   useTime,
+			LastTime:  sec,
+			Score:     j.score,
+		})
+	}
 
 	return t
 }
-

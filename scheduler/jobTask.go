@@ -8,8 +8,7 @@ import (
 
 type jobTask struct {
 	JobConfig
-
-	base *TaskBase
+	TaskBase
 
 	name string
 
