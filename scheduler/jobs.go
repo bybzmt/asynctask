@@ -38,48 +38,47 @@ func (js *jobs) init(max int, g *group) *jobs {
 	return js
 }
 
-
 func (js *jobs) addJob(jtask *jobTask) *job {
-	
+
 	if j, ok := js.all[jtask.name]; ok {
-        return j
-    }
+		return j
+	}
 
-    j := newJob(js, jtask)
+	j := newJob(js, jtask)
 
-    js.all[jtask.name] = j
+	js.all[jtask.name] = j
 
-    //添加到idle链表
-    js.idleAdd(j)
+	//添加到idle链表
+	js.idleAdd(j)
 
-    return j
+	return j
 }
 
 func (js *jobs) modeCheck(j *job) {
-    if j.next == nil || j.prev == nil {
-        return
-    }
+	if j.next == nil || j.prev == nil {
+		return
+	}
 
 	if !j.hasTask() {
-        if j.mode != job_mode_idle {
+		if j.mode != job_mode_idle {
 			js.remove(j)
 			js.idleAdd(j)
-        }
-    } else if j.nowNum >= int(j.Parallel) {
+		}
+	} else if j.nowNum >= int(j.Parallel) {
 		if j.mode != job_mode_block {
 			js.remove(j)
-            js.blockAdd(j)
-        }
-    } else {
-        j.countScore()
+			js.blockAdd(j)
+		}
+	} else {
+		j.countScore()
 
 		if j.mode != job_mode_runnable {
 			js.remove(j)
-            js.runAdd(j)
+			js.runAdd(j)
 		}
 
-        js.priority(j)
-    }
+		js.priority(j)
+	}
 }
 
 func (js *jobs) GetOrder() (*order, error) {
@@ -89,16 +88,17 @@ func (js *jobs) GetOrder() (*order, error) {
 	}
 
 	o, err := j.popOrder()
+
+	js.modeCheck(j)
+
 	if err != nil {
 		return nil, err
 	}
 
-    o.job = j
+	o.job = j
 
 	j.lastTime = js.g.now
 	j.nowNum++
-
-    js.modeCheck(j)
 
 	return o, nil
 }
@@ -109,7 +109,7 @@ func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
 	j.loadTime += loadTime
 	j.useTimeStat.push(int64(useTime))
 
-    js.modeCheck(j)
+	js.modeCheck(j)
 }
 
 func (js *jobs) front() *job {
@@ -164,9 +164,9 @@ func (js *jobs) idleAdd(j *job) {
 			js.idleRmove(j)
 			delete(js.all, j.task.name)
 
-            js.g.s.notifyRemove <- j.task.name
+			js.g.s.notifyRemove <- j.task.name
 
-            j.task = nil
+			j.task = nil
 		}
 	}
 }

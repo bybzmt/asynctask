@@ -3,6 +3,7 @@ package scheduler
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 
@@ -134,7 +135,7 @@ func (s *Scheduler) JobEmpty(jname string) error {
 
 	jt, ok := s.jobTask[jname]
 	if !ok {
-		return errors.New(fmt.Sprintf("group:%d not found", jname))
+		return errors.New(fmt.Sprintf("job:%s not found", jname))
 	}
 
     return jt.delAllTask()
@@ -146,7 +147,7 @@ func (s *Scheduler) DelOrder(jname string, tid ID) error {
 
 	jt, ok := s.jobTask[jname]
 	if !ok {
-		return errors.New(fmt.Sprintf("group:%d not found", jname))
+		return errors.New(fmt.Sprintf("job:%s not found", jname))
 	}
 
     return jt.delTask(tid)
@@ -156,8 +157,6 @@ func (s *Scheduler) GetStatData() (out []*Statistics) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    s.Log.Debugln("GetStatData")
-
 	for _, s := range s.groups {
 		out = append(out, s.getStatData())
 	}
@@ -165,3 +164,27 @@ func (s *Scheduler) GetStatData() (out []*Statistics) {
 	return
 }
 
+func (s *Scheduler) AddTask(t *Task) error {
+	t.Name = strings.TrimSpace(t.Name)
+
+	if t.Name == "" {
+		return TaskError
+	}
+
+	if t.Http == nil && t.Cli == nil {
+		return TaskError
+	}
+
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	s.TaskNextId++
+	t.Id = uint(s.TaskNextId)
+	t.AddTime = uint(s.now.Unix())
+
+	if t.Trigger > uint(s.now.Unix()) {
+		return s.timerAddTask(t)
+	}
+
+	return s.addTask(t)
+}

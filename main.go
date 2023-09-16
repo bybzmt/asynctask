@@ -77,8 +77,6 @@ func main() {
 	go func() {
 		time.Sleep(time.Millisecond * 10)
 
-		go tool.TimerRun()
-
 		if *addr != "" {
 			go tool.HttpRun(*addr)
 		}

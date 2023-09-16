@@ -149,6 +149,44 @@
         }
     }
 
+    function jobSort(a, b) {
+        var x = (function () {
+            switch (Math.abs(sortby)) {
+                case 1:
+                    return b.Name.localeCompare(a.Name);
+                case 2:
+                    return b.Load != a.Load
+                        ? b.Load - a.Load
+                        : b.Score - a.Score;
+                case 3:
+                    return b.NowNum != a.NowNum
+                        ? b.NowNum - a.NowNum
+                        : b.Score - a.Score;
+                case 4:
+                    return b.RunNum != a.RunNum
+                        ? b.RunNum - a.RunNum
+                        : b.Score - a.Score;
+                case 5:
+                    return b.OldNum != a.OldNum
+                        ? b.OldNum - a.OldNum
+                        : b.Score - a.Score;
+                case 6:
+                    return b.WaitNum != a.WaitNum
+                        ? b.WaitNum - a.WaitNum
+                        : b.Score - a.Score;
+                case 7:
+                    return b.UseTime != a.UseTime
+                        ? b.UseTime - a.UseTime
+                        : b.Score - a.Score;
+                case 8:
+                    return a.Score != b.Score
+                        ? b.Score - a.Score
+                        : b.Name.localeCompare(a.Name);
+            }
+        })();
+        return sortby > 0 ? x : -x;
+    }
+
     function showStatus() {
         let url = API_BASE + "/api/status";
         fetch(url)
@@ -181,43 +219,7 @@
                     });
                 }
 
-                Data.Jobs.sort(function (a, b) {
-                    var x = (function () {
-                        switch (Math.abs(sortby)) {
-                            case 1:
-                                return b.Name.localeCompare(a.Name);
-                            case 2:
-                                return b.Load != a.Load
-                                    ? b.Load - a.Load
-                                    : b.Score - a.Score;
-                            case 3:
-                                return b.NowNum != a.NowNum
-                                    ? b.NowNum - a.NowNum
-                                    : b.Score - a.Score;
-                            case 4:
-                                return b.RunNum != a.RunNum
-                                    ? b.RunNum - a.RunNum
-                                    : b.Score - a.Score;
-                            case 5:
-                                return b.OldNum != a.OldNum
-                                    ? b.OldNum - a.OldNum
-                                    : b.Score - a.Score;
-                            case 6:
-                                return b.WaitNum != a.WaitNum
-                                    ? b.WaitNum - a.WaitNum
-                                    : b.Score - a.Score;
-                            case 7:
-                                return b.UseTime != a.UseTime
-                                    ? b.UseTime - a.UseTime
-                                    : b.Score - a.Score;
-                            case 8:
-                                return a.Score != b.Score
-                                    ? b.Score - a.Score
-                                    : b.Name.localeCompare(a.Name);
-                        }
-                    })();
-                    return sortby > 0 ? x : -x;
-                });
+                Data.Jobs.sort(jobSort);
                 JobsData = Data.Jobs;
             });
     }

@@ -285,7 +285,7 @@ func (g *group) notifyDelJob(jname string) {
 	}
 }
 
-func (g *group) notifyAddJob(jtask *jobTask) {
+func (g *group) notifyJob(jtask *jobTask) {
 	g.l.Lock()
 	defer g.l.Unlock()
 

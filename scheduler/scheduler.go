@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -132,6 +131,9 @@ func (s *Scheduler) Run() {
 
 			s.l.Lock()
 			s.now = now
+
+            s.timerChecker(now)
+
 			for _, s := range s.groups {
 				s.tick <- now
 			}
@@ -467,7 +469,7 @@ func (s *Scheduler) loadJobs() error {
 				s.jobTask[name] = jt
 
 				for _, g := range jt.groups {
-					g.notifyAddJob(jt)
+					g.notifyJob(jt)
 				}
 			}
 
@@ -512,24 +514,7 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 	return nil, errors.New("no match router")
 }
 
-func (s *Scheduler) AddTask(t *Task) error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	t.Name = strings.TrimSpace(t.Name)
-
-	if t.Name == "" {
-		return TaskError
-	}
-
-	if t.Http == nil && t.Cli == nil {
-		return TaskError
-	}
-
-	s.TaskNextId++
-	t.Id = uint(s.TaskNextId)
-	t.AddTime = uint(s.now.Unix())
-
+func (s *Scheduler) addTask(t *Task) error {
 	jt, ok := s.jobTask[t.Name]
 
 	if !ok {

@@ -50,7 +50,7 @@ func (j *jobTask) addTask(t *Task) error {
 	atomic.AddInt32(&j.waitNum, 1)
 
 	for _, g := range j.groups {
-		g.notifyAddJob(j)
+		g.notifyJob(j)
 	}
 
 	return nil
@@ -81,7 +81,11 @@ func (j *jobTask) delTask(tid ID) error {
 	}
 
 	if has {
-        atomic.AddInt32(&j.waitNum, -1)
+		atomic.AddInt32(&j.waitNum, -1)
+	}
+
+	for _, g := range j.groups {
+		g.notifyJob(j)
 	}
 
 	return nil
@@ -126,14 +130,13 @@ func (j *jobTask) popTask() (*Task, error) {
 		return nil, err
 	}
 
-    atomic.AddInt32(&j.waitNum, -1)
+	atomic.AddInt32(&j.waitNum, -1)
 
 	return &t, nil
 }
 
-
 func (j *jobTask) hasTask() bool {
-    has := false
+	has := false
 
 	//key: task/:jname
 	j.s.Db.View(func(tx *bolt.Tx) error {
@@ -142,16 +145,16 @@ func (j *jobTask) hasTask() bool {
 			return nil
 		}
 
-        key, _ := bucket.Cursor().First()
+		key, _ := bucket.Cursor().First()
 
-        if key != nil {
-            has = true
-        }
+		if key != nil {
+			has = true
+		}
 
-        return nil
+		return nil
 	})
 
-    return has
+	return has
 }
 
 func (j *jobTask) delAllTask() error {
@@ -171,7 +174,11 @@ func (j *jobTask) delAllTask() error {
 		return err
 	}
 
-    atomic.StoreInt32(&j.waitNum, 0)
+	atomic.StoreInt32(&j.waitNum, 0)
+
+	for _, g := range j.groups {
+		g.notifyJob(j)
+	}
 
 	return nil
 }
