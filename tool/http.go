@@ -29,12 +29,12 @@ func init_http() {
 	http.HandleFunc("/api/status", page_error(page_status))
 	http.HandleFunc("/api/task/add", page_error(page_task_add))
 	http.HandleFunc("/api/task/cancel", page_error(page_task_cancel))
+	http.HandleFunc("/api/job/delIdle", page_error(page_job_empty))
 	http.HandleFunc("/api/job/emptyAll", page_error(page_job_empty))
 	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
-	http.HandleFunc("/api/groups", page_error(page_groups))
-	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
 	http.HandleFunc("/api/routes", page_error(page_routes))
 	http.HandleFunc("/api/route/setConfig", page_error(page_route_config))
+	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
 }
 
 func page_status(r *http.Request) any {
@@ -57,9 +57,16 @@ func page_job_empty(r *http.Request) any {
 	return hub.JobEmpty(name)
 }
 
+func page_job_delIdle(r *http.Request) any {
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
+	jname := strings.TrimSpace(r.FormValue("name"))
+
+	return hub.JobDelIdle(scheduler.ID(gid), jname)
+}
+
 func page_job_config(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	jname := strings.TrimSpace(r.FormValue("jname"))
+	jname := strings.TrimSpace(r.FormValue("name"))
 
 	var cfg scheduler.JobConfig
 
@@ -68,10 +75,6 @@ func page_job_config(r *http.Request) any {
 	}
 
 	return hub.SetJobConfig(scheduler.ID(gid), jname, cfg)
-}
-
-func page_groups(r *http.Request) any {
-	return hub.GetGroupConfigs()
 }
 
 func page_group_config(r *http.Request) any {
@@ -104,9 +107,9 @@ func page_route_config(r *http.Request) any {
 
 func page_task_cancel(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	oid, _ := strconv.Atoi(r.FormValue("oid"))
+	tid, _ := strconv.Atoi(r.FormValue("tid"))
 
-	return hub.OrderCancel(scheduler.ID(gid), scheduler.ID(oid))
+	return hub.OrderCancel(scheduler.ID(gid), scheduler.ID(tid))
 }
 
 func InitHub(h *scheduler.Scheduler) {

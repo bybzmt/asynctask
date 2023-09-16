@@ -20,9 +20,9 @@ type ID uint32
 
 type Config struct {
 	//默认工作线程数量
-	WorkerNum int
+	WorkerNum uint32
 	//默认并发数
-	Parallel uint
+	Parallel uint32
 
 	Client *http.Client
 
@@ -75,6 +75,20 @@ type order struct {
 	EndTime   time.Time
 }
 
+func (o *order) taskTxt() string {
+    if o.Base.Mode & MODE_HTTP == MODE_HTTP {
+        if o.Task.Http != nil {
+            return o.Task.Http.Url
+        }
+    } else if o.Base.Mode & MODE_CMD == MODE_CMD {
+        if o.Task.Cli != nil {
+            return o.Task.Cli.Cmd
+        }
+    }
+
+    return "Error Task"
+}
+
 type TaskBase struct {
 	Mode       Mode
 	Timeout    uint //默认超时时间
@@ -111,4 +125,5 @@ type JobConfig struct {
 
 type schedulerConfig struct {
 	TaskNextId ID
+	WorkerId ID
 }

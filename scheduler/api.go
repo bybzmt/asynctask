@@ -116,18 +116,45 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 
 	g, ok := s.groups[gid]
 	if !ok {
-		return errors.New(fmt.Sprintf("scheduler:%d not found", gid))
+        return NotFound
 	}
 
 	for t := range g.orders {
 		if t.Id == oid {
 			t.worker.Cancel()
+            return nil
 		}
 	}
 
-	return nil
+	return NotFound
 }
 
+func (s *Scheduler) JobDelIdle(gid ID, jname string) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    g, ok := s.groups[gid]
+	if !ok {
+        return NotFound
+	}
+
+    g.l.Lock()
+    defer g.l.Unlock()
+
+    j, ok := g.jobs.all[jname]
+	if !ok {
+        return NotFound
+	}
+
+    if j.mode != job_mode_idle {
+        return NotFound
+    }
+
+    g.jobs.removeJob(j)
+    g.jobs.idleLen--
+
+    return nil
+}
 
 func (s *Scheduler) JobEmpty(jname string) error {
 	s.l.Lock()
@@ -141,7 +168,7 @@ func (s *Scheduler) JobEmpty(jname string) error {
     return jt.delAllTask()
 }
 
-func (s *Scheduler) DelOrder(jname string, tid ID) error {
+func (s *Scheduler) DelTask(jname string, tid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 

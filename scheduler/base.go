@@ -24,7 +24,7 @@ func (l logSecond) MarshalJSON() ([]byte, error) {
 type taskLog struct {
 	Id       ID
 	Name     string
-	Params   []string
+	Task     string
 	Status   int
 	WaitTime logSecond
 	RunTime  logSecond

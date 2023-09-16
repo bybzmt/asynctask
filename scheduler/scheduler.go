@@ -16,13 +16,14 @@ import (
 
 type Scheduler struct {
 	Config
-    schedulerConfig
+	schedulerConfig
 
 	l sync.Mutex
 
 	now          time.Time
-	end          chan *group
+	groupEnd     chan *group
 	notifyRemove chan string
+	closed       chan int
 
 	jobTask map[string]*jobTask
 
@@ -58,39 +59,47 @@ func New(c Config) (*Scheduler, error) {
 	s.statSize = 60 * 5
 	s.statTick = time.Second
 
-	s.end = make(chan *group)
+	s.groupEnd = make(chan *group)
 	s.groups = make(map[ID]*group)
 	s.jobTask = make(map[string]*jobTask)
 
 	s.notifyRemove = make(chan string, 10)
+	s.closed = make(chan int)
 
-	err := s.loadGroups()
-	if err != nil {
+	if err := s.loadGroups(); err != nil {
 		return nil, err
 	}
 
-	err = s.loadRouters()
-	if err != nil {
+	if err := s.loadRouters(); err != nil {
 		return nil, err
 	}
 
 	if len(s.groups) < 1 && len(s.routers) < 1 {
-		_, err := s.AddGroup()
+		gid, err := s.AddGroup()
 		if err != nil {
 			return nil, err
 		}
 
-		id, err := s.AddRouter()
+		g := s.groups[gid]
+		g.Note = "Default workGroup"
+
+		if err := s.saveGroup(g); err != nil {
+			return nil, err
+		}
+
+		rid, err := s.AddRouter()
 		if err != nil {
 			return nil, err
 		}
 
-		r := s.routers[id]
+		r := s.routers[rid]
 		r.Used = true
 		r.Note = "Default Router"
 		r.init()
 
-		s.saveRouter(r)
+		if err := s.saveRouter(r); err != nil {
+			return nil, err
+		}
 	}
 
 	s.loadJobs()
@@ -132,7 +141,7 @@ func (s *Scheduler) Run() {
 			s.l.Lock()
 			s.now = now
 
-            s.timerChecker(now)
+			s.timerChecker(now)
 
 			for _, s := range s.groups {
 				s.tick <- now
@@ -149,6 +158,19 @@ func (s *Scheduler) Run() {
 
 		case name := <-s.notifyRemove:
 			s.onNotifyRemove(name)
+
+		case g := <-s.groupEnd:
+			s.Log.Debugln("groupEnd", g.Id)
+
+			s.l.Lock()
+			delete(s.groups, g.Id)
+			l := len(s.groups)
+			s.l.Unlock()
+
+			if !s.running && l == 0 {
+				s.closed <- 1
+				return
+			}
 		}
 	}
 }
@@ -159,6 +181,10 @@ func (s *Scheduler) onNotifyRemove(name string) {
 
 	jt, ok := s.jobTask[name]
 	if ok {
+		if jt.hasTask() {
+			return
+		}
+
 		has := false
 		for _, g := range jt.groups {
 			g.l.Lock()
@@ -172,6 +198,7 @@ func (s *Scheduler) onNotifyRemove(name string) {
 		}
 
 		if !has {
+			jt.remove()
 			delete(s.jobTask, name)
 		}
 	}
@@ -260,6 +287,7 @@ func (s *Scheduler) AddGroup() (ID, error) {
 
 	g := new(group)
 	var cfg GroupConfig
+	cfg.WorkerNum = s.WorkerNum
 
 	//key: config/group/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -335,6 +363,7 @@ func (s *Scheduler) AddRouter() (ID, error) {
 
 	r := new(router)
 	var cfg RouteConfig
+	cfg.Parallel = s.Parallel
 
 	//key: config/router/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -441,8 +470,8 @@ func (s *Scheduler) routeChanged(r *router) {
 			}
 
 			jt.groups = out
-            jt.TaskBase = r.TaskBase
-            jt.JobConfig = r.JobConfig
+			jt.TaskBase = r.TaskBase
+			jt.JobConfig = r.JobConfig
 		}
 	}
 }
@@ -486,7 +515,7 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 			jt := new(jobTask)
 			jt.s = s
 			jt.TaskBase = r.TaskBase
-            jt.JobConfig = r.JobConfig
+			jt.JobConfig = r.JobConfig
 			jt.name = name
 
 			err := jt.loadWait()
@@ -565,28 +594,9 @@ func (s *Scheduler) Close() {
 				s.allTaskCancel()
 			}
 
-			s.l.Lock()
-			l := len(s.groups)
-			s.l.Unlock()
-
-			if l == 0 {
-				s.Log.Debugln("close end")
-				return
-			}
-
-		case g := <-s.end:
-			s.Log.Debugln("end", g.Id)
-
-			s.l.Lock()
-			delete(s.groups, g.Id)
-			l := len(s.groups)
-			s.l.Unlock()
-
-			if l == 0 {
-				close(s.end)
-				s.Log.Debugln("Scheduler closd")
-				return
-			}
+		case <-s.closed:
+			s.Log.Debugln("Scheduler closd")
+			return
 		}
 	}
 }

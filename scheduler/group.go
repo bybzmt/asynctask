@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,11 +29,10 @@ type group struct {
 	running  bool
 	complete chan *order
 	tick     chan time.Time
+	cmd      chan int
 
 	today int
 	now   time.Time
-
-	workerId int
 
 	//己执行任务计数
 	runNum int
@@ -53,6 +53,7 @@ func (g *group) init(s *Scheduler) error {
 
 	g.complete = make(chan *order)
 	g.tick = make(chan time.Time)
+	g.cmd = make(chan int)
 
 	g.jobs.init(100, g)
 
@@ -70,10 +71,11 @@ func (g *group) workerNumCheck() {
 
 	for len(g.allWorkers) != int(g.WorkerNum) {
 		if len(g.allWorkers) < int(g.WorkerNum) {
-			g.workerId++
+
+			id := atomic.AddUint32((*uint32)(&g.s.WorkerId), 1)
 
 			w := new(worker)
-			w.Init(g.workerId, g)
+			w.Init(ID(id), g)
 
 			g.allWorkers = append(g.allWorkers, w)
 			g.workers.PushBack(w)
@@ -182,6 +184,14 @@ func (g *group) Run() {
 		case now := <-g.tick:
 			g.statTick(now)
 			g.workerNumCheck()
+
+		case <-g.cmd:
+			g.l.Lock()
+			g.running = false
+			g.WorkerNum = 0
+			g.l.Unlock()
+
+			g.workerNumCheck()
 		}
 
 		if g.running {
@@ -193,18 +203,11 @@ func (g *group) Run() {
 		}
 	}
 
-	g.s.end <- g
+	g.s.groupEnd <- g
 }
 
 func (g *group) close() {
-	g.l.Lock()
-
-	g.running = false
-	g.WorkerNum = 0
-
-	g.l.Unlock()
-
-	g.workerNumCheck()
+	g.cmd <- 1
 }
 
 func (g *group) allTaskCancel() {
@@ -263,6 +266,7 @@ func (g *group) logTask(t *order) {
 	d := taskLog{
 		Id:       t.Id,
 		Name:     t.job.task.name,
+		Task:     t.taskTxt(),
 		Status:   t.Status,
 		WaitTime: logSecond(waitTime),
 		RunTime:  logSecond(runTime),

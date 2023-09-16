@@ -4,7 +4,7 @@ import (
 )
 
 type worker struct {
-	Id int
+	Id ID
 	task chan *order
 	g    *group
 
@@ -12,7 +12,7 @@ type worker struct {
     cli workerCli
 }
 
-func (w *worker) Init(id int, g *group) {
+func (w *worker) Init(id ID, g *group) {
 	w.Id = id
 	w.g = g
 	w.task = make(chan *order)

@@ -161,20 +161,17 @@ func (js *jobs) idleAdd(j *job) {
 	for js.idleLen > js.idleMax {
 		j := js.idleFront()
 		if j != nil {
-			js.idleRmove(j)
-			delete(js.all, j.task.name)
-
-			js.g.s.notifyRemove <- j.task.name
-
-			j.task = nil
+			js.removeJob(j)
+            js.idleLen--
 		}
 	}
 }
 
-func (js *jobs) idleRmove(j *job) {
+func (js *jobs) removeJob(j *job) {
 	js.remove(j)
-
-	js.idleLen--
+	delete(js.all, j.task.name)
+	js.g.s.notifyRemove <- j.task.name
+	j.task = nil
 }
 
 func (js *jobs) priority(j *job) {

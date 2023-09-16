@@ -24,10 +24,12 @@ var redisKey string
 var cfg scheduler.Config
 var logFile string
 var dbFile string
+var WorkerNum uint
+var Parallel uint
 
 func init() {
-	flag.IntVar(&cfg.WorkerNum, "num", 10, "default worker number")
-	flag.UintVar(&cfg.Parallel, "parallel", 1, "default parallel of task")
+	flag.UintVar(&WorkerNum, "num", 10, "default worker number")
+	flag.UintVar(&Parallel, "parallel", 1, "default parallel of task")
 	flag.StringVar(&logFile, "log", os.Getenv("log"), "log file e.g: my-[date].log [ENV]")
 	flag.StringVar(&dbFile, "dbfile", os.Getenv("dbfile"), "storage file [ENV]")
 
@@ -38,17 +40,20 @@ func init() {
 }
 
 func flagCheck() {
-	if cfg.WorkerNum < 1 {
+	if WorkerNum < 1 {
 		cfg.Log.Fatalln("parameter num must > 0")
 	}
+    cfg.WorkerNum = uint32(WorkerNum)
 
-	if cfg.Parallel < 1 {
+	if Parallel < 1 {
 		cfg.Log.Fatalln("parameter parallel must >= 1")
 	}
+    cfg.Parallel = uint32(Parallel)
 
 	if dbFile == "" {
 		dbFile = "./asynctask.bolt"
 	}
+
 }
 
 func main() {

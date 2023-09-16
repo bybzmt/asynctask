@@ -46,12 +46,17 @@ export default defineConfig(({ command, mode }) => {
         },
         plugins: [
             svelte({
+                configFile: false,
                 compilerOptions: {
                     hydratable: true,
                 },
                 disableDependencyReinclusion: true,
                 extensions: [".svelte"],
                 //useVitePreprocess:true,
+                onwarn: (warning, handler) => {
+                    if (/^a11y-/.test(warning.code)) return
+                    handler(warning)
+                }
             }),
         ],
         server: {

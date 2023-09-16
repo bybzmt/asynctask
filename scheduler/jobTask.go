@@ -157,9 +157,9 @@ func (j *jobTask) hasTask() bool {
 	return has
 }
 
-func (j *jobTask) delAllTask() error {
+func (j *jobTask) remove() error {
 	//key: task/:jname
-	err := j.s.Db.Update(func(tx *bolt.Tx) error {
+    err := j.s.Db.Update(func(tx *bolt.Tx) error {
 
 		bucket := getBucket(tx, "task")
 
@@ -169,6 +169,12 @@ func (j *jobTask) delAllTask() error {
 
 		return bucket.DeleteBucket([]byte(j.name))
 	})
+
+    return err
+}
+
+func (j *jobTask) delAllTask() error {
+    err := j.remove()
 
 	if err != nil {
 		return err
@@ -200,3 +206,5 @@ func (j *jobTask) loadWait() error {
 
 	return err
 }
+
+

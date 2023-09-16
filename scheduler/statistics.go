@@ -33,6 +33,7 @@ func (s *statRow) getAll() int64 {
 type StatTask struct {
 	Id      ID
 	Name    string
+	Task    string
 	UseTime int
 }
 
@@ -51,6 +52,7 @@ type JobStat struct {
 }
 
 type Statistics struct {
+    GroupConfig
 	Id       ID
 	Tasks    []StatTask
 	Jobs     []JobStat
@@ -68,6 +70,7 @@ func (s *group) getStatData() *Statistics {
 	defer s.l.Unlock()
 
 	t := &Statistics{}
+    t.GroupConfig = s.GroupConfig
 	t.Id = s.Id
     t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
 	t.Jobs = make([]JobStat, 0, s.jobs.len())
@@ -83,7 +86,8 @@ func (s *group) getStatData() *Statistics {
 	for t2 := range s.orders {
 		st := StatTask{
 			Id:      t2.Id,
-			Name:    t2.job.task.name,
+			Name:    t2.Task.Name,
+            Task:    t2.taskTxt(),
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
 		t.Tasks = append(t.Tasks, st)
