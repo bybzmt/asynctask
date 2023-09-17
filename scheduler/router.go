@@ -13,6 +13,10 @@ type router struct {
 }
 
 func (r *router) init() error {
+    if r.CmdEnv == nil {
+        r.TaskBase.init()
+    }
+
     if r.Match == "" {
         return nil
     }

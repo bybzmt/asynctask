@@ -91,7 +91,7 @@
         return val > 0 ? "(+" + val + ")" : "(" + val + ")";
     }
 </script>
-
+<!-- svelte-ignore a11y -->
 <Layout>
     <div id="All">
         <table>

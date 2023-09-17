@@ -19,9 +19,22 @@ type jobTask struct {
 	errNum  int32
 	runNum  int32
 	oldNum  int32
+
+	initd  bool
+}
+
+func (j *jobTask) init() error {
+    if j.initd {
+        return nil
+    }
+
+    return j.loadWaitNum()
 }
 
 func (j *jobTask) addTask(t *Task) error {
+    if err := j.init(); err != nil {
+        return err
+    }
 
 	val, err := json.Marshal(t)
 	if err != nil {
@@ -57,6 +70,10 @@ func (j *jobTask) addTask(t *Task) error {
 }
 
 func (j *jobTask) delTask(tid ID) error {
+    if err := j.init(); err != nil {
+        return err
+    }
+
 	has := false
 
 	//key: task/:jname
@@ -92,6 +109,9 @@ func (j *jobTask) delTask(tid ID) error {
 }
 
 func (j *jobTask) popTask() (*Task, error) {
+    if err := j.init(); err != nil {
+        return nil, err
+    }
 
 	t := Task{}
 
@@ -189,7 +209,7 @@ func (j *jobTask) delAllTask() error {
 	return nil
 }
 
-func (j *jobTask) loadWait() error {
+func (j *jobTask) loadWaitNum() error {
 	//key: task/:jname
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "task", j.name)

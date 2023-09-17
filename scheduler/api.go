@@ -72,9 +72,12 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
 		return NotFound
 	}
 
+    g.l.Lock()
+    defer g.l.Unlock()
+
     g.GroupConfig = cfg
 
-    return nil
+    return s.saveGroup(g)
 }
 
 func (s *Scheduler) SetRouteConfig(rid ID, cfg RouteConfig) error {
@@ -84,11 +87,12 @@ func (s *Scheduler) SetRouteConfig(rid ID, cfg RouteConfig) error {
     for _, r := range s.routers {
         if r.Id == rid {
             r.RouteConfig = cfg
-            err := r.init()
-            if err != nil {
+            
+            if err := r.init(); err != nil {
                 return err
             }
 
+            s.routersSort()
             s.routeChanged(r)
 
             return nil

@@ -48,9 +48,7 @@ type group struct {
 	loadStat statRow
 }
 
-func (g *group) init(s *Scheduler) error {
-	g.s = s
-
+func (g *group) init() {
 	g.complete = make(chan *order)
 	g.tick = make(chan time.Time)
 	g.cmd = make(chan int)
@@ -61,8 +59,6 @@ func (g *group) init(s *Scheduler) error {
 	g.orders = make(map[*order]struct{})
 
 	g.loadStat.init(g.s.statSize)
-
-	return nil
 }
 
 func (g *group) workerNumCheck() {
@@ -171,6 +167,8 @@ func (g *group) end(t *order) {
 }
 
 func (g *group) Run() {
+    g.init()
+
 	g.s.Log.Debugln("scheduler group", g.Id, "run")
 
 	g.today = time.Now().Day()
