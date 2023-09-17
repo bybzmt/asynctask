@@ -61,6 +61,10 @@
 
         AllData = res.all
 
+        res.groups.sort(function (a, b) {
+            return a.Id < b.Id ? -1 : 1;
+        })
+
         Groups = res.groups
 
         res.tasks.sort(function (a, b) {
@@ -91,8 +95,13 @@
         return val > 0 ? "(+" + val + ")" : "(" + val + ")";
     }
 </script>
-<!-- svelte-ignore a11y -->
 <Layout>
+    <div id="tab">
+        <a href="#/">Tasks</a>
+        <a href="#/routes">Routes</a>
+        <a href="#/groups">WorkGroups</a>
+    </div>
+
     <div id="All">
         <table>
             <thead>

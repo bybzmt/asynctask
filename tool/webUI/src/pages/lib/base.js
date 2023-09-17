@@ -54,8 +54,10 @@ export function mkUrl(url, data) {
 export function sendPost(url, data) {
     let params = new URLSearchParams();
 
-    for (let k in data) {
-        params.set(k, data[k])
+    if (data) {
+        for (let k in data) {
+            params.set(k, data[k])
+        }
     }
 
     fetch(url, {
@@ -170,10 +172,6 @@ export async function getStatus(GroupId) {
     };
 
     json.Data.forEach((g) => {
-        if (GroupId != 0 && g.Id != GroupId) {
-            return;
-        }
-
         all.Capacity += g.Capacity;
         all.Load += g.Load;
         all.RunNum += g.RunNum;
@@ -192,6 +190,10 @@ export async function getStatus(GroupId) {
             WaitNum: g.WaitNum,
             WorkerNum: g.WorkerNum,
         });
+
+        if (GroupId != 0 && g.Id != GroupId) {
+            return;
+        }
 
         g.Tasks.forEach((t) => {
             t.Gid = g.Id;

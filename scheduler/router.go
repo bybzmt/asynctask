@@ -7,8 +7,6 @@ import (
 type router struct {
 	RouteConfig
 
-    Id ID
-
 	exp *regexp.Regexp
 }
 

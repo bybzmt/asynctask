@@ -53,7 +53,6 @@ type JobStat struct {
 
 type Statistics struct {
     GroupConfig
-	Id       ID
 	Tasks    []StatTask
 	Jobs     []JobStat
 	Capacity int64
@@ -71,7 +70,6 @@ func (s *group) getStatData() *Statistics {
 
 	t := &Statistics{}
     t.GroupConfig = s.GroupConfig
-	t.Id = s.Id
     t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
 	t.Jobs = make([]JobStat, 0, s.jobs.len())
 	t.Tasks = make([]StatTask, 0, len(s.orders))

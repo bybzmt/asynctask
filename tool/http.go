@@ -34,6 +34,11 @@ func init_http() {
 	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
 	http.HandleFunc("/api/routes", page_error(page_routes))
 	http.HandleFunc("/api/route/setConfig", page_error(page_route_config))
+	http.HandleFunc("/api/route/add", page_error(page_route_add))
+	http.HandleFunc("/api/route/del", page_error(page_route_del))
+	http.HandleFunc("/api/groups", page_error(page_groups))
+	http.HandleFunc("/api/group/add", page_error(page_group_add))
+	http.HandleFunc("/api/group/del", page_error(page_group_del))
 	http.HandleFunc("/api/group/setConfig", page_error(page_group_config))
 }
 
@@ -77,6 +82,25 @@ func page_job_config(r *http.Request) any {
 	return hub.SetJobConfig(scheduler.ID(gid), jname, cfg)
 }
 
+func page_groups(r *http.Request) any {
+    return hub.GetGroupConfigs()
+}
+
+func page_group_add(r *http.Request) any {
+    id, err := hub.AddGroup()
+    if err != nil {
+        return err
+    }
+    return id
+}
+
+func page_group_del(r *http.Request) any {
+
+	gid, _ := strconv.Atoi(r.FormValue("gid"))
+
+	return hub.DelGroup(scheduler.ID(gid))
+}
+
 func page_group_config(r *http.Request) any {
 
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
@@ -91,6 +115,21 @@ func page_group_config(r *http.Request) any {
 
 func page_routes(r *http.Request) any {
 	return hub.GetRouteConfigs()
+}
+
+func page_route_add(r *http.Request) any {
+    id, err := hub.AddRoute()
+    if err != nil {
+        return err
+    }
+    return id
+}
+
+func page_route_del(r *http.Request) any {
+
+	rid, _ := strconv.Atoi(r.FormValue("rid"))
+
+	return hub.DelRoute(scheduler.ID(rid))
 }
 
 func page_route_config(r *http.Request) any {
@@ -150,6 +189,8 @@ func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *htt
 			w.Header().Add("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(rs)
 		}()
+
+        r.ParseForm()
 
 		rs.Data = fn(r)
 

@@ -106,6 +106,7 @@ func (b *TaskBase) init() {
 type RouteConfig struct {
 	JobConfig
 	TaskBase
+    Id ID
 	Match  string
 	Note   string
 	Groups []ID
@@ -114,6 +115,7 @@ type RouteConfig struct {
 }
 
 type GroupConfig struct {
+    Id ID
 	WorkerNum uint32
 	Note      string
 }

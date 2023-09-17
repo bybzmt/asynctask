@@ -27,8 +27,8 @@ type Scheduler struct {
 
 	jobTask map[string]*jobTask
 
-	groups  map[ID]*group
-	routers []*router
+	groups map[ID]*group
+	routes []*router
 
 	//统计周期
 	statTick time.Duration
@@ -66,7 +66,7 @@ func New(c Config) (*Scheduler, error) {
 	s.notifyRemove = make(chan string, 10)
 	s.closed = make(chan int)
 
-    s.loadScheduler()
+	s.loadScheduler()
 
 	if err := s.loadGroups(); err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func New(c Config) (*Scheduler, error) {
 		return nil, err
 	}
 
-	if len(s.groups) < 1 && len(s.routers) < 1 {
+	if len(s.groups) < 1 && len(s.routes) < 1 {
 		if err := s.AddDefaultGroup(); err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func (s *Scheduler) Run() {
 
 			if !s.running && l == 0 {
 				s.closed <- 1
-                s.saveScheduler()
+				s.saveScheduler()
 				return
 			}
 		}
@@ -263,41 +263,41 @@ func (s *Scheduler) saveScheduler() {
 			return err
 		}
 
-        return bucket.Put([]byte("scheduler.cfg"), val)
+		return bucket.Put([]byte("scheduler.cfg"), val)
 	})
 
-    if err != nil {
-        s.Log.Warnln("/config/scheduler.cfg save error:", err)
-    }
+	if err != nil {
+		s.Log.Warnln("/config/scheduler.cfg save error:", err)
+	}
 }
 
 func (s *Scheduler) loadScheduler() {
 	//key: config/scheduler.cfg
-    err := s.Db.View(func(tx *bolt.Tx) error {
+	err := s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "config")
 		if bucket == nil {
-            return nil
+			return nil
 		}
 
-        var c schedulerConfig
+		var c schedulerConfig
 
-        val := bucket.Get([]byte("scheduler.cfg"))
-        if val == nil {
-            return nil
-        }
+		val := bucket.Get([]byte("scheduler.cfg"))
+		if val == nil {
+			return nil
+		}
 
 		if err := json.Unmarshal(val, &c); err != nil {
 			return err
 		}
 
-        s.schedulerConfig = c
+		s.schedulerConfig = c
 
-        return nil
+		return nil
 	})
 
-    if err != nil {
-        s.Log.Warnln("/config/scheduler.cfg load error:", err)
-    }
+	if err != nil {
+		s.Log.Warnln("/config/scheduler.cfg load error:", err)
+	}
 }
 
 func (s *Scheduler) AddGroup() (ID, error) {
@@ -329,7 +329,7 @@ func (s *Scheduler) AddGroup() (ID, error) {
 			return err
 		}
 
-		g.Id = ID(id)
+		cfg.Id = ID(id)
 
 		return nil
 	})
@@ -402,7 +402,7 @@ func (s *Scheduler) loadGroups() error {
 	})
 }
 
-func (s *Scheduler) AddRouter() (ID, error) {
+func (s *Scheduler) addRoute() (*router, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -422,6 +422,8 @@ func (s *Scheduler) AddRouter() (ID, error) {
 			return err
 		}
 
+		cfg.Id = ID(id)
+
 		key := []byte(fmt.Sprintf("%d", id))
 		val, err := json.Marshal(&cfg)
 
@@ -438,15 +440,15 @@ func (s *Scheduler) AddRouter() (ID, error) {
 	})
 
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	r.RouteConfig = cfg
 	r.init()
 
-	s.routers = append(s.routers, r)
+	s.routes = append(s.routes, r)
 
-	return r.Id, nil
+	return r, nil
 }
 
 func (s *Scheduler) saveRouter(r *router) error {
@@ -544,7 +546,7 @@ func (s *Scheduler) loadRouters() error {
 				return err
 			}
 
-			s.routers = append(s.routers, r)
+			s.routes = append(s.routes, r)
 			return nil
 		})
 	})
@@ -559,8 +561,8 @@ func (s *Scheduler) loadRouters() error {
 }
 
 func (s *Scheduler) routersSort() {
-	sort.Slice(s.routers, func(i, j int) bool {
-		return s.routers[i].Sort < s.routers[j].Sort
+	sort.Slice(s.routes, func(i, j int) bool {
+		return s.routes[i].Sort < s.routes[j].Sort
 	})
 }
 
@@ -582,7 +584,7 @@ func (s *Scheduler) addTask(t *Task) error {
 }
 
 func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
-	for _, r := range s.routers {
+	for _, r := range s.routes {
 		if r.match(name) {
 			jt := new(jobTask)
 			jt.s = s
@@ -651,12 +653,11 @@ func (s *Scheduler) AddDefaultGroup() error {
 }
 
 func (s *Scheduler) AddDefaultRouter() error {
-	rid, err := s.AddRouter()
+	r, err := s.addRoute()
 	if err != nil {
 		return err
 	}
 
-	r := s.routers[rid]
 	r.Used = true
 	r.Note = "Default Router"
 

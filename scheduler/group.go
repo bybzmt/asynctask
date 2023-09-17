@@ -11,8 +11,6 @@ import (
 type group struct {
 	GroupConfig
 
-	Id ID
-
 	s *Scheduler
 
 	l sync.Mutex
