@@ -271,7 +271,7 @@ func (g *group) logTask(t *order) {
 
 	msg, _ := json.Marshal(d)
 
-	g.s.Log.Infoln("[Task] %s\n", msg)
+	g.s.Log.Infoln("[Task]", string(msg))
 }
 
 func (g *group) notifyDelJob(jname string) {

@@ -33,9 +33,9 @@ func init_http() {
 	http.HandleFunc("/api/job/emptyAll", page_error(page_job_empty))
 	http.HandleFunc("/api/job/setConfig", page_error(page_job_config))
 	http.HandleFunc("/api/routes", page_error(page_routes))
-	http.HandleFunc("/api/route/setConfig", page_error(page_route_config))
 	http.HandleFunc("/api/route/add", page_error(page_route_add))
 	http.HandleFunc("/api/route/del", page_error(page_route_del))
+	http.HandleFunc("/api/route/setConfig", page_error(page_route_config))
 	http.HandleFunc("/api/groups", page_error(page_groups))
 	http.HandleFunc("/api/group/add", page_error(page_group_add))
 	http.HandleFunc("/api/group/del", page_error(page_group_del))
@@ -72,12 +72,13 @@ func page_job_delIdle(r *http.Request) any {
 func page_job_config(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	jname := strings.TrimSpace(r.FormValue("name"))
+    _cfg := r.FormValue("cfg")
 
 	var cfg scheduler.JobConfig
 
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
+    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
+        return err
+    }
 
 	return hub.SetJobConfig(scheduler.ID(gid), jname, cfg)
 }
@@ -104,11 +105,13 @@ func page_group_del(r *http.Request) any {
 func page_group_config(r *http.Request) any {
 
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
+    _cfg := r.FormValue("cfg")
+
 	var cfg scheduler.GroupConfig
 
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
+    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
+        return err
+    }
 
 	return hub.SetGroupConfig(scheduler.ID(gid), cfg)
 }
@@ -135,11 +138,13 @@ func page_route_del(r *http.Request) any {
 func page_route_config(r *http.Request) any {
 
 	rid, _ := strconv.Atoi(r.FormValue("rid"))
+    _cfg := r.FormValue("cfg")
+
 	var cfg scheduler.RouteConfig
 
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
+    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
+        return err
+    }
 
 	return hub.SetRouteConfig(scheduler.ID(rid), cfg)
 }
@@ -189,8 +194,6 @@ func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *htt
 			w.Header().Add("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(rs)
 		}()
-
-        r.ParseForm()
 
 		rs.Data = fn(r)
 

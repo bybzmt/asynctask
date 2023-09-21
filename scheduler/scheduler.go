@@ -114,7 +114,6 @@ func (s *Scheduler) Run() {
 	}
 
 	for _, g := range s.groups {
-		s.Log.Println("groups")
 		go g.Run()
 	}
 
@@ -128,8 +127,6 @@ func (s *Scheduler) Run() {
 	for {
 		select {
 		case now := <-ticker.C:
-			s.Log.Debugln("tick")
-
 			s.l.Lock()
 			s.now = now
 
@@ -161,19 +158,18 @@ func (s *Scheduler) Run() {
 
 			if !s.running && l == 0 {
 				s.closed <- 1
-				s.saveScheduler()
 				return
 			}
 		}
 	}
 }
 
-func (s *Scheduler) Close() {
+func (s *Scheduler) Close() error {
 	s.l.Lock()
 
 	if !s.running {
 		s.l.Unlock()
-		return
+		return nil
 	}
 
 	s.running = false
@@ -204,7 +200,7 @@ func (s *Scheduler) Close() {
 
 		case <-s.closed:
 			s.Log.Debugln("Scheduler closd")
-			return
+            return s.saveScheduler()
 		}
 	}
 }
@@ -249,7 +245,7 @@ func (s *Scheduler) onNotifyRemove(name string) {
 	}
 }
 
-func (s *Scheduler) saveScheduler() {
+func (s *Scheduler) saveScheduler() error {
 
 	//key: config/scheduler.cfg
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -266,9 +262,7 @@ func (s *Scheduler) saveScheduler() {
 		return bucket.Put([]byte("scheduler.cfg"), val)
 	})
 
-	if err != nil {
-		s.Log.Warnln("/config/scheduler.cfg save error:", err)
-	}
+    return err
 }
 
 func (s *Scheduler) loadScheduler() {
@@ -660,6 +654,11 @@ func (s *Scheduler) AddDefaultRouter() error {
 
 	r.Used = true
 	r.Note = "Default Router"
+	r.Mode = MODE_HTTP
+
+	for _, g := range s.groups {
+		r.Groups = append(r.Groups, g.Id)
+	}
 
 	return s.saveRouter(r)
 }

@@ -4,26 +4,26 @@ import (
 	"errors"
 	"os/exec"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
+	"context"
 )
 
 var ErrCmdStatus = errors.New("Code != 200")
 
 type workerCli struct {
-	Id int
-
-	cmd atomic.Value
+	Id  int
+	l   sync.Mutex
+	resp context.CancelFunc
 }
 
 func (w *workerCli) Cancel() {
-	_cmd := w.cmd.Load()
-	if _cmd != nil {
-		cmd := _cmd.(*exec.Cmd)
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		w.cmd.Store(nil)
+	w.l.Lock()
+	defer w.l.Unlock()
+
+	if w.resp != nil {
+        w.resp()
+		w.resp = nil
 	}
 }
 
@@ -43,11 +43,6 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 	params = params[1:]
 	params = append(params, o.Task.Cli.Params...)
 
-	c := exec.Command(task, params...)
-	w.cmd.Store(c)
-
-	defer w.cmd.Store(nil)
-
 	timeout := o.Task.Timeout
 	if o.Base.Timeout > 0 {
 		if timeout < 1 || timeout > o.Base.Timeout {
@@ -58,8 +53,19 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 		timeout = 60 * 60
 	}
 
-	timer := time.AfterFunc(time.Duration(timeout)*time.Second, w.Cancel)
-	defer timer.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+
+	c := exec.CommandContext(ctx, task, params...)
+
+	w.l.Lock()
+	w.resp = cancel
+	w.l.Unlock()
+
+	defer func() {
+		w.l.Lock()
+        w.resp = nil
+		w.l.Unlock()
+	}()
 
 	out, err := c.CombinedOutput()
 	if err != nil {

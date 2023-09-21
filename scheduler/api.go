@@ -6,61 +6,57 @@ import (
 	"strings"
 )
 
-
 func (s *Scheduler) GetJobConfig(gid ID, jname string) (c JobConfig, err error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    g, ok := s.groups[gid]
-    if !ok {
-        return c, NotFound
-    }
+	g, ok := s.groups[gid]
+	if !ok {
+		return c, NotFound
+	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
+	j, ok := g.jobs.all[jname]
+	if !ok {
+		return c, NotFound
+	}
 
-    j, ok := g.jobs.all[jname]
-    if !ok {
-        return c, NotFound
-    }
-
-    return j.JobConfig, nil
+	return j.JobConfig, nil
 }
 
 func (s *Scheduler) SetJobConfig(gid ID, jname string, cfg JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    g, ok := s.groups[gid]
-    if !ok {
-        return NotFound
-    }
+	g, ok := s.groups[gid]
+	if !ok {
+		return NotFound
+	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
+	j, ok := g.jobs.all[jname]
+	if !ok {
+		return NotFound
+	}
 
-    j, ok := g.jobs.all[jname]
-    if !ok {
-        return NotFound
-    }
+	j.JobConfig = cfg
 
-    j.JobConfig = cfg
-
-    return nil
+	return nil
 }
-
 
 func (s *Scheduler) GetGroupConfigs() (out []GroupConfig) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    for _, g := range s.groups {
-        out = append(out, g.GroupConfig)
-    }
+	for _, g := range s.groups {
+		out = append(out, g.GroupConfig)
+	}
 
-    return
+	return
 }
 
 func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
@@ -72,13 +68,13 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
 		return NotFound
 	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
-    cfg.Id = g.Id
-    g.GroupConfig = cfg
+	cfg.Id = g.Id
+	g.GroupConfig = cfg
 
-    return s.saveGroup(g)
+	return s.saveGroup(g)
 }
 
 func (s *Scheduler) DelGroup(gid ID) error {
@@ -90,98 +86,96 @@ func (s *Scheduler) DelGroup(gid ID) error {
 		return NotFound
 	}
 
-    if len(s.groups) == 1 {
-        return errors.New("Last Group Can not Del")
-    }
+	if len(s.groups) == 1 {
+		return errors.New("Last Group Can not Del")
+	}
 
-    for _, r := range s.routes {
-        for _, id := range r.Groups {
-            if id == gid {
-                return errors.New("Group Use In Route")
-            }
-        }
-    }
+	for _, r := range s.routes {
+		for _, id := range r.Groups {
+			if id == gid {
+				return errors.New("Group Use In Route")
+			}
+		}
+	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
-    if len(g.jobs.all) > 0 {
-        return errors.New("Jobs Not Empty")
-    }
+	if len(g.jobs.all) > 0 {
+		return errors.New("Jobs Not Empty")
+	}
 
-    g.close()
-    delete(s.groups, gid)
+	g.close()
+	delete(s.groups, gid)
 
-    return nil
+	return nil
 }
 
-
 func (s *Scheduler) AddRoute() (ID, error) {
-    r, err := s.addRoute()
-    if err != nil {
-        return 0, err
-    }
-    return r.Id, err
+	r, err := s.addRoute()
+	if err != nil {
+		return 0, err
+	}
+	return r.Id, err
 }
 
 func (s *Scheduler) DelRoute(rid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    if len(s.routes) == 1 {
-        return errors.New("Last Route Can not Del")
-    }
+	if len(s.routes) == 1 {
+		return errors.New("Last Route Can not Del")
+	}
 
-    rs := make([]*router, 0, len(s.routes))
+	rs := make([]*router, 0, len(s.routes))
 
-    for _, r := range s.routes {
-        if r.Id != rid {
-            rs = append(rs, r)
-        }
-    }
+	for _, r := range s.routes {
+		if r.Id != rid {
+			rs = append(rs, r)
+		}
+	}
 
-    if len(rs) == len(s.routes) {
-        return NotFound
-    }
+	if len(rs) == len(s.routes) {
+		return NotFound
+	}
 
-    s.routes = rs
+	s.routes = rs
 
-    return nil
+	return nil
 }
 
 func (s *Scheduler) SetRouteConfig(rid ID, cfg RouteConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    for _, r := range s.routes {
-        if r.Id == rid {
-            cfg.Id = r.Id
-            r.RouteConfig = cfg
-            
-            if err := r.init(); err != nil {
-                return err
-            }
+	for _, r := range s.routes {
+		if r.Id == rid {
+			cfg.Id = r.Id
+			r.RouteConfig = cfg
 
-            s.routersSort()
-            s.routeChanged(r)
+			if err := r.init(); err != nil {
+				return err
+			}
 
-            return nil
-        }
-    }
+			s.routersSort()
+			s.routeChanged(r)
 
-    return Empty
+			return nil
+		}
+	}
+
+	return Empty
 }
-
 
 func (s *Scheduler) GetRouteConfigs() (out []RouteConfig) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    for _, r := range s.routes {
-        out = append(out, r.RouteConfig)
-    }
+	for _, r := range s.routes {
+		out = append(out, r.RouteConfig)
+	}
 
-    return
+	return
 }
 
 func (s *Scheduler) OrderCancel(gid, oid ID) error {
@@ -190,13 +184,16 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 
 	g, ok := s.groups[gid]
 	if !ok {
-        return NotFound
+		return NotFound
 	}
+
+	g.l.Lock()
+	defer g.l.Unlock()
 
 	for t := range g.orders {
 		if t.Id == oid {
 			t.worker.Cancel()
-            return nil
+			return nil
 		}
 	}
 
@@ -207,27 +204,27 @@ func (s *Scheduler) JobDelIdle(gid ID, jname string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    g, ok := s.groups[gid]
+	g, ok := s.groups[gid]
 	if !ok {
-        return NotFound
+		return NotFound
 	}
 
-    g.l.Lock()
-    defer g.l.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
-    j, ok := g.jobs.all[jname]
+	j, ok := g.jobs.all[jname]
 	if !ok {
-        return NotFound
+		return NotFound
 	}
 
-    if j.mode != job_mode_idle {
-        return NotFound
-    }
+	if j.mode != job_mode_idle {
+		return NotFound
+	}
 
-    g.jobs.removeJob(j)
-    g.jobs.idleLen--
+	g.jobs.removeJob(j)
+	g.jobs.idleLen--
 
-    return nil
+	return nil
 }
 
 func (s *Scheduler) JobEmpty(jname string) error {
@@ -239,7 +236,7 @@ func (s *Scheduler) JobEmpty(jname string) error {
 		return errors.New(fmt.Sprintf("job:%s not found", jname))
 	}
 
-    return jt.delAllTask()
+	return jt.delAllTask()
 }
 
 func (s *Scheduler) DelTask(jname string, tid ID) error {
@@ -251,7 +248,7 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 		return errors.New(fmt.Sprintf("job:%s not found", jname))
 	}
 
-    return jt.delTask(tid)
+	return jt.delTask(tid)
 }
 
 func (s *Scheduler) GetStatData() (out []*Statistics) {

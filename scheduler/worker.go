@@ -28,21 +28,27 @@ func (w *worker) Cancel() {
 }
 
 func (w *worker) Run() {
+    w.g.s.Log.Debugln("workder run", w.Id)
+
 	for t := range w.task {
 		if t == nil {
 			return
 		}
 
-        if t.Task == nil {
-            t.Status = -1
-            t.Msg = "task is nil"
-        } else if t.Task.Http != nil {
-            t.Status, t.Msg = w.http.Run(t)
-        } else if t.Task.Cli != nil {
-            t.Status, t.Msg = w.cli.Run(t)
-        } else {
-            t.Status = -1
-            t.Msg = "task emtpy"
+        if t.Base.Mode & MODE_HTTP == MODE_HTTP {
+            if t.Task.Http == nil {
+                t.Status = -1
+                t.Msg = "task http is nil"
+            } else {
+                t.Status, t.Msg = w.http.Run(t)
+            }
+        } else if t.Base.Mode & MODE_CMD == MODE_CMD {
+            if t.Task.Cli == nil {
+                t.Status = -1
+                t.Msg = "task cli is nil"
+            } else {
+                t.Status, t.Msg = w.cli.Run(t)
+            }
         }
 
 		w.g.complete <- t

@@ -3,64 +3,66 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
 var ErrHttpStatus = errors.New("Code != 200")
 
 type workerHttp struct {
-	resp atomic.Value
+	l    sync.Mutex
+	resp context.CancelFunc
 }
 
 func (w *workerHttp) Cancel() {
-	_resp := w.resp.Load()
+	w.l.Lock()
+	defer w.l.Unlock()
 
-	if _resp != nil {
-		fn := _resp.(context.CancelFunc)
-		if fn != nil {
-			fn()
-		}
-        w.resp.Store(nil)
+	if w.resp != nil {
+		w.resp()
+		w.resp = nil
 	}
+}
+
+var nop = func() {
 }
 
 func (w *workerHttp) Run(o *order) (status int, msg string) {
 	var uri string
 
-    if o.Base.HttpBase != "" {
-        uri = o.Base.HttpBase + o.Task.Http.Url
-    } else {
-        uri = o.Task.Http.Url
-    }
+	if o.Base.HttpBase != "" {
+		uri = o.Base.HttpBase + o.Task.Http.Url
+	} else {
+		uri = o.Task.Http.Url
+	}
 
 	var resp *http.Response
 	var err error
 
-    u, err := url.Parse(uri)
-    if err != nil {
+	u, err := url.Parse(uri)
+	if err != nil {
 		status = -1
 		msg = err.Error()
 		o.Err = err
 		return
-    }
+	}
 
-    if u.Hostname() == "" {
+	if u.Hostname() == "" {
 		status = -1
 		msg = "host is empty"
 		return
-    }
+	}
 
-    q := u.Query()
+	q := u.Query()
 
-    for k, v := range o.Task.Http.Get {
-        q.Set(k, v)
-    }
+	for k, v := range o.Task.Http.Get {
+		q.Set(k, v)
+	}
 
-    u.RawQuery = q.Encode()
+	u.RawQuery = q.Encode()
 
 	timeout := o.Task.Timeout
 	if o.Base.Timeout > 0 {
@@ -69,13 +71,20 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
 		}
 	}
 	if timeout < 1 {
-		timeout = 60 * 60
+		timeout = 60
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 
-	w.resp.Store(cancel)
-    defer w.resp.Store(nil)
+	w.l.Lock()
+	w.resp = cancel
+	w.l.Unlock()
+
+	defer func() {
+		w.l.Lock()
+		defer w.l.Unlock()
+		w.resp = nil
+	}()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
@@ -95,7 +104,7 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
 
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	status = resp.StatusCode
 	msg = string(body)
