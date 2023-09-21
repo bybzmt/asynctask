@@ -65,6 +65,7 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
 	u.RawQuery = q.Encode()
 
 	timeout := o.Task.Timeout
+
 	if o.Base.Timeout > 0 {
 		if timeout < 1 || timeout > o.Base.Timeout {
 			timeout = o.Base.Timeout
@@ -93,6 +94,10 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
 		o.Err = err
 		return
 	}
+
+    for k, v := range o.Base.HttpHeader {
+        req.Header.Set(k, v)
+    }
 
 	resp, err = o.job.g.s.Client.Do(req)
 	if err != nil {

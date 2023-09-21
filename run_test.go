@@ -2,17 +2,17 @@ package main
 
 import (
 	"asynctask/scheduler"
-	"log"
-    "crypto/rand"
-	"net/http"
-	"net/url"
-    "net"
-	"os"
-	"strconv"
-	"time"
-    "testing"
+	"crypto/rand"
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"testing"
+	"time"
 )
 
 var ts_actions = []int{
@@ -36,13 +36,13 @@ var runnum int
 var rund chan int
 
 func TestRun(t *testing.T) {
-    go initTestServer()
-    go initHub()
+	go initTestServer()
+	go initHub()
 
-    time.Sleep(time.Millisecond*100)
+	time.Sleep(time.Millisecond * 100)
 
-    to := "http://" + my.l.Addr().String()
-    log.Println("listen", to)
+	to := "http://" + my.l.Addr().String()
+	log.Println("listen", to)
 
 	ts_rand = make(chan int, 10)
 	rund = make(chan int, 10)
@@ -62,56 +62,56 @@ func TestRun(t *testing.T) {
 		p.Add("code", "200")
 		p.Add("sleep", strconv.Itoa(sl))
 
-		l := to + "?" + p.Encode()
+		l := to + "/?" + p.Encode()
 
-        var task scheduler.Task
-        task.Name = ac
-        task.Http = &scheduler.TaskHttp{
-            Url : l,
-        }
+		var task scheduler.Task
+		task.Name = ac
+		task.Http = &scheduler.TaskHttp{
+			Url: l,
+		}
 
-        err := hub.AddTask(&task)
-        if err != nil {
-            panic(err)
-        }
+		err := hub.AddTask(&task)
+		if err != nil {
+			panic(err)
+		}
 	}
 
-    log.Println("wait run")
+	log.Println("wait run")
 
-    for {
-        <-rund
+	for {
+		<-rund
 
-        runnum++
+		runnum++
 
-        if runnum == num {
-            break
-        }
-    }
+		if runnum == num {
+			break
+		}
+	}
 
-    my.Close()
+	my.Close()
 
-    hub.Close()
+	hub.Close()
 }
 
 func ts_getRand() int {
 	b := make([]byte, 4)
-    rand.Read(b)
+	rand.Read(b)
 	num := int(b[0]) | int(b[1])<<8 | int(b[2])<<16 | int(b[3])<<24
 	return num
 }
 
 type myServer struct {
-    http.Server
-    l net.Listener
+	http.Server
+	l net.Listener
 }
 
 func initTestServer() {
-    l, err := net.ListenTCP("tcp", nil)
-    if err != nil {
-        panic(err)
-    }
+	l, err := net.ListenTCP("tcp", nil)
+	if err != nil {
+		panic(err)
+	}
 
-    my.l = l
+	my.l = l
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s_code := r.FormValue("code")
@@ -127,40 +127,40 @@ func initTestServer() {
 		w.WriteHeader(code)
 		w.Write([]byte(http.StatusText(code)))
 
-        rund <- 1
+		rund <- 1
 	})
 
-    my.Serve(my.l)
+	my.Serve(my.l)
 }
 
 func initHub() {
 
-    logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.DebugLevel)
 	cfg.Log = logrus.StandardLogger()
 
-    cfg.WorkerNum = 10
-    cfg.Parallel = 1
+	cfg.WorkerNum = 10
+	cfg.Parallel = 1
 
-    f, err := os.CreateTemp("", "asynctask_*.bolt")
-    if err != nil {
-        panic(err)
-    }
+	f, err := os.CreateTemp("", "asynctask_*.bolt")
+	if err != nil {
+		panic(err)
+	}
 
-    log.Println("tmpfile", f.Name())
+	log.Println("tmpfile", f.Name())
 
-    defer os.Remove(f.Name())
-    f.Close()
+	defer os.Remove(f.Name())
+	f.Close()
 
 	db, err := bolt.Open(f.Name(), 0644, nil)
 	if err != nil {
-        panic(err)
+		panic(err)
 	}
 
 	cfg.Db = db
 
 	hub, err = scheduler.New(cfg)
 	if err != nil {
-        panic(err)
+		panic(err)
 	}
 
 	hub.Run()

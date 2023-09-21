@@ -81,24 +81,4 @@ func atoiId(key []byte) ID {
 	return ID(id)
 }
 
-func copyBase(src, dst *TaskBase) {
-	if src.Timeout > 0 {
-		dst.Timeout = src.Timeout
-	}
 
-	if src.CmdBase != "" {
-		dst.CmdBase = src.CmdBase
-	}
-
-	if src.HttpBase != "" {
-		dst.HttpBase = src.HttpBase
-	}
-
-	for k, v := range src.CmdEnv {
-		dst.CmdEnv[k] = v
-	}
-
-	for k, v := range src.HttpHeader {
-		dst.HttpHeader[k] = v
-	}
-}

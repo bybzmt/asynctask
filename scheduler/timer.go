@@ -69,6 +69,10 @@ func (s *Scheduler) timerChecker(now time.Time) {
 
 func (s *Scheduler) timerAddTask(t *Task) error {
 
+    if _, err := s.getJobTask(t.Name); err != nil {
+        return err
+    }
+
 	// path: /timer/:unix-:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
 		bucket, err := getBucketMust(tx, "timer")

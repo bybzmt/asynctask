@@ -403,6 +403,7 @@ func (s *Scheduler) addRoute() (*router, error) {
 	r := new(router)
 	var cfg RouteConfig
 	cfg.Parallel = s.Parallel
+	cfg.Mode = MODE_HTTP
 
 	//key: config/router/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -561,20 +562,31 @@ func (s *Scheduler) routersSort() {
 }
 
 func (s *Scheduler) addTask(t *Task) error {
-	jt, ok := s.jobTask[t.Name]
+
+    jt, err := s.getJobTask(t.Name)
+    if err != nil {
+        return err
+    }
+
+	return jt.addTask(t)
+}
+
+
+func (s *Scheduler) getJobTask(name string) (*jobTask, error) {
+	jt, ok := s.jobTask[name]
 
 	if !ok {
 		var err error
 
-		jt, err = s.addJobTask(t.Name)
+		jt, err = s.addJobTask(name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		s.jobTask[t.Name] = jt
+		s.jobTask[name] = jt
 	}
 
-	return jt.addTask(t)
+    return jt, nil
 }
 
 func (s *Scheduler) addJobTask(name string) (*jobTask, error) {

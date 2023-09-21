@@ -76,24 +76,25 @@ type order struct {
 }
 
 func (o *order) taskTxt() string {
-    if o.Base.Mode & MODE_HTTP == MODE_HTTP {
-        if o.Task.Http != nil {
-            return o.Task.Http.Url
-        }
-    } else if o.Base.Mode & MODE_CMD == MODE_CMD {
-        if o.Task.Cli != nil {
-            return o.Task.Cli.Cmd
-        }
-    }
+	if o.Base.Mode&MODE_HTTP == MODE_HTTP {
+		if o.Task.Http != nil {
+			return o.Task.Http.Url
+		}
+	} else if o.Base.Mode&MODE_CMD == MODE_CMD {
+		if o.Task.Cli != nil {
+			return o.Task.Cli.Cmd
+		}
+	}
 
-    return "Error Task"
+	return "Error Task"
 }
 
 type TaskBase struct {
 	Mode       Mode
-	Timeout    uint //默认超时时间
+	Timeout    uint //最大超时时间
 	CmdBase    string
 	CmdEnv     map[string]string
+	CmdDir     string //工作目录
 	HttpBase   string
 	HttpHeader map[string]string
 }
@@ -106,7 +107,7 @@ func (b *TaskBase) init() {
 type RouteConfig struct {
 	JobConfig
 	TaskBase
-    Id ID
+	Id     ID
 	Match  string
 	Note   string
 	Groups []ID
@@ -115,7 +116,7 @@ type RouteConfig struct {
 }
 
 type GroupConfig struct {
-    Id ID
+	Id        ID
 	WorkerNum uint32
 	Note      string
 }
@@ -127,5 +128,5 @@ type JobConfig struct {
 
 type schedulerConfig struct {
 	TaskNextId ID
-	WorkerId ID
+	WorkerId   ID
 }

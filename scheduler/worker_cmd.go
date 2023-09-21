@@ -1,19 +1,20 @@
 package scheduler
 
 import (
+	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
-	"context"
 )
 
 var ErrCmdStatus = errors.New("Code != 200")
 
 type workerCli struct {
-	Id  int
-	l   sync.Mutex
+	Id   int
+	l    sync.Mutex
 	resp context.CancelFunc
 }
 
@@ -22,7 +23,7 @@ func (w *workerCli) Cancel() {
 	defer w.l.Unlock()
 
 	if w.resp != nil {
-        w.resp()
+		w.resp()
 		w.resp = nil
 	}
 }
@@ -56,6 +57,17 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 
 	c := exec.CommandContext(ctx, task, params...)
+	c.Env = make([]string, 0, len(o.Base.CmdEnv))
+
+	for k, v := range o.Base.CmdEnv {
+		c.Env = append(c.Env, k+"="+v)
+	}
+
+	if o.Base.CmdDir != "" {
+		c.Dir = o.Base.CmdDir
+	} else {
+		c.Dir = os.TempDir()
+	}
 
 	w.l.Lock()
 	w.resp = cancel
@@ -63,7 +75,7 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 
 	defer func() {
 		w.l.Lock()
-        w.resp = nil
+		w.resp = nil
 		w.l.Unlock()
 	}()
 
