@@ -251,15 +251,58 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 	return jt.delTask(tid)
 }
 
-func (s *Scheduler) GetStatData() (out []*Statistics) {
+func (s *Scheduler) GetStatData() Statistics {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	for _, s := range s.groups {
-		out = append(out, s.getStatData())
+	var out Statistics
+	out.schedulerConfig = s.schedulerConfig
+	out.Timed = s.timerTaskNum()
+
+	tasks := make(map[string]TaskStat, len(s.jobTask))
+
+	for name, j := range s.jobTask {
+		tmp := TaskStat{
+			JobConfig: j.JobConfig,
+			Name:      j.name,
+			RunNum:    int(j.runNum.Load()),
+			OldNum:    int(j.oldNum.Load()),
+			ErrNum:    int(j.errNum.Load()),
+			WaitNum:   int(j.waitNum.Load()),
+		}
+
+		out.RunNum += tmp.RunNum
+		out.ErrNum += tmp.ErrNum
+		out.WaitNum += tmp.WaitNum
+		out.OldNum += tmp.OldNum
+
+		tasks[name] = tmp
 	}
 
-	return
+	for _, s := range s.groups {
+		group, runs, job := s.getStatData()
+
+		for name, j := range job {
+			if t, ok := tasks[name]; ok {
+				t.Jobs = append(t.Jobs, j)
+				tasks[name] = t
+			}
+		}
+
+		out.Capacity += group.Capacity
+		out.Load += group.Load
+		out.NowNum += group.NowNum
+		out.Groups = append(out.Groups, group)
+		out.Runs = append(out.Runs, runs...)
+	}
+
+	out.Tasks = make([]TaskStat, 0, len(tasks))
+
+	for _, t := range tasks {
+		out.Tasks = append(out.Tasks, t)
+	}
+
+	return out
 }
 
 func (s *Scheduler) AddTask(t *Task) error {

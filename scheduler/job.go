@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"sync/atomic"
 	"time"
 )
 
@@ -57,8 +56,9 @@ func (j *job) countScore() {
 		y = float64(j.loadStat.getAll()) / float64(j.g.loadStat.getAll()) * area
 	}
 
-	if j.g.waitNum > 0 {
-		z = area - float64(j.waitNum())/float64(j.g.waitNum)*area
+    xx := j.g.s.waitNum.Load()
+	if xx > 0 {
+		z = area - float64(j.waitNum())/float64(xx)*area
 	}
 
 	j.score = int(x + y + z + float64(j.Priority))
@@ -85,39 +85,15 @@ func (j *job) hasTask() bool {
 }
 
 func (j *job) errAdd() {
-    atomic.AddInt32(&j.task.errNum, 1)
+    j.task.errNum.Add(1)
 }
 
 func (j *job) runAdd() {
-    atomic.AddInt32(&j.task.runNum, 1)
-}
-
-func (j *job) runNum() int {
-    v := atomic.LoadInt32(&j.task.runNum)
-    return int(v)
-}
-
-func (j *job) errNum() int {
-    v := atomic.LoadInt32(&j.task.errNum)
-    return int(v)
+    j.task.runNum.Add(1)
 }
 
 func (j *job) waitNum() int {
-    v := atomic.LoadInt32(&j.task.waitNum)
+    v := j.task.waitNum.Load()
     return int(v)
 }
 
-func (j *job) oldNum() int {
-    v := atomic.LoadInt32(&j.task.oldNum)
-    return int(v)
-}
-
-func (j *job) dayChange() {
-    n1 := atomic.LoadInt32(&j.task.runNum)
-    atomic.AddInt32(&j.task.runNum, -n1)
-
-    n2 := atomic.LoadInt32(&j.task.errNum)
-    atomic.AddInt32(&j.task.errNum, -n2)
-
-    atomic.StoreInt32(&j.task.oldNum, n1)
-}

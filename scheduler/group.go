@@ -29,7 +29,6 @@ type group struct {
 	tick     chan time.Time
 	cmd      chan int
 
-	today int
 	now   time.Time
 
 	//己执行任务计数
@@ -38,8 +37,6 @@ type group struct {
 	oldNum int
 	//执行中的任务
 	nowNum int
-	//总队列长度
-	waitNum int
 
 	//负载数据
 	loadTime time.Duration
@@ -127,7 +124,6 @@ func (g *group) dispatch() {
 
 	//总状态
 	g.nowNum++
-	g.waitNum--
 
 	//分配任务
 	t.worker = w
@@ -169,7 +165,6 @@ func (g *group) Run() {
 
 	g.s.Log.Debugln("scheduler group", g.Id, "run")
 
-	g.today = time.Now().Day()
 	g.running = true
 
 	for {
@@ -233,22 +228,8 @@ func (g *group) statTick(now time.Time) {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
-
-	g.dayCheck()
 }
 
-func (g *group) dayCheck() {
-	if g.today != g.now.Day() {
-		g.oldNum = g.runNum
-		g.runNum = 0
-
-		for _, j := range g.jobs.all {
-			j.dayChange()
-		}
-
-		g.today = g.now.Day()
-	}
-}
 
 func (g *group) logTask(t *order) {
 
@@ -292,4 +273,12 @@ func (g *group) notifyJob(jtask *jobTask) {
 	j := g.jobs.addJob(jtask)
 
 	g.jobs.modeCheck(j)
+}
+
+func (g *group) dayChange() {
+	g.l.Lock()
+	defer g.l.Unlock()
+
+	g.oldNum = g.runNum
+    g.runNum = 0
 }

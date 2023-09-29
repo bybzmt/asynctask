@@ -26,26 +26,22 @@ var ts_actions = []int{
 	6000,
 }
 
-var ts_rand chan int
-
-var num = 1000
-var sleep = 10
-var my myServer
-var hub *scheduler.Scheduler
-var runnum int
-var rund chan int
-
 func TestRun(t *testing.T) {
-	go initTestServer()
-	go initHub()
+	var hub *scheduler.Scheduler
+	var rund chan int
+	var num = 1000
+	var my myServer
+	sleep := 0
+
+	rund = make(chan int)
+
+	go initTestServer(&my, rund)
+	go initHub(&hub)
 
 	time.Sleep(time.Millisecond * 100)
 
 	to := "http://" + my.l.Addr().String()
 	log.Println("listen", to)
-
-	ts_rand = make(chan int, 10)
-	rund = make(chan int, 10)
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
@@ -70,13 +66,20 @@ func TestRun(t *testing.T) {
 			Url: l,
 		}
 
+		if sl > 1000 {
+			task.Trigger = uint(time.Now().Unix()) + 2
+			sleep++
+		}
+
 		err := hub.AddTask(&task)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	log.Println("wait run")
+	log.Println("wait run", sleep)
+
+	runnum := 0
 
 	for {
 		<-rund
@@ -88,9 +91,18 @@ func TestRun(t *testing.T) {
 		}
 	}
 
-	my.Close()
+	stat := hub.GetStatData()
+
+	if stat.Timed != 0 {
+        t.Error("timer task not empty num:", stat.Timed)
+	}
+
+	for stat.WaitNum != 0 {
+        t.Error("task not empty num:", stat.WaitNum)
+	}
 
 	hub.Close()
+	my.Close()
 }
 
 func ts_getRand() int {
@@ -105,7 +117,7 @@ type myServer struct {
 	l net.Listener
 }
 
-func initTestServer() {
+func initTestServer(my *myServer, rund chan int) {
 	l, err := net.ListenTCP("tcp", nil)
 	if err != nil {
 		panic(err)
@@ -133,7 +145,7 @@ func initTestServer() {
 	my.Serve(my.l)
 }
 
-func initHub() {
+func initHub(hub **scheduler.Scheduler) {
 
 	logrus.SetLevel(logrus.DebugLevel)
 	cfg.Log = logrus.StandardLogger()
@@ -158,10 +170,10 @@ func initHub() {
 
 	cfg.Db = db
 
-	hub, err = scheduler.New(cfg)
+	*hub, err = scheduler.New(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	hub.Run()
+	(*hub).Run()
 }

@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"encoding/json"
-	bolt "go.etcd.io/bbolt"
 	"sync/atomic"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 type jobTask struct {
@@ -15,10 +16,10 @@ type jobTask struct {
 	s      *Scheduler
 	groups []*group
 
-	waitNum int32
-	errNum  int32
-	runNum  int32
-	oldNum  int32
+	waitNum atomic.Int32
+	errNum  atomic.Int32
+	runNum  atomic.Int32
+	oldNum  atomic.Int32
 
 	initd bool
 }
@@ -27,6 +28,7 @@ func (j *jobTask) init() error {
 	if j.initd {
 		return nil
 	}
+	j.initd = true
 
 	return j.loadWaitNum()
 }
@@ -61,7 +63,8 @@ func (j *jobTask) addTask(t *Task) error {
 		return err
 	}
 
-	atomic.AddInt32(&j.waitNum, 1)
+    j.waitNum.Add(1)
+    j.s.waitNum.Add(1)
 
 	for _, g := range j.groups {
 		g.notifyJob(j)
@@ -99,7 +102,7 @@ func (j *jobTask) delTask(tid ID) error {
 	}
 
 	if has {
-		atomic.AddInt32(&j.waitNum, -1)
+        j.waitNum.Add(-1)
 	}
 
 	for _, g := range j.groups {
@@ -138,12 +141,13 @@ func (j *jobTask) popTask() (*Task, error) {
 			}
 
 			err = json.Unmarshal(val, &t)
-			if err == nil {
-				return nil
+			if err != nil {
+				j.s.Log.Debugln("task", j.name, string(key), "Unmarshal error")
+
+				continue
 			}
 
-			//log
-			j.s.Log.Debugln("task/"+j.name, string(key), "Unmarshal error")
+			return nil
 		}
 	})
 
@@ -151,7 +155,8 @@ func (j *jobTask) popTask() (*Task, error) {
 		return nil, err
 	}
 
-	atomic.AddInt32(&j.waitNum, -1)
+    j.waitNum.Add(-1)
+    j.s.waitNum.Add(-1)
 
 	return &t, nil
 }
@@ -201,7 +206,7 @@ func (j *jobTask) delAllTask() error {
 		return err
 	}
 
-	atomic.StoreInt32(&j.waitNum, 0)
+    j.waitNum.Store(0)
 
 	for _, g := range j.groups {
 		g.notifyJob(j)
@@ -215,15 +220,27 @@ func (j *jobTask) loadWaitNum() error {
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "task", j.name)
 		if bucket == nil {
-			j.waitNum = 0
+            j.waitNum.Store(0)
 			return nil
 		}
 
 		s := bucket.Stats()
-		j.waitNum = int32(s.BucketN)
+
+        j.waitNum.Store(int32(s.KeyN))
+        j.s.waitNum.Add(int32(s.KeyN))
 
 		return nil
 	})
 
 	return err
+}
+
+func (j *jobTask) dayChange() {
+    n1 := j.runNum.Load()
+    j.runNum.Add(-n1)
+
+    n2 := j.errNum.Load()
+    j.errNum.Add(-n2)
+
+    j.oldNum.Store(n1)
 }

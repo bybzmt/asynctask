@@ -30,31 +30,48 @@ func (s *statRow) getAll() int64 {
 	return s.all
 }
 
-type StatTask struct {
+type RunTaskStat struct {
 	Id      ID
+	Group   ID
 	Name    string
 	Task    string
 	UseTime int
 }
 
+type TaskStat struct {
+	JobConfig
+	Name    string
+	RunNum  int
+	ErrNum  int
+	OldNum  int
+	WaitNum int
+	Jobs    []JobStat
+}
+
 type JobStat struct {
 	JobConfig
-	Name     string
+	Group    ID
 	Load     int64
 	NowNum   int
-	RunNum   int
-	ErrNum   int
-	OldNum   int
-	WaitNum  int
 	UseTime  int
 	LastTime int
 	Score    int
 }
 
+type GroupStat struct {
+	GroupConfig
+	Capacity int64
+	Load     int64
+	NowNum   int
+	RunNum   int
+	OldNum   int
+}
+
 type Statistics struct {
-    GroupConfig
-	Tasks    []StatTask
-	Jobs     []JobStat
+	schedulerConfig
+	Groups   []GroupStat
+	Tasks    []TaskStat
+	Runs     []RunTaskStat
 	Capacity int64
 	Load     int64
 	NowNum   int
@@ -62,34 +79,37 @@ type Statistics struct {
 	ErrNum   int
 	OldNum   int
 	WaitNum  int
+	Timed    int
 }
 
-func (s *group) getStatData() *Statistics {
+func (s *group) getStatData() (GroupStat, []RunTaskStat, map[string]JobStat) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	t := &Statistics{}
-    t.GroupConfig = s.GroupConfig
-    t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
-	t.Jobs = make([]JobStat, 0, s.jobs.len())
-	t.Tasks = make([]StatTask, 0, len(s.orders))
+	t := GroupStat{}
+	t.GroupConfig = s.GroupConfig
+	t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
 	t.Load = s.loadStat.getAll()
 	t.RunNum = s.runNum
 	t.OldNum = s.oldNum
 	t.NowNum = s.nowNum
-	t.WaitNum = s.waitNum
 
 	now := time.Now()
 
+	runs := make([]RunTaskStat, 0, s.WorkerNum)
+
 	for t2 := range s.orders {
-		st := StatTask{
+		st := RunTaskStat{
 			Id:      t2.Id,
+			Group:   s.Id,
 			Name:    t2.Task.Name,
-            Task:    t2.taskTxt(),
+			Task:    t2.taskTxt(),
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
-		t.Tasks = append(t.Tasks, st)
+		runs = append(runs, st)
 	}
+
+	jobs := make(map[string]JobStat, len(s.jobs.all))
 
 	for _, j := range s.jobs.all {
 
@@ -105,20 +125,18 @@ func (s *group) getStatData() *Statistics {
 			sec = int(now.Sub(j.lastTime) / time.Second)
 		}
 
-		t.Jobs = append(t.Jobs, JobStat{
-			JobConfig: j.JobConfig,
-			Name:      j.task.name,
-			Load:      j.loadStat.getAll(),
-			RunNum:    j.runNum(),
-			OldNum:    j.oldNum(),
-			NowNum:    j.nowNum,
-			ErrNum:    j.errNum(),
-			WaitNum:   j.waitNum(),
-			UseTime:   useTime,
-			LastTime:  sec,
-			Score:     j.score,
-		})
+		tmp := JobStat{
+			Load:     j.loadStat.getAll(),
+			NowNum:   j.nowNum,
+			UseTime:  useTime,
+			LastTime: sec,
+			Score:    j.score,
+		}
+
+		name := j.task.name
+
+		jobs[name] = tmp
 	}
 
-	return t
+	return t, runs, jobs
 }

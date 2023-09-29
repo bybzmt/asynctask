@@ -15,53 +15,47 @@ func (s *Scheduler) timerChecker(now time.Time) {
 		nt := make([]Task, 20)
 
 		// path: /timer/:unix-:id
-		err := s.Db.Update(func(tx *bolt.Tx) error {
+		s.Db.Update(func(tx *bolt.Tx) error {
 			bucket, err := getBucketMust(tx, "timer")
 			if err != nil {
-				return err
+				s.Log.Error("[timed] getBucketMust err:", err)
+				return nil
 			}
 
-			for c := bucket.Cursor(); i < 20; {
-				k, v := c.Next()
+			c := bucket.Cursor()
+
+			for i < 20 {
+				k, v := c.First()
 				if k == nil {
-					return Empty
+					return nil
 				}
 
 				if err = json.Unmarshal(v, &nt[i]); err != nil {
-					s.Log.Warnln("[timed] Unmarshal err:", err, "form:", string(v))
-
-					if err := bucket.Delete(k); err != nil {
-						return err
+					s.Log.Error("[timed] Unmarshal err:", err, "json:", string(v))
+				} else {
+					if int64(nt[i].Trigger) > trigger {
+						return nil
+					} else {
+						i++
 					}
-
-					continue
-				}
-
-				if int64(nt[i].Trigger) > trigger {
-					return Empty
 				}
 
 				if err := bucket.Delete(k); err != nil {
-					return err
+					s.Log.Error("[timed] Delete err:", err, "key:", string(k))
+					return nil
 				}
-
-				i++
 			}
 
 			return nil
 		})
 
-		for x := 0; x < i; {
-			if err = s.addTask(&nt[x]); err != nil {
+		for x := 0; x < i; x++ {
+			if err := s.addTask(&nt[x]); err != nil {
 				s.Log.Warnln("[timed] AddOrder err:", err)
 			}
 		}
 
-		if err != nil {
-			if err != Empty {
-				s.Log.Warnln("[timed] checkTimer err:", err)
-			}
-
+		if i == 0 {
 			return
 		}
 	}
@@ -69,9 +63,9 @@ func (s *Scheduler) timerChecker(now time.Time) {
 
 func (s *Scheduler) timerAddTask(t *Task) error {
 
-    if _, err := s.getJobTask(t.Name); err != nil {
-        return err
-    }
+	if _, err := s.getJobTask(t.Name); err != nil {
+		return err
+	}
 
 	// path: /timer/:unix-:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -80,7 +74,7 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 			return err
 		}
 
-		k, err := json.Marshal(&t)
+		val, err := json.Marshal(&t)
 		if err != nil {
 			return err
 		}
@@ -92,8 +86,28 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 
 		key := fmtId(t.Trigger) + "-" + fmtId(id)
 
-		return bucket.Put([]byte(key), k)
+		return bucket.Put([]byte(key), val)
 	})
 
 	return err
+}
+
+func (s *Scheduler) timerTaskNum() int {
+    num := 0
+
+	// path: /timer
+	s.Db.View(func(tx *bolt.Tx) error {
+		bucket := getBucket(tx, "timer")
+		if bucket == nil {
+			return nil
+		}
+
+		stat := bucket.Stats()
+
+        num = stat.KeyN
+
+		return nil
+	})
+
+    return num
 }

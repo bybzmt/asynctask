@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,9 @@ type Scheduler struct {
 	//统计周期
 	statTick time.Duration
 	statSize int
+
+	waitNum atomic.Int32
+	today   int
 
 	running bool
 }
@@ -117,6 +121,8 @@ func (s *Scheduler) Run() {
 		go g.Run()
 	}
 
+	s.today = time.Now().Day()
+
 	s.running = true
 
 	s.l.Unlock()
@@ -137,6 +143,8 @@ func (s *Scheduler) Run() {
 			}
 
 			l := len(s.groups)
+
+			s.dayCheck()
 
 			s.l.Unlock()
 
@@ -200,7 +208,7 @@ func (s *Scheduler) Close() error {
 
 		case <-s.closed:
 			s.Log.Debugln("Scheduler closd")
-            return s.saveScheduler()
+			return s.saveScheduler()
 		}
 	}
 }
@@ -245,6 +253,20 @@ func (s *Scheduler) onNotifyRemove(name string) {
 	}
 }
 
+func (s *Scheduler) dayCheck() {
+	if s.today != s.now.Day() {
+		for _, j := range s.jobTask {
+			j.dayChange()
+		}
+
+		for _, s := range s.groups {
+			s.dayChange()
+		}
+
+		s.today = s.now.Day()
+	}
+}
+
 func (s *Scheduler) saveScheduler() error {
 
 	//key: config/scheduler.cfg
@@ -262,7 +284,7 @@ func (s *Scheduler) saveScheduler() error {
 		return bucket.Put([]byte("scheduler.cfg"), val)
 	})
 
-    return err
+	return err
 }
 
 func (s *Scheduler) loadScheduler() {
@@ -563,14 +585,13 @@ func (s *Scheduler) routersSort() {
 
 func (s *Scheduler) addTask(t *Task) error {
 
-    jt, err := s.getJobTask(t.Name)
-    if err != nil {
-        return err
-    }
+	jt, err := s.getJobTask(t.Name)
+	if err != nil {
+		return err
+	}
 
 	return jt.addTask(t)
 }
-
 
 func (s *Scheduler) getJobTask(name string) (*jobTask, error) {
 	jt, ok := s.jobTask[name]
@@ -586,7 +607,7 @@ func (s *Scheduler) getJobTask(name string) (*jobTask, error) {
 		s.jobTask[name] = jt
 	}
 
-    return jt, nil
+	return jt, nil
 }
 
 func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
