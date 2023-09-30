@@ -39,23 +39,22 @@ type RunTaskStat struct {
 }
 
 type TaskStat struct {
-	JobConfig
-	Name    string
-	RunNum  int
-	ErrNum  int
-	OldNum  int
-	WaitNum int
-	Jobs    []JobStat
+	Name     string
+	RunNum   int
+	ErrNum   int
+	OldNum   int
+	WaitNum  int
+	UseTime  int
+	LastTime int
+	Jobs     []JobStat
 }
 
 type JobStat struct {
 	JobConfig
-	Group    ID
-	Load     int64
-	NowNum   int
-	UseTime  int
-	LastTime int
-	Score    int
+	Group  ID
+	Load   int64
+	NowNum int
+	Score  int
 }
 
 type GroupStat struct {
@@ -69,17 +68,18 @@ type GroupStat struct {
 
 type Statistics struct {
 	schedulerConfig
-	Groups   []GroupStat
-	Tasks    []TaskStat
-	Runs     []RunTaskStat
-	Capacity int64
-	Load     int64
-	NowNum   int
-	RunNum   int
-	ErrNum   int
-	OldNum   int
-	WaitNum  int
-	Timed    int
+	Groups    []GroupStat
+	Tasks     []TaskStat
+	Runs      []RunTaskStat
+	Capacity  int64
+	Load      int64
+	NowNum    int
+	RunNum    int
+	ErrNum    int
+	OldNum    int
+	WaitNum   int
+	WorkerNum uint32
+	Timed     int
 }
 
 func (s *group) getStatData() (GroupStat, []RunTaskStat, map[string]JobStat) {
@@ -112,25 +112,12 @@ func (s *group) getStatData() (GroupStat, []RunTaskStat, map[string]JobStat) {
 	jobs := make(map[string]JobStat, len(s.jobs.all))
 
 	for _, j := range s.jobs.all {
-
-		useTime := 0
-		if len(j.useTimeStat.data) > 0 {
-			useTime = int(j.useTimeStat.getAll() / int64(len(j.useTimeStat.data)) / int64(time.Millisecond))
-		}
-
-		sec := 0
-
-		sec2 := j.lastTime.Unix()
-		if sec2 > 0 {
-			sec = int(now.Sub(j.lastTime) / time.Second)
-		}
-
 		tmp := JobStat{
-			Load:     j.loadStat.getAll(),
-			NowNum:   j.nowNum,
-			UseTime:  useTime,
-			LastTime: sec,
-			Score:    j.score,
+			JobConfig: j.JobConfig,
+			Group:     s.Id,
+			Load:      j.loadStat.getAll(),
+			NowNum:    j.nowNum,
+			Score:     j.score,
 		}
 
 		name := j.task.name

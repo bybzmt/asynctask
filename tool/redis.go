@@ -9,7 +9,7 @@ import (
 	"github.com/go-redis/redis"
 )
 
-func RedisRun(addr, pwd, db, key string) {
+func RedisRun(hub *scheduler.Scheduler, addr, pwd, db, key string) {
 	hub.Log.Println("[Info] redis init")
 	defer hub.Log.Println("[Info] redis close")
 

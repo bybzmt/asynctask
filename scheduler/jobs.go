@@ -107,7 +107,8 @@ func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
 	j.nowNum--
 	j.runAdd()
 	j.loadTime += loadTime
-	j.useTimeStat.push(int64(useTime))
+
+    j.task.end(js.g.now, useTime)
 
 	js.modeCheck(j)
 }

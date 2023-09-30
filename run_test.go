@@ -2,6 +2,7 @@ package main
 
 import (
 	"asynctask/scheduler"
+	"asynctask/tool"
 	"crypto/rand"
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
@@ -29,7 +30,7 @@ var ts_actions = []int{
 func TestRun(t *testing.T) {
 	var hub *scheduler.Scheduler
 	var rund chan int
-	var num = 1000
+	var num = 5000
 	var my myServer
 	sleep := 0
 
@@ -39,6 +40,8 @@ func TestRun(t *testing.T) {
 	go initHub(&hub)
 
 	time.Sleep(time.Millisecond * 100)
+
+    go tool.HttpRun(hub, ":8080")
 
 	to := "http://" + my.l.Addr().String()
 	log.Println("listen", to)
@@ -78,6 +81,7 @@ func TestRun(t *testing.T) {
 	}
 
 	log.Println("wait run", sleep)
+
 
 	runnum := 0
 

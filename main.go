@@ -43,12 +43,12 @@ func flagCheck() {
 	if WorkerNum < 1 {
 		cfg.Log.Fatalln("parameter num must > 0")
 	}
-    cfg.WorkerNum = uint32(WorkerNum)
+	cfg.WorkerNum = uint32(WorkerNum)
 
 	if Parallel < 1 {
 		cfg.Log.Fatalln("parameter parallel must >= 1")
 	}
-    cfg.Parallel = uint32(Parallel)
+	cfg.Parallel = uint32(Parallel)
 
 	if dbFile == "" {
 		dbFile = "./asynctask.bolt"
@@ -59,8 +59,7 @@ func flagCheck() {
 func main() {
 	flag.Parse()
 
-
-    logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.DebugLevel)
 	cfg.Log = logrus.StandardLogger()
 
 	flagCheck()
@@ -77,22 +76,20 @@ func main() {
 		cfg.Log.Fatalln(err)
 	}
 
-	tool.InitHub(hub)
-
 	go func() {
 		time.Sleep(time.Millisecond * 10)
 
 		if *addr != "" {
-			go tool.HttpRun(*addr)
+			go tool.HttpRun(hub, *addr)
 		}
 
 		if redisHost != "" {
-			go tool.RedisRun(redisHost, redisPwd, redisDb, redisKey)
+			go tool.RedisRun(hub, redisHost, redisPwd, redisDb, redisKey)
 		}
 
 		waitSignal()
 
-        hub.Close()
+		hub.Close()
 	}()
 
 	hub.Run()

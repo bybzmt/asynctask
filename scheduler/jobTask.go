@@ -3,6 +3,8 @@ package scheduler
 import (
 	"encoding/json"
 	"sync/atomic"
+	"sync"
+    "time"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -10,6 +12,8 @@ import (
 type jobTask struct {
 	JobConfig
 	TaskBase
+
+    l sync.Mutex
 
 	name string
 
@@ -22,6 +26,10 @@ type jobTask struct {
 	oldNum  atomic.Int32
 
 	initd bool
+
+	useTimeStat statRow
+
+	lastTime time.Time
 }
 
 func (j *jobTask) init() error {
@@ -29,6 +37,8 @@ func (j *jobTask) init() error {
 		return nil
 	}
 	j.initd = true
+
+    j.useTimeStat.init(10)
 
 	return j.loadWaitNum()
 }
@@ -159,6 +169,14 @@ func (j *jobTask) popTask() (*Task, error) {
     j.s.waitNum.Add(-1)
 
 	return &t, nil
+}
+
+func (j *jobTask) end(now time.Time, useTime time.Duration) {
+    j.l.Lock()
+    defer j.l.Unlock()
+
+    j.lastTime = now
+	j.useTimeStat.push(int64(useTime))
 }
 
 func (j *jobTask) hasTask() bool {

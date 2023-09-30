@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func (s *Scheduler) GetJobConfig(gid ID, jname string) (c JobConfig, err error) {
@@ -259,16 +260,32 @@ func (s *Scheduler) GetStatData() Statistics {
 	out.schedulerConfig = s.schedulerConfig
 	out.Timed = s.timerTaskNum()
 
+	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
+	out.Groups = make([]GroupStat, 0, len(s.groups))
+
 	tasks := make(map[string]TaskStat, len(s.jobTask))
 
 	for name, j := range s.jobTask {
+		useTime := 0
+		if len(j.useTimeStat.data) > 0 {
+			useTime = int(j.useTimeStat.getAll() / int64(len(j.useTimeStat.data)) / int64(time.Millisecond))
+		}
+
+		sec := 0
+
+		sec2 := j.lastTime.Unix()
+		if sec2 > 0 {
+			sec = int(s.now.Sub(j.lastTime) / time.Second)
+		}
+
 		tmp := TaskStat{
-			JobConfig: j.JobConfig,
-			Name:      j.name,
-			RunNum:    int(j.runNum.Load()),
-			OldNum:    int(j.oldNum.Load()),
-			ErrNum:    int(j.errNum.Load()),
-			WaitNum:   int(j.waitNum.Load()),
+			Name:     j.name,
+			RunNum:   int(j.runNum.Load()),
+			OldNum:   int(j.oldNum.Load()),
+			ErrNum:   int(j.errNum.Load()),
+			WaitNum:  int(j.waitNum.Load()),
+			UseTime:  useTime,
+			LastTime: sec,
 		}
 
 		out.RunNum += tmp.RunNum
@@ -292,6 +309,7 @@ func (s *Scheduler) GetStatData() Statistics {
 		out.Capacity += group.Capacity
 		out.Load += group.Load
 		out.NowNum += group.NowNum
+		out.WorkerNum += group.WorkerNum
 		out.Groups = append(out.Groups, group)
 		out.Runs = append(out.Runs, runs...)
 	}

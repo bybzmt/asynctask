@@ -28,9 +28,6 @@ type job struct {
 	lastTime time.Time
 	loadTime time.Duration
 	loadStat statRow
-
-	//任务执行所用时间
-	useTimeStat statRow
 }
 
 func newJob(js *jobs, jt *jobTask) *job {
@@ -40,7 +37,6 @@ func newJob(js *jobs, jt *jobTask) *job {
 
 	j.g = js.g
 	j.loadStat.init(j.g.s.statSize)
-	j.useTimeStat.init(10)
 
 	return j
 }

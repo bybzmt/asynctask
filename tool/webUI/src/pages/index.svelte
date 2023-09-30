@@ -25,16 +25,16 @@
         clearInterval(timer);
     });
 
-    let GroupId = 0;
-    let Groups = [];
     let AllData = {};
+    let Tasks = [];
+    let Groups = [];
+    let Runs = [];
 
-    let JobsData = [];
-    let TasksData = [];
     let sortby = 2;
     let tab = 2;
     let sortName = [
         { k: 1, n: "名称" },
+        { k: 9, n: "工作组" },
         { k: 2, n: "负载" },
         { k: 3, n: "执行中" },
         { k: 4, n: "己执行" },
@@ -44,6 +44,16 @@
         { k: 8, n: "优先级" },
     ];
 
+    function getCapacity(j) {
+        console.log(j, Groups);
+        for (let g of Groups) {
+            if (g.Id == j.Group) {
+                return g.Capacity;
+            }
+        }
+        return 0;
+    }
+
     function setTab(by) {
         tab = by;
     }
@@ -52,39 +62,44 @@
         sortby = sortby == by ? -by : by;
     }
 
-    function selectGroup(id) {
-        GroupId = id;
-    }
-
     async function showStatus() {
-        let res = await getStatus(GroupId)
+        let res = await getStatus();
 
-        AllData = res.all
+        console.log(res);
 
-        res.groups.sort(function (a, b) {
+        res.Groups.sort(function (a, b) {
             return a.Id < b.Id ? -1 : 1;
-        })
+        });
 
-        Groups = res.groups
+        for (let task of res.Tasks) {
+            task.NowNum = 0;
+            task.Load = 0;
+            task.Score = 0;
 
-        res.tasks.sort(function (a, b) {
-            return a.Id.localeCompare(b.Id);
-        })
-
-        TasksData = res.tasks
+            for (let job of task.Jobs) {
+                task.NowNum += job.NowNum;
+                task.Load += job.Load;
+                task.Score += job.Score;
+            }
+        }
 
         if (tab == 2 || tab == 3) {
-            res.jobs = res.jobs.filter(function (job) {
+            res.Tasks = res.Tasks.filter(function (task) {
+                let ok = () => task.NowNum > 0 || task.WaitNum > 0;
+
                 if (tab == 3) {
-                    return job.NowNum == 0 && job.WaitNum == 0;
+                    return !ok();
                 }
-                return job.NowNum > 0 || job.WaitNum > 0;
+                return ok;
             });
         }
 
-        res.jobs.sort(jobSort(sortby))
+        res.Tasks.sort(jobSort(sortby));
 
-        JobsData = res.jobs
+        Groups = res.Groups;
+        Tasks = res.Tasks;
+        Runs = res.Runs;
+        AllData = res;
     }
 
     function fmtPriority(val) {
@@ -95,6 +110,7 @@
         return val > 0 ? "(+" + val + ")" : "(" + val + ")";
     }
 </script>
+
 <Layout>
     <div id="tab">
         <a href="#/">Tasks</a>
@@ -112,32 +128,29 @@
                     <th class="run">己执行</th>
                     <th class="old">昨天</th>
                     <th class="wait">队列</th>
-                    <th />
                 </tr>
             </thead>
             <tbody>
-                <tr on:click={() => selectGroup(0)}>
+                <tr>
                     <td>总体</td>
-                    <td>{Math.round(AllData.Load / AllData.Capacity)}%</td>
+                    <td
+                        >{Math.round(
+                            (AllData.Load / AllData.Capacity) * 100
+                        )}%</td
+                    >
                     <td>{AllData.NowNum} / {AllData.WorkerNum}</td>
                     <td>{AllData.RunNum}</td>
                     <td>{AllData.OldNum}</td>
                     <td>{AllData.WaitNum}</td>
-                    <td
-                        >{#if GroupId == 0}√{/if}</td
-                    >
                 </tr>
                 {#each Groups as g}
-                    <tr on:click={() => selectGroup(g.Id)}>
+                    <tr>
                         <td>{g.Id} ({g.Note})</td>
-                        <td>{Math.round(g.Load / AllData.Capacity)}%</td>
+                        <td>{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td>{g.NowNum} / {g.WorkerNum}</td>
                         <td>{g.RunNum}</td>
                         <td>{g.OldNum}</td>
-                        <td>{g.WaitNum}</td>
-                        <td
-                            >{#if GroupId == g.Id}√{/if}</td
-                        >
+                        <td />
                     </tr>
                 {/each}
             </tbody>
@@ -171,7 +184,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {#each TasksData as task}
+                    {#each Runs as task}
                         <tr>
                             <td
                                 ><span on:dblclick={() => taskCancel(task)}
@@ -210,25 +223,51 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {#each JobsData as j}
-                        <tr>
-                            <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
-                            <td>{j.Load / 100}%</td>
-                            <td on:dblclick={() => jobParallel(j)}
-                                >{j.NowNum + "/" + j.Parallel}</td
-                            >
-                            <td>{j.RunNum}</td>
-                            <td>{j.OldNum}</td>
-                            <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
-                            <td>{j.UseTime / 1000}s</td>
-                            <td on:dblclick={() => jobPriority(j)}>
-                                {j.Score + fmtPriority(j.Priority)}
-                            </td>
-                            <td>{j.LastTime}s</td>
-                            <td>{j.ErrNum}</td>
-                        </tr>
+                    {#each Tasks as j}
+                        {#each j.Jobs as t, i}
+                            <tr>
+                                {#if i == 0}
+                                    <td
+                                        on:dblclick={() => jobDelIdle(j)}
+                                        rowspan={j.Jobs.length}>{j.Name}</td
+                                    >
+                                {/if}
+
+                                <td>{t.Group}</td>
+
+                                <td
+                                    >{Math.round(
+                                        (t.Load / getCapacity(t)) * 100
+                                    )}%</td
+                                >
+
+                                <td on:dblclick={() => jobParallel(t)}
+                                    >{t.NowNum + "/" + t.Parallel}</td
+                                >
+
+                                {#if i == 0}
+                                    <td rowspan={j.Jobs.length}>{j.RunNum}</td>
+                                    <td rowspan={j.Jobs.length}>{j.OldNum}</td>
+                                    <td
+                                        rowspan={j.Jobs.length}
+                                        on:dblclick={() => jobEmpty(j)}
+                                        >{j.WaitNum}</td
+                                    >
+                                    <td>{j.UseTime / 1000}s</td>
+                                {/if}
+
+                                <td on:dblclick={() => jobPriority(t)}>
+                                    {t.Score + fmtPriority(t.Priority)}
+                                </td>
+
+                                {#if i == 0}
+                                    <td>{j.LastTime}s</td>
+                                    <td rowspan={j.Jobs.length}>{j.ErrNum}</td>
+                                {/if}
+                            </tr>
+                        {/each}
                     {:else}
-                        <tr><td colspan="10" class="center">empty</td> </tr>
+                        <tr><td colspan="11" class="center">empty</td> </tr>
                     {/each}
                 </tbody>
             </table>
