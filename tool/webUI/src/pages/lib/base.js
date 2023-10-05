@@ -1,7 +1,7 @@
 
 
 export function jobSort(sortby) {
-    return function (a, b) {
+    return function(a, b) {
         var x = (function() {
             switch (Math.abs(sortby)) {
                 case 1:
@@ -42,7 +42,7 @@ export function jobSort(sortby) {
 }
 
 export function mkUrl(url, data) {
-    let u = new URL(url, location.href)
+    let u = new URL(API_BASE + url, location.href)
 
     for (let k in data) {
         u.searchParams.set(k, data[k])
@@ -70,19 +70,16 @@ export function sendPost(url, data) {
         });
 }
 
-export function sendJson(url, data) {
+export async function sendJson(url, data) {
     let he = new Headers();
     he.append("Content-Type", "application/json; charset=utf-8");
 
-    fetch(url, {
+    await fetch(url, {
         method: "POST",
         headers: he,
         body: JSON.stringify(data),
     })
-        .then((t) => t.json())
-        .then((json) => {
-            alert(JSON.stringify(json));
-        });
+        .then((t) => t.json());
 }
 
 export function taskCancel(task) {

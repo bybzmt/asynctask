@@ -60,11 +60,11 @@ func (s *Scheduler) GetGroupConfigs() (out []GroupConfig) {
 	return
 }
 
-func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
+func (s *Scheduler) SetGroupConfig(cfg GroupConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
+	g, ok := s.groups[cfg.Id]
 	if !ok {
 		return NotFound
 	}
@@ -72,7 +72,6 @@ func (s *Scheduler) SetGroupConfig(gid ID, cfg GroupConfig) error {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	cfg.Id = g.Id
 	g.GroupConfig = cfg
 
 	return s.saveGroup(g)
@@ -145,13 +144,12 @@ func (s *Scheduler) DelRoute(rid ID) error {
 	return nil
 }
 
-func (s *Scheduler) SetRouteConfig(rid ID, cfg RouteConfig) error {
+func (s *Scheduler) SetRouteConfig(cfg RouteConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	for _, r := range s.routes {
-		if r.Id == rid {
-			cfg.Id = r.Id
+		if r.Id == cfg.Id {
 			r.RouteConfig = cfg
 
 			if err := r.init(); err != nil {

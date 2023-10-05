@@ -11,7 +11,11 @@ let dir_src = path.resolve(__dirname, './src');
 export default defineConfig(({ command, mode }) => {
     console.log("command", command, "mode", mode)
 
-    let api_base = JSON.stringify("");
+    let api_base = JSON.stringify("/");
+
+    if (mode == "development") {
+        api_base = JSON.stringify("http://127.0.0.1:8080/");
+    }
 
     let postcss_config = {
         plugins: [

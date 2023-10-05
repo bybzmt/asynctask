@@ -120,16 +120,13 @@ func (s *HttpServer) page_group_del(r *http.Request) any {
 
 func (s *HttpServer) page_group_config(r *http.Request) any {
 
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
-    _cfg := r.FormValue("cfg")
-
 	var cfg scheduler.GroupConfig
 
-    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
-        return err
-    }
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	return s.Hub.SetGroupConfig(scheduler.ID(gid), cfg)
+	return s.Hub.SetGroupConfig(cfg)
 }
 
 func (s *HttpServer) page_routes(r *http.Request) any {
@@ -153,16 +150,13 @@ func (s *HttpServer) page_route_del(r *http.Request) any {
 
 func (s *HttpServer) page_route_config(r *http.Request) any {
 
-	rid, _ := strconv.Atoi(r.FormValue("rid"))
-    _cfg := r.FormValue("cfg")
-
 	var cfg scheduler.RouteConfig
 
-    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
-        return err
-    }
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	return s.Hub.SetRouteConfig(scheduler.ID(rid), cfg)
+	return s.Hub.SetRouteConfig(cfg)
 }
 
 func (s *HttpServer) page_task_cancel(r *http.Request) any {
