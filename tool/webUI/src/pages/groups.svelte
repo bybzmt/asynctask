@@ -44,11 +44,7 @@
     }
 
     async function save() {
-        await sendJson(mkUrl("api/group/setConfig"), {
-            Id: editGroup.Id,
-            Note: editGroup.Note,
-            WorkerNum: editGroup.workerNum,
-        });
+        await sendJson(mkUrl("api/group/setConfig"), editGroup);
 
         isShow = !isShow;
 
@@ -96,8 +92,8 @@
                     </tr>
                 {/each}
                 <tr>
-                    <td colspan="3" />
-                    <td on:click={() => groupAdd()}>添加</td>
+                    <td colspan="4" />
+                    <td><button on:click={() => groupAdd()}>添加</button></td>
                 </tr>
             </tbody>
         </table>
@@ -125,6 +121,7 @@
     table {
         margin: 1em;
         border-collapse: collapse;
+        border: 1px solid #777;
     }
     table td,
     table th {

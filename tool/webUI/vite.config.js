@@ -14,7 +14,6 @@ export default defineConfig(({ command, mode }) => {
     let api_base = JSON.stringify("/");
 
     if (mode == "development") {
-        api_base = JSON.stringify("http://127.0.0.1:8080/");
     }
 
     let postcss_config = {
@@ -66,6 +65,12 @@ export default defineConfig(({ command, mode }) => {
         server: {
             host: "0.0.0.0",
             port: 3000,
+            proxy: {
+                "/api/": "http://127.0.0.1:8080/",
+            },
+            watch: {
+                ignored: [],
+            }
         }
     }
 })

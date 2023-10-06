@@ -426,6 +426,7 @@ func (s *Scheduler) addRoute() (*router, error) {
 	var cfg RouteConfig
 	cfg.Parallel = s.Parallel
 	cfg.Mode = MODE_HTTP
+    cfg.Timeout = 60
 
 	//key: config/router/:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {

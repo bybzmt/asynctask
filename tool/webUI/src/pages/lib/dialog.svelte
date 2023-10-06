@@ -44,7 +44,7 @@
 </script>
 
 {#if isShow}
-  <div class="alert-mask" transition:fade={{ delay: 50, duration: 200 }}>
+  <div class="alert-mask" transition:fade={{ delay: 10, duration: 100 }}>
     <div
       class="alert"
       use:initPosition
@@ -72,6 +72,5 @@
     display: block;
     position: fixed;
     margin: 0;
-    overflow: hidden;
   }
 </style>
