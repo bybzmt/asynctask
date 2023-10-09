@@ -89,16 +89,14 @@ func (js *jobs) GetOrder() (*order, error) {
 
 	o, err := j.popOrder()
 
-	js.modeCheck(j)
-
 	if err != nil {
 		return nil, err
 	}
 
-	o.job = j
-
 	j.lastTime = js.g.now
 	j.nowNum++
+
+	js.modeCheck(j)
 
 	return o, nil
 }
@@ -172,7 +170,6 @@ func (js *jobs) removeJob(j *job) {
 	js.remove(j)
 	delete(js.all, j.task.name)
 	js.g.s.notifyRemove <- j.task.name
-	j.task = nil
 }
 
 func (js *jobs) priority(j *job) {

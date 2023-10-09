@@ -114,8 +114,9 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
 	status = resp.StatusCode
 	msg = string(body)
 
-	if status != 200 {
+	if !(status >= 200 && status < 300) {
 		o.Err = ErrHttpStatus
 	}
+
 	return
 }

@@ -11,15 +11,20 @@ type router struct {
 }
 
 func (r *router) init() error {
+
     if r.CmdEnv == nil {
         r.TaskBase.init()
+    }
+
+    if r.Groups == nil {
+        r.Groups = make([]ID, 0)
     }
 
     if r.Match == "" {
         return nil
     }
 
-	exp, err := regexp.CompilePOSIX(r.Match)
+	exp, err := regexp.Compile(r.Match)
 
 	if err != nil {
 		return err

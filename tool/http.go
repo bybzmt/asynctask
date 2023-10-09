@@ -104,11 +104,11 @@ func (s *HttpServer) page_groups(r *http.Request) any {
 }
 
 func (s *HttpServer) page_group_add(r *http.Request) any {
-    id, err := s.Hub.AddGroup()
+    cfg, err := s.Hub.AddGroup()
     if err != nil {
         return err
     }
-    return id
+    return cfg
 }
 
 func (s *HttpServer) page_group_del(r *http.Request) any {
@@ -134,11 +134,11 @@ func (s *HttpServer) page_routes(r *http.Request) any {
 }
 
 func (s *HttpServer) page_route_add(r *http.Request) any {
-    id, err := s.Hub.AddRoute()
+    cfg, err := s.Hub.AddRoute()
     if err != nil {
         return err
     }
-    return id
+    return cfg
 }
 
 func (s *HttpServer) page_route_del(r *http.Request) any {

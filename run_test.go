@@ -30,58 +30,25 @@ var ts_actions = []int{
 func TestRun(t *testing.T) {
 	var hub *scheduler.Scheduler
 	var rund chan int
-	var num = 5000
 	var my myServer
-	sleep := 0
 
-	rund = make(chan int)
+	var num = 5000
+
+	rund = make(chan int, 10)
 
 	go initTestServer(&my, rund)
-	go initHub(&hub)
 
-	time.Sleep(time.Millisecond * 100)
+	initHub(&hub)
+	go hub.Run()
+	go tool.HttpRun(hub, ":8080")
 
-    go tool.HttpRun(hub, ":8080")
+	time.Sleep(time.Millisecond * 10)
 
 	to := "http://" + my.l.Addr().String()
 	log.Println("listen", to)
+	log.Println("http", ":8080")
 
-	for i := 0; i < num; i++ {
-		if i%1000 == 0 {
-			log.Println("i:", i, "/", num)
-		}
-
-		an := ts_getRand() % len(ts_actions)
-		sl := ts_actions[an]
-		ac := "/ac" + strconv.Itoa(sl)
-		tmp := ts_getRand()
-		sl = tmp % sl
-
-		p := url.Values{}
-		p.Add("code", "200")
-		p.Add("sleep", strconv.Itoa(sl))
-
-		l := to + "/?" + p.Encode()
-
-		var task scheduler.Task
-		task.Name = ac
-		task.Http = &scheduler.TaskHttp{
-			Url: l,
-		}
-
-		if sl > 1000 {
-			task.Trigger = uint(time.Now().Unix()) + 2
-			sleep++
-		}
-
-		err := hub.AddTask(&task)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	log.Println("wait run", sleep)
-
+	go addTask(hub, num, to)
 
 	runnum := 0
 
@@ -98,15 +65,67 @@ func TestRun(t *testing.T) {
 	stat := hub.GetStatData()
 
 	if stat.Timed != 0 {
-        t.Error("timer task not empty num:", stat.Timed)
+		t.Error("timer task not empty num:", stat.Timed)
 	}
 
 	for stat.WaitNum != 0 {
-        t.Error("task not empty num:", stat.WaitNum)
+		t.Error("task not empty num:", stat.WaitNum)
 	}
 
 	hub.Close()
 	my.Close()
+}
+
+func addTask(hub *scheduler.Scheduler, num int, to string) {
+
+	for i := 0; i < num; i++ {
+		if i%1000 == 0 {
+			log.Println("i:", i, "/", num)
+		}
+
+		an := ts_getRand() % len(ts_actions)
+		sl := ts_actions[an]
+
+		var task scheduler.Task
+
+		if ts_getRand()%5 == 0 {
+			task.Trigger = uint(time.Now().Unix()) + 2
+		}
+
+		if ts_getRand()%3 == 0 {
+			task.Name = "cli/" + strconv.Itoa(sl)
+			task.Cli = &scheduler.TaskCli{
+				Cmd:    "echo",
+				Params: []string{task.Name},
+			}
+		} else {
+
+			tmp := ts_getRand()
+			sl = tmp % sl
+
+			p := url.Values{}
+			p.Add("code", "200")
+			p.Add("sleep", strconv.Itoa(sl))
+
+			l := to + "/?" + p.Encode()
+
+			if sl > 1000 {
+				task.Name = "slow/" + strconv.Itoa(sl)
+			} else {
+				task.Name = "http/" + strconv.Itoa(sl)
+			}
+
+			task.Http = &scheduler.TaskHttp{
+				Url: l,
+			}
+		}
+
+		err := hub.AddTask(&task)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 }
 
 func ts_getRand() int {
@@ -165,7 +184,7 @@ func initHub(hub **scheduler.Scheduler) {
 	log.Println("tmpfile", f.Name())
 
 	defer os.Remove(f.Name())
-	f.Close()
+	defer f.Close()
 
 	db, err := bolt.Open(f.Name(), 0644, nil)
 	if err != nil {
@@ -179,5 +198,61 @@ func initHub(hub **scheduler.Scheduler) {
 		panic(err)
 	}
 
-	(*hub).Run()
+	gc, err := (*hub).AddGroup()
+	if err != nil {
+		panic(err)
+	}
+
+	gc.Note = "test_group2"
+
+	err = (*hub).SetGroupConfig(gc)
+	if err != nil {
+		panic(err)
+	}
+
+	//------ 2 groups -----
+
+	rc, err := (*hub).AddRoute()
+	if err != nil {
+		panic(err)
+	}
+
+	rc.Note = "http_slow_router"
+	rc.Match = `slow/.+`
+	rc.Parallel = 5
+	rc.Sort = 2
+
+	// rc.Groups = append(rc.Groups, gc.Id)
+
+	for _, gc := range (*hub).GetGroupConfigs() {
+		rc.Groups = append(rc.Groups, gc.Id)
+	}
+
+	rc.Used = true
+
+	err = (*hub).SetRouteConfig(rc)
+	if err != nil {
+		panic(err)
+	}
+
+	//------ cli -----
+
+	rc, err = (*hub).AddRoute()
+	if err != nil {
+		panic(err)
+	}
+
+	rc.Note = "cli_router"
+	rc.Match = `cli/.+`
+	rc.Parallel = 1
+	rc.Sort = 3
+	rc.Groups = append(rc.Groups, gc.Id)
+	rc.Mode = scheduler.MODE_CLI
+	rc.Used = true
+
+	err = (*hub).SetRouteConfig(rc)
+	if err != nil {
+		panic(err)
+	}
+
 }

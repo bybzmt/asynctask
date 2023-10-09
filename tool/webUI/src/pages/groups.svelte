@@ -88,7 +88,7 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="5" class="center">empty</td>
+                        <td colspan="5" class="center2">empty</td>
                     </tr>
                 {/each}
                 <tr>
@@ -128,7 +128,7 @@
         border: 1px solid #777;
         padding: 0px 1em;
     }
-    .center {
+    .center2 {
         text-align: center;
     }
     #tab {

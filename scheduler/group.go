@@ -242,7 +242,7 @@ func (g *group) logTask(t *order) {
 
 	d := taskLog{
 		Id:       t.Id,
-		Name:     t.job.task.name,
+		Name:     t.Task.Name,
 		Task:     t.taskTxt(),
 		Status:   t.Status,
 		WaitTime: logSecond(waitTime),

@@ -1,18 +1,20 @@
 package scheduler
 
 import (
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
-	"net/http"
-	"time"
 )
 
 const (
 	MODE_HTTP              Mode = 1
 	MODE_HTTP_OVER_FASTCGI      = 4
 
-	MODE_CMD          = 2
-	MODE_CMD_OVER_SSH = 8
+	MODE_CLI          = 2
+	MODE_CLI_OVER_SSH = 8
 )
 
 type Mode uint32
@@ -80,9 +82,13 @@ func (o *order) taskTxt() string {
 		if o.Task.Http != nil {
 			return o.Task.Http.Url
 		}
-	} else if o.Base.Mode&MODE_CMD == MODE_CMD {
+	} else if o.Base.Mode&MODE_CLI == MODE_CLI {
 		if o.Task.Cli != nil {
-			return o.Task.Cli.Cmd
+            str := make([]string, 0, 1+len(o.Task.Cli.Params))
+            str = append(str, o.Task.Cli.Cmd)
+            str = append(str, o.Task.Cli.Params...)
+
+            return strings.Join(str, " ")
 		}
 	}
 

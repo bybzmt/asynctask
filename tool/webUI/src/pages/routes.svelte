@@ -1,8 +1,9 @@
 <script>
     import Layout from "./lib/layout.svelte";
     import Dialog from "./lib/dialog.svelte";
+    import InputKV from "./lib/inputkv.svelte";
     import { onMount } from "svelte";
-    import { sendPost, mkUrl } from "./lib/base";
+    import { sendPost, sendJson, mkUrl } from "./lib/base";
 
     onMount(() => {
         showStatus();
@@ -10,11 +11,25 @@
 
     let Routes = [];
     let Groups = {};
+    let GroupsKv = {};
     let editRoute = {};
     let isShow = false;
+    let addGroupId = 0;
 
     function get(id) {
-        return Groups[id] || {};
+        return GroupsKv[id] || {};
+    }
+
+    function addGroup() {
+        if (!editRoute.Groups.includes(addGroupId)) {
+            editRoute.Groups.push(addGroupId);
+            editRoute = editRoute;
+        }
+    }
+
+    function delGroup(id) {
+        editRoute.Groups = editRoute.Groups.filter(g => g != id);
+        editRoute = editRoute;
     }
 
     async function showStatus() {
@@ -22,7 +37,9 @@
 
         let tmp = {};
         json.Data.forEach((v) => (tmp[v.Id] = v));
-        Groups = tmp;
+        GroupsKv = tmp;
+        Groups = json.Data;
+        addGroupId = Groups[0].Id;
 
         json = await fetch(mkUrl("api/routes")).then((t) => t.json());
 
@@ -55,6 +72,29 @@
     }
 
     async function save() {
+        editRoute.Note = editRoute.Note.trim();
+        editRoute.Match = editRoute.Match.trim();
+        editRoute.CmdBase = editRoute.CmdBase.trim();
+        editRoute.CmdDir = editRoute.CmdDir.trim();
+        editRoute.HttpBase = editRoute.HttpBase.trim();
+
+        if (editRoute.Note == "") {
+            alert("Note不能为空");
+            return
+        }
+
+        if (editRoute.Groups.length == 0) {
+            alert("执行组不能为空");
+            return
+        }
+
+        if (editRoute.CmdDir != "") {
+            if (editRoute.CmdDir[0] != "/") {
+                alert("CmdDir必需是绝对路径");
+                return
+            }
+        }
+
         await sendJson(mkUrl("api/route/setConfig"), editRoute);
 
         isShow = !isShow;
@@ -94,14 +134,12 @@
                         <td>{row.Id}</td>
                         <td>{row.Note}</td>
                         <td>{row.Match}</td>
-                        {#if row.Groups}
-                            {#each row.Groups as id}
-                                <td>{id}</td>
-                                <td>{get(id).Note}</td>
-                            {:else}
-                                <td colspan="2">empty</td>
-                            {/each}
-                        {/if}
+                        {#each row.Groups as id}
+                            <td>{id}</td>
+                            <td>{get(id).Note}</td>
+                        {:else}
+                            <td colspan="2">empty</td>
+                        {/each}
                         <td>{row.Sort}</td>
                         <td>{row.Parallel}</td>
                         <td>{row.Mode}</td>
@@ -144,7 +182,27 @@
             <input type="number" id="sort" bind:value={editRoute.Sort} />
 
             <label for="groups">执行组: </label>
-            <input type="number" id="groups" bind:value={editRoute.Groups} />
+            <div class="editGroups">
+                {#each editRoute.Groups as id}
+                    <div>
+                        {id} ({get(id).Note})
+                    </div>
+                    <div>
+                        <button on:click={() => delGroup(id)}>删除</button>
+                    </div>
+                {/each}
+
+                <div>
+                    <select bind:value={addGroupId}>
+                        {#each Groups as group}
+                            <option value={group.Id}>{group.Note}</option>
+                        {/each}
+                    </select>
+                </div>
+                <div>
+                    <button on:click={() => addGroup()}>添加</button>
+                </div>
+            </div>
 
             <label for="Priority">权重系数: </label>
             <input
@@ -175,12 +233,18 @@
 
                 <label for="CmdDir">CmdDir: </label>
                 <input id="CmdDir" bind:value={editRoute.CmdDir} />
+
+                <label for="CmdEnv">CmdEnv: </label>
+                <InputKV bind:kv={editRoute.CmdEnv} />
             {:else}
                 <label for="HttpBase">HttpBase: </label>
                 <input id="HttpBase" bind:value={editRoute.HttpBase} />
+
+                <label for="HttpHeader">Header: </label>
+                <InputKV bind:kv={editRoute.HttpHeader} />
             {/if}
 
-            <div>
+            <div class="status">
                 <div>
                     <input
                         type="radio"
@@ -239,7 +303,7 @@
         gap: 10px;
         grid-template-columns: auto auto;
     }
-    .grid > div {
+    .status {
         grid-column: 1/3;
         display: flex;
         justify-content: center;
@@ -254,5 +318,12 @@
     }
     .center button {
         margin: 10px;
+    }
+
+
+
+    .editGroups {
+        display: grid;
+        grid-template-columns: auto auto;
     }
 </style>

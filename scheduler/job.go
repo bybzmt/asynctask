@@ -72,6 +72,7 @@ func (j *job) popOrder() (*order, error) {
     o.Task = t
     o.Base = &j.task.TaskBase
     o.AddTime = time.Unix(int64(t.AddTime), 0)
+    o.job = j
 
     return o, nil
 }
