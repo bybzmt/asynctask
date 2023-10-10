@@ -56,18 +56,28 @@ func (js *jobs) addJob(jtask *jobTask) *job {
 
 func (js *jobs) modeCheck(j *job) {
 	if j.next == nil || j.prev == nil {
+		js.g.s.Log.Warning("modeCheck nil")
 		return
 	}
 
-	if !j.hasTask() {
-		if j.mode != job_mode_idle {
-			js.remove(j)
-			js.idleAdd(j)
-		}
-	} else if j.nowNum >= int(j.Parallel) {
+    nowNum := j.task.nowNum.Load()
+
+	if nowNum >= int32(j.task.Parallel) {
 		if j.mode != job_mode_block {
 			js.remove(j)
 			js.blockAdd(j)
+		}
+	} else if !j.hasTask() {
+		if nowNum > 0 {
+			if j.mode != job_mode_block {
+				js.remove(j)
+				js.blockAdd(j)
+			}
+		} else {
+			if j.mode != job_mode_idle {
+				js.remove(j)
+				js.idleAdd(j)
+			}
 		}
 	} else {
 		j.countScore()
@@ -84,17 +94,30 @@ func (js *jobs) modeCheck(j *job) {
 func (js *jobs) GetOrder() (*order, error) {
 	j := js.front()
 	if j == nil {
+		if js.block.next != js.block {
+			js.modeCheck(js.block.next)
+		} else {
+			// for x := js.idle; x.next != js.idle; x = x.next {
+			//              if x.hasTask() {
+			//                  js.modeCheck(x)
+			//                  break;
+			//              }
+			// }
+		}
+
 		return nil, Empty
 	}
 
 	o, err := j.popOrder()
 
 	if err != nil {
+		if err == Empty {
+			js.modeCheck(j)
+		}
 		return nil, err
 	}
 
-	j.lastTime = js.g.now
-	j.nowNum++
+	j.task.nowNum.Add(1)
 
 	js.modeCheck(j)
 
@@ -102,11 +125,11 @@ func (js *jobs) GetOrder() (*order, error) {
 }
 
 func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
-	j.nowNum--
+	j.task.nowNum.Add(-1)
 	j.runAdd()
 	j.loadTime += loadTime
 
-    j.task.end(js.g.now, useTime)
+	j.task.end(js.g.now, useTime)
 
 	js.modeCheck(j)
 }
@@ -161,7 +184,7 @@ func (js *jobs) idleAdd(j *job) {
 		j := js.idleFront()
 		if j != nil {
 			js.removeJob(j)
-            js.idleLen--
+			js.idleLen--
 		}
 	}
 }
@@ -193,8 +216,4 @@ func (js *jobs) moveBefore(j, x *job) {
 
 	js.remove(j)
 	js.append(j, x.prev)
-}
-
-func (js *jobs) len() int {
-	return len(js.all)
 }

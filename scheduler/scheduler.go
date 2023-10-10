@@ -95,8 +95,8 @@ func New(c Config) (*Scheduler, error) {
 	}
 
 	for _, jt := range s.jobTask {
-		for _, g := range jt.groups {
-			g.notifyJob(jt)
+		if jt.group != nil {
+			jt.group.notifyJob(jt)
 		}
 	}
 
@@ -133,13 +133,16 @@ func (s *Scheduler) Run() {
 	for {
 		select {
 		case now := <-ticker.C:
+
 			s.l.Lock()
+
+			s.Log.Debugln("ticker")
 			s.now = now
 
 			s.timerChecker(now)
 
-			for _, s := range s.groups {
-				s.tick <- now
+			for _, g := range s.groups {
+				g.tick <- now
 			}
 
 			l := len(s.groups)
@@ -234,22 +237,8 @@ func (s *Scheduler) onNotifyRemove(name string) {
 			return
 		}
 
-		has := false
-		for _, g := range jt.groups {
-			g.l.Lock()
-			_, ok := g.jobs.all[name]
-			g.l.Unlock()
-
-			if ok {
-				has = true
-				break
-			}
-		}
-
-		if !has {
-			jt.remove()
-			delete(s.jobTask, name)
-		}
+		jt.remove()
+		delete(s.jobTask, name)
 	}
 }
 
@@ -259,8 +248,8 @@ func (s *Scheduler) dayCheck() {
 			j.dayChange()
 		}
 
-		for _, s := range s.groups {
-			s.dayChange()
+		for _, g := range s.groups {
+			g.dayChange()
 		}
 
 		s.today = s.now.Day()
@@ -493,28 +482,17 @@ func (s *Scheduler) routeChanged() {
 	for _, jt := range s.jobTask {
 		for _, r := range s.routes {
 			if r.match(jt.name) {
-                out := make([]*group, 0, len(r.Groups))
 
-				for _, id := range r.Groups {
-                    if g, ok := s.groups[id]; ok {
-                        out = append(out, g)
-                    }
+				if jt.group != nil && jt.group.Id != r.GroupId {
+					jt.group.notifyDelJob(jt.name)
 				}
 
-				for _, g := range jt.groups {
-					has := false
-					for _, g2 := range out {
-						if g2.Id == g.Id {
-							has = true
-							break
-						}
-					}
-					if !has {
-						g.notifyDelJob(jt.name)
-					}
+				if g, ok := s.groups[r.GroupId]; ok {
+					jt.group = g
+				} else {
+					jt.group = nil
 				}
 
-				jt.groups = out
 				jt.TaskBase = r.TaskBase
 				jt.JobConfig = r.JobConfig
 			}
@@ -603,18 +581,16 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 			jt.JobConfig = r.JobConfig
 			jt.name = name
 
-			for _, id := range r.Groups {
-				g, ok := s.groups[id]
-				if !ok {
-					err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.Id, id))
+			g, ok := s.groups[r.GroupId]
+			if !ok {
+				err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.Id, r.GroupId))
 
-					s.Log.Warning(err)
+				s.Log.Warning(err)
 
-					return nil, err
-				}
-
-				jt.groups = append(jt.groups, g)
+				return nil, err
 			}
+
+			jt.group = g
 
 			return jt, nil
 		}
@@ -679,7 +655,7 @@ func (s *Scheduler) AddDefaultRouter() error {
 	r.Mode = MODE_HTTP
 
 	for _, g := range s.groups {
-		r.Groups = append(r.Groups, g.Id)
+		r.GroupId = g.Id
 	}
 
 	return s.saveRouter(r)

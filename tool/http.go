@@ -86,7 +86,6 @@ func (s *HttpServer) page_job_delIdle(r *http.Request) any {
 }
 
 func (s *HttpServer) page_job_config(r *http.Request) any {
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	jname := strings.TrimSpace(r.FormValue("name"))
     _cfg := r.FormValue("cfg")
 
@@ -96,7 +95,7 @@ func (s *HttpServer) page_job_config(r *http.Request) any {
         return err
     }
 
-	return s.Hub.SetJobConfig(scheduler.ID(gid), jname, cfg)
+	return s.Hub.SetJobConfig(jname, cfg)
 }
 
 func (s *HttpServer) page_groups(r *http.Request) any {

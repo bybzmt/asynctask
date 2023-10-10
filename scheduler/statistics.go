@@ -39,6 +39,7 @@ type RunTaskStat struct {
 }
 
 type TaskStat struct {
+	JobConfig
 	Name     string
 	RunNum   int
 	ErrNum   int
@@ -46,12 +47,7 @@ type TaskStat struct {
 	WaitNum  int
 	UseTime  int
 	LastTime int
-	Jobs     []JobStat
-}
-
-type JobStat struct {
-	JobConfig
-	Group  ID
+	GroupId  ID
 	Load   int64
 	NowNum int
 	Score  int
@@ -82,7 +78,7 @@ type Statistics struct {
 	Timed     int
 }
 
-func (s *group) getStatData() (GroupStat, []RunTaskStat, map[string]JobStat) {
+func (s *group) getStatData() (GroupStat, []RunTaskStat) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -109,21 +105,5 @@ func (s *group) getStatData() (GroupStat, []RunTaskStat, map[string]JobStat) {
 		runs = append(runs, st)
 	}
 
-	jobs := make(map[string]JobStat, len(s.jobs.all))
-
-	for _, j := range s.jobs.all {
-		tmp := JobStat{
-			JobConfig: j.JobConfig,
-			Group:     s.Id,
-			Load:      j.loadStat.getAll(),
-			NowNum:    j.nowNum,
-			Score:     j.score,
-		}
-
-		name := j.task.name
-
-		jobs[name] = tmp
-	}
-
-	return t, runs, jobs
+	return t, runs
 }

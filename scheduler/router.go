@@ -16,10 +16,6 @@ func (r *router) init() error {
         r.TaskBase.init()
     }
 
-    if r.Groups == nil {
-        r.Groups = make([]ID, 0)
-    }
-
     if r.Match == "" {
         return nil
     }

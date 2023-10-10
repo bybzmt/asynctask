@@ -29,38 +29,47 @@ var ts_actions = []int{
 
 func TestRun(t *testing.T) {
 	var hub *scheduler.Scheduler
-	var rund chan int
 	var my myServer
 
-	var num = 5000
+	taskadd := make(chan int, 10)
+	taskend := make(chan int, 10)
 
-	rund = make(chan int, 10)
-
-	go initTestServer(&my, rund)
+	go initTestServer(&my, taskend)
 
 	initHub(&hub)
 	go hub.Run()
 	go tool.HttpRun(hub, ":8080")
 
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 
 	to := "http://" + my.l.Addr().String()
 	log.Println("listen", to)
 	log.Println("http", ":8080")
 
-	go addTask(hub, num, to)
+	go addTask(hub, 5000, to, taskadd)
+
+	num := 0
+
+	for range taskadd {
+		num++
+	}
+
+	log.Println("taskadd", num)
 
 	runnum := 0
 
 	for {
-		<-rund
+		<-taskend
 
 		runnum++
+		log.Println("taskend", runnum)
 
 		if runnum == num {
 			break
 		}
 	}
+
+	log.Println("taskend all")
 
 	stat := hub.GetStatData()
 
@@ -76,7 +85,7 @@ func TestRun(t *testing.T) {
 	my.Close()
 }
 
-func addTask(hub *scheduler.Scheduler, num int, to string) {
+func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
@@ -92,7 +101,7 @@ func addTask(hub *scheduler.Scheduler, num int, to string) {
 			task.Trigger = uint(time.Now().Unix()) + 2
 		}
 
-		if ts_getRand()%3 == 0 {
+		if ts_getRand()%7 == 0 {
 			task.Name = "cli/" + strconv.Itoa(sl)
 			task.Cli = &scheduler.TaskCli{
 				Cmd:    "echo",
@@ -101,11 +110,11 @@ func addTask(hub *scheduler.Scheduler, num int, to string) {
 		} else {
 
 			tmp := ts_getRand()
-			sl = tmp % sl
+			sleep := tmp % sl
 
 			p := url.Values{}
 			p.Add("code", "200")
-			p.Add("sleep", strconv.Itoa(sl))
+			p.Add("sleep", strconv.Itoa(sleep))
 
 			l := to + "/?" + p.Encode()
 
@@ -118,6 +127,8 @@ func addTask(hub *scheduler.Scheduler, num int, to string) {
 			task.Http = &scheduler.TaskHttp{
 				Url: l,
 			}
+
+			taskadd <- 1
 		}
 
 		err := hub.AddTask(&task)
@@ -126,6 +137,9 @@ func addTask(hub *scheduler.Scheduler, num int, to string) {
 		}
 	}
 
+	log.Println("i:", num, "/", num)
+
+	close(taskadd)
 }
 
 func ts_getRand() int {
@@ -218,16 +232,10 @@ func initHub(hub **scheduler.Scheduler) {
 	}
 
 	rc.Note = "http_slow_router"
-	rc.Match = `slow/.+`
+	rc.Match = `^slow/.+`
 	rc.Parallel = 5
 	rc.Sort = 2
-
-	// rc.Groups = append(rc.Groups, gc.Id)
-
-	for _, gc := range (*hub).GetGroupConfigs() {
-		rc.Groups = append(rc.Groups, gc.Id)
-	}
-
+	rc.GroupId = gc.Id
 	rc.Used = true
 
 	err = (*hub).SetRouteConfig(rc)
@@ -243,10 +251,10 @@ func initHub(hub **scheduler.Scheduler) {
 	}
 
 	rc.Note = "cli_router"
-	rc.Match = `cli/.+`
+	rc.Match = `^cli/.+`
 	rc.Parallel = 1
 	rc.Sort = 3
-	rc.Groups = append(rc.Groups, gc.Id)
+	rc.GroupId = gc.Id
 	rc.Mode = scheduler.MODE_CLI
 	rc.Used = true
 

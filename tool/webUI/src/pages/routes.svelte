@@ -28,7 +28,7 @@
     }
 
     function delGroup(id) {
-        editRoute.Groups = editRoute.Groups.filter(g => g != id);
+        editRoute.Groups = editRoute.Groups.filter((g) => g != id);
         editRoute = editRoute;
     }
 
@@ -80,18 +80,18 @@
 
         if (editRoute.Note == "") {
             alert("Note不能为空");
-            return
+            return;
         }
 
-        if (editRoute.Groups.length == 0) {
+        if (editRoute.GroupId == 0) {
             alert("执行组不能为空");
-            return
+            return;
         }
 
         if (editRoute.CmdDir != "") {
             if (editRoute.CmdDir[0] != "/") {
                 alert("CmdDir必需是绝对路径");
-                return
+                return;
             }
         }
 
@@ -134,12 +134,8 @@
                         <td>{row.Id}</td>
                         <td>{row.Note}</td>
                         <td>{row.Match}</td>
-                        {#each row.Groups as id}
-                            <td>{id}</td>
-                            <td>{get(id).Note}</td>
-                        {:else}
-                            <td colspan="2">empty</td>
-                        {/each}
+                        <td>{row.GroupId}</td>
+                        <td>{get(row.GroupId).Note}</td>
                         <td>{row.Sort}</td>
                         <td>{row.Parallel}</td>
                         <td>{row.Mode}</td>
@@ -182,27 +178,11 @@
             <input type="number" id="sort" bind:value={editRoute.Sort} />
 
             <label for="groups">执行组: </label>
-            <div class="editGroups">
-                {#each editRoute.Groups as id}
-                    <div>
-                        {id} ({get(id).Note})
-                    </div>
-                    <div>
-                        <button on:click={() => delGroup(id)}>删除</button>
-                    </div>
+            <select bind:value={editRoute.GroupId}>
+                {#each Groups as group}
+                    <option value={group.Id}>{group.Note}</option>
                 {/each}
-
-                <div>
-                    <select bind:value={addGroupId}>
-                        {#each Groups as group}
-                            <option value={group.Id}>{group.Note}</option>
-                        {/each}
-                    </select>
-                </div>
-                <div>
-                    <button on:click={() => addGroup()}>添加</button>
-                </div>
-            </div>
+            </select>
 
             <label for="Priority">权重系数: </label>
             <input
@@ -319,8 +299,6 @@
     .center button {
         margin: 10px;
     }
-
-
 
     .editGroups {
         display: grid;

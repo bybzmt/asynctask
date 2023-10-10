@@ -2,9 +2,9 @@ package scheduler
 
 import (
 	"encoding/json"
-	"sync/atomic"
 	"sync"
-    "time"
+	"sync/atomic"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -13,13 +13,14 @@ type jobTask struct {
 	JobConfig
 	TaskBase
 
-    l sync.Mutex
+	l sync.Mutex
 
 	name string
 
-	s      *Scheduler
-	groups []*group
+	s     *Scheduler
+	group *group
 
+	nowNum  atomic.Int32
 	waitNum atomic.Int32
 	errNum  atomic.Int32
 	runNum  atomic.Int32
@@ -38,7 +39,7 @@ func (j *jobTask) init() error {
 	}
 	j.initd = true
 
-    j.useTimeStat.init(10)
+	j.useTimeStat.init(10)
 
 	return j.loadWaitNum()
 }
@@ -73,11 +74,11 @@ func (j *jobTask) addTask(t *Task) error {
 		return err
 	}
 
-    j.waitNum.Add(1)
-    j.s.waitNum.Add(1)
+	j.waitNum.Add(1)
+	j.s.waitNum.Add(1)
 
-	for _, g := range j.groups {
-		g.notifyJob(j)
+	if j.group != nil {
+		j.group.notifyJob(j)
 	}
 
 	return nil
@@ -112,11 +113,11 @@ func (j *jobTask) delTask(tid ID) error {
 	}
 
 	if has {
-        j.waitNum.Add(-1)
+		j.waitNum.Add(-1)
 	}
 
-	for _, g := range j.groups {
-		g.notifyJob(j)
+	if j.group != nil {
+		j.group.notifyJob(j)
 	}
 
 	return nil
@@ -165,17 +166,17 @@ func (j *jobTask) popTask() (*Task, error) {
 		return nil, err
 	}
 
-    j.waitNum.Add(-1)
-    j.s.waitNum.Add(-1)
+	j.waitNum.Add(-1)
+	j.s.waitNum.Add(-1)
 
 	return &t, nil
 }
 
 func (j *jobTask) end(now time.Time, useTime time.Duration) {
-    j.l.Lock()
-    defer j.l.Unlock()
+	j.l.Lock()
+	defer j.l.Unlock()
 
-    j.lastTime = now
+	j.lastTime = now
 	j.useTimeStat.push(int64(useTime))
 }
 
@@ -224,10 +225,10 @@ func (j *jobTask) delAllTask() error {
 		return err
 	}
 
-    j.waitNum.Store(0)
+	j.waitNum.Store(0)
 
-	for _, g := range j.groups {
-		g.notifyJob(j)
+	if j.group != nil {
+		j.group.notifyJob(j)
 	}
 
 	return nil
@@ -238,14 +239,14 @@ func (j *jobTask) loadWaitNum() error {
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "task", j.name)
 		if bucket == nil {
-            j.waitNum.Store(0)
+			j.waitNum.Store(0)
 			return nil
 		}
 
 		s := bucket.Stats()
 
-        j.waitNum.Store(int32(s.KeyN))
-        j.s.waitNum.Add(int32(s.KeyN))
+		j.waitNum.Store(int32(s.KeyN))
+		j.s.waitNum.Add(int32(s.KeyN))
 
 		return nil
 	})
@@ -254,11 +255,11 @@ func (j *jobTask) loadWaitNum() error {
 }
 
 func (j *jobTask) dayChange() {
-    n1 := j.runNum.Load()
-    j.runNum.Add(-n1)
+	n1 := j.runNum.Load()
+	j.runNum.Add(-n1)
 
-    n2 := j.errNum.Load()
-    j.errNum.Add(-n2)
+	n2 := j.errNum.Load()
+	j.errNum.Add(-n2)
 
-    j.oldNum.Store(n1)
+	j.oldNum.Store(n1)
 }

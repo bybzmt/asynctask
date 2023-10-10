@@ -6,44 +6,34 @@ import (
 	"time"
 )
 
-func (s *Scheduler) GetJobConfig(gid ID, jname string) (c JobConfig, err error) {
+func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
+	jt, ok := s.jobTask[jname]
 	if !ok {
 		return c, NotFound
 	}
 
-	g.l.Lock()
-	defer g.l.Unlock()
+    jt.l.Lock()
+    defer jt.l.Unlock()
 
-	j, ok := g.jobs.all[jname]
-	if !ok {
-		return c, NotFound
-	}
-
-	return j.JobConfig, nil
+	return jt.JobConfig, nil
 }
 
-func (s *Scheduler) SetJobConfig(gid ID, jname string, cfg JobConfig) error {
+func (s *Scheduler) SetJobConfig(jname string, cfg JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
+	jt, ok := s.jobTask[jname]
 	if !ok {
 		return NotFound
 	}
 
-	g.l.Lock()
-	defer g.l.Unlock()
+    jt.l.Lock()
+    defer jt.l.Unlock()
 
-	j, ok := g.jobs.all[jname]
-	if !ok {
-		return NotFound
-	}
-
-	j.JobConfig = cfg
+	jt.JobConfig = cfg
 
 	return nil
 }
@@ -52,10 +42,10 @@ func (s *Scheduler) AddGroup() (GroupConfig, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    g, err := s.addGroup()
-    if err != nil {
-        return GroupConfig{}, err
-    }
+	g, err := s.addGroup()
+	if err != nil {
+		return GroupConfig{}, err
+	}
 
 	return g.GroupConfig, nil
 }
@@ -65,9 +55,9 @@ func (s *Scheduler) GetGroupConfigs() (out []GroupConfig) {
 	defer s.l.Unlock()
 
 	for _, g := range s.groups {
-        g.l.Lock()
+		g.l.Lock()
 		out = append(out, g.GroupConfig)
-	    g.l.Unlock()
+		g.l.Unlock()
 	}
 
 	return
@@ -119,10 +109,8 @@ func (s *Scheduler) DelGroup(gid ID) error {
 	}
 
 	for _, r := range s.routes {
-		for _, id := range r.Groups {
-			if id == gid {
-				return errors.New("Group Use In Route")
-			}
+		if gid == r.GroupId {
+			return errors.New("Group Use In Route")
 		}
 	}
 
@@ -202,9 +190,9 @@ func (s *Scheduler) GetRouteConfig(id ID) (RouteConfig, error) {
 	defer s.l.Unlock()
 
 	for _, r := range s.routes {
-        if r.Id == id {
-            return r.RouteConfig, nil
-        }
+		if r.Id == id {
+			return r.RouteConfig, nil
+		}
 	}
 
 	return RouteConfig{}, NotFound
@@ -304,49 +292,54 @@ func (s *Scheduler) GetStatData() Statistics {
 
 	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
 	out.Groups = make([]GroupStat, 0, len(s.groups))
+	out.Tasks = make([]TaskStat, 0, len(s.jobTask))
 
-	tasks := make(map[string]TaskStat, len(s.jobTask))
-
-	for name, j := range s.jobTask {
+	for _, jt := range s.jobTask {
 		useTime := 0
-		if len(j.useTimeStat.data) > 0 {
-			useTime = int(j.useTimeStat.getAll() / int64(len(j.useTimeStat.data)) / int64(time.Millisecond))
+		if len(jt.useTimeStat.data) > 0 {
+			useTime = int(jt.useTimeStat.getAll() / int64(len(jt.useTimeStat.data)) / int64(time.Millisecond))
 		}
 
 		sec := 0
 
-		sec2 := j.lastTime.Unix()
+		sec2 := jt.lastTime.Unix()
 		if sec2 > 0 {
-			sec = int(s.now.Sub(j.lastTime) / time.Second)
+			sec = int(s.now.Sub(jt.lastTime) / time.Second)
 		}
 
 		tmp := TaskStat{
-			Name:     j.name,
-			RunNum:   int(j.runNum.Load()),
-			OldNum:   int(j.oldNum.Load()),
-			ErrNum:   int(j.errNum.Load()),
-			WaitNum:  int(j.waitNum.Load()),
-			UseTime:  useTime,
-			LastTime: sec,
+			JobConfig: jt.JobConfig,
+			Name:      jt.name,
+			NowNum:    int(jt.nowNum.Load()),
+			RunNum:    int(jt.runNum.Load()),
+			OldNum:    int(jt.oldNum.Load()),
+			ErrNum:    int(jt.errNum.Load()),
+			WaitNum:   int(jt.waitNum.Load()),
+			UseTime:   useTime,
+			LastTime:  sec,
+			GroupId:   jt.group.Id,
+		}
+
+		if jt.group != nil {
+			jt.group.l.Lock()
+
+			if j, ok := jt.group.jobs.all[jt.name]; ok {
+				tmp.Load = j.loadStat.getAll()
+				tmp.Score = j.score
+			}
+
+			jt.group.l.Unlock()
 		}
 
 		out.RunNum += tmp.RunNum
 		out.ErrNum += tmp.ErrNum
 		out.WaitNum += tmp.WaitNum
 		out.OldNum += tmp.OldNum
-
-		tasks[name] = tmp
+		out.Tasks = append(out.Tasks, tmp)
 	}
 
 	for _, s := range s.groups {
-		group, runs, job := s.getStatData()
-
-		for name, j := range job {
-			if t, ok := tasks[name]; ok {
-				t.Jobs = append(t.Jobs, j)
-				tasks[name] = t
-			}
-		}
+		group, runs := s.getStatData()
 
 		out.Capacity += group.Capacity
 		out.Load += group.Load
@@ -354,12 +347,6 @@ func (s *Scheduler) GetStatData() Statistics {
 		out.WorkerNum += group.WorkerNum
 		out.Groups = append(out.Groups, group)
 		out.Runs = append(out.Runs, runs...)
-	}
-
-	out.Tasks = make([]TaskStat, 0, len(tasks))
-
-	for _, t := range tasks {
-		out.Tasks = append(out.Tasks, t)
 	}
 
 	return out

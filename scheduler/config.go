@@ -65,7 +65,7 @@ type order struct {
 	worker *worker
 
 	Task *Task
-	Base *TaskBase
+	Base TaskBase
 
 	Status int
 	Msg    string
@@ -116,7 +116,7 @@ type RouteConfig struct {
 	Id     ID
 	Match  string
 	Note   string
-	Groups []ID
+	GroupId ID
 	Sort   int
 	Used   bool
 }

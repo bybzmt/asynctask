@@ -44,10 +44,9 @@
         { k: 8, n: "优先级" },
     ];
 
-    function getCapacity(j) {
-        console.log(j, Groups);
+    function getCapacity(gid) {
         for (let g of Groups) {
-            if (g.Id == j.Group) {
+            if (g.Id == gid) {
                 return g.Capacity;
             }
         }
@@ -70,18 +69,6 @@
         res.Groups.sort(function (a, b) {
             return a.Id < b.Id ? -1 : 1;
         });
-
-        for (let task of res.Tasks) {
-            task.NowNum = 0;
-            task.Load = 0;
-            task.Score = 0;
-
-            for (let job of task.Jobs) {
-                task.NowNum += job.NowNum;
-                task.Load += job.Load;
-                task.Score += job.Score;
-            }
-        }
 
         if (tab == 2 || tab == 3) {
             res.Tasks = res.Tasks.filter(function (task) {
@@ -224,48 +211,33 @@
                 </thead>
                 <tbody>
                     {#each Tasks as j}
-                        {#each j.Jobs as t, i}
-                            <tr>
-                                {#if i == 0}
-                                    <td
-                                        on:dblclick={() => jobDelIdle(j)}
-                                        rowspan={j.Jobs.length}>{j.Name}</td
-                                    >
-                                {/if}
+                        <tr>
+                            <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
 
-                                <td>{t.Group}</td>
+                            <td>{j.GroupId}</td>
 
-                                <td
-                                    >{Math.round(
-                                        (t.Load / getCapacity(t)) * 100
-                                    )}%</td
-                                >
+                            <td
+                                >{Math.round(
+                                    (j.Load / getCapacity(j.GroupId)) * 100
+                                )}%</td
+                            >
 
-                                <td on:dblclick={() => jobParallel(t)}
-                                    >{t.NowNum + "/" + t.Parallel}</td
-                                >
+                            <td on:dblclick={() => jobParallel(j)}
+                                >{j.NowNum + "/" + j.Parallel}</td
+                            >
 
-                                {#if i == 0}
-                                    <td rowspan={j.Jobs.length}>{j.RunNum}</td>
-                                    <td rowspan={j.Jobs.length}>{j.OldNum}</td>
-                                    <td
-                                        rowspan={j.Jobs.length}
-                                        on:dblclick={() => jobEmpty(j)}
-                                        >{j.WaitNum}</td
-                                    >
-                                    <td>{j.UseTime / 1000}s</td>
-                                {/if}
+                            <td>{j.RunNum}</td>
+                            <td>{j.OldNum}</td>
+                            <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
+                            <td>{j.UseTime / 1000}s</td>
 
-                                <td on:dblclick={() => jobPriority(t)}>
-                                    {t.Score + fmtPriority(t.Priority)}
-                                </td>
+                            <td on:dblclick={() => jobPriority(j)}>
+                                {j.Score + fmtPriority(j.Priority)}
+                            </td>
 
-                                {#if i == 0}
-                                    <td>{j.LastTime}s</td>
-                                    <td rowspan={j.Jobs.length}>{j.ErrNum}</td>
-                                {/if}
-                            </tr>
-                        {/each}
+                            <td>{j.LastTime}s</td>
+                            <td>{j.ErrNum}</td>
+                        </tr>
                     {:else}
                         <tr><td colspan="11" class="center">empty</td> </tr>
                     {/each}
