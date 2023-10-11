@@ -99,7 +99,7 @@ func (w *workerHttp) Run(o *order) (status int, msg string) {
         req.Header.Set(k, v)
     }
 
-	resp, err = o.job.g.s.Client.Do(req)
+	resp, err = o.job.s.Client.Do(req)
 	if err != nil {
 		status = -1
 		msg = err.Error()

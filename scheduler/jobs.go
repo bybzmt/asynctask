@@ -7,20 +7,16 @@ import (
 type jobs struct {
 	g *group
 
-	all map[string]*job
-
 	idleMax int
 	idleLen int
-	idle    *job
-	block   *job
 
-	run *job
+	idle  *job
+	block *job
+	run   *job
 }
 
 func (js *jobs) init(max int, g *group) *jobs {
 	js.idleMax = max
-
-	js.all = make(map[string]*job, max*2)
 
 	js.idle = &job{}
 	js.idle.next = js.idle
@@ -38,20 +34,11 @@ func (js *jobs) init(max int, g *group) *jobs {
 	return js
 }
 
-func (js *jobs) addJob(jtask *jobTask) *job {
-
-	if j, ok := js.all[jtask.name]; ok {
-		return j
-	}
-
-	j := newJob(js, jtask)
-
-	js.all[jtask.name] = j
-
+func (js *jobs) addJob(j *job) {
 	//添加到idle链表
 	js.idleAdd(j)
 
-	return j
+	js.g.jobs.modeCheck(j)
 }
 
 func (js *jobs) modeCheck(j *job) {
@@ -60,9 +47,9 @@ func (js *jobs) modeCheck(j *job) {
 		return
 	}
 
-    nowNum := j.task.nowNum.Load()
+	nowNum := j.nowNum.Load()
 
-	if nowNum >= int32(j.task.Parallel) {
+	if nowNum >= int32(j.Parallel) {
 		if j.mode != job_mode_block {
 			js.remove(j)
 			js.blockAdd(j)
@@ -117,7 +104,7 @@ func (js *jobs) GetOrder() (*order, error) {
 		return nil, err
 	}
 
-	j.task.nowNum.Add(1)
+	j.nowNum.Add(1)
 
 	js.modeCheck(j)
 
@@ -125,11 +112,11 @@ func (js *jobs) GetOrder() (*order, error) {
 }
 
 func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
-	j.task.nowNum.Add(-1)
-	j.runAdd()
+	j.nowNum.Add(-1)
+	j.runNum.Add(1)
 	j.loadTime += loadTime
 
-	j.task.end(js.g.now, useTime)
+	j.end(js.g.now, useTime)
 
 	js.modeCheck(j)
 }
@@ -183,16 +170,20 @@ func (js *jobs) idleAdd(j *job) {
 	for js.idleLen > js.idleMax {
 		j := js.idleFront()
 		if j != nil {
-			js.removeJob(j)
-			js.idleLen--
+			js.g.s.notifyRemove <- j.name
 		}
 	}
 }
 
-func (js *jobs) removeJob(j *job) {
+func (js *jobs) removeJob(j *job) bool {
+	if j.mode != job_mode_idle {
+		return false
+	}
+
 	js.remove(j)
-	delete(js.all, j.task.name)
-	js.g.s.notifyRemove <- j.task.name
+	js.idleLen--
+
+	return true
 }
 
 func (js *jobs) priority(j *job) {

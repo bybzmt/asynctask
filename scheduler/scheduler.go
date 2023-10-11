@@ -26,7 +26,7 @@ type Scheduler struct {
 	notifyRemove chan string
 	closed       chan int
 
-	jobTask map[string]*jobTask
+	jobs map[string]*job
 
 	groups map[ID]*group
 	routes []*router
@@ -65,7 +65,7 @@ func New(c Config) (*Scheduler, error) {
 
 	s.groupEnd = make(chan *group)
 	s.groups = make(map[ID]*group)
-	s.jobTask = make(map[string]*jobTask)
+	s.jobs = make(map[string]*job)
 
 	s.notifyRemove = make(chan string, 10)
 	s.closed = make(chan int)
@@ -92,12 +92,6 @@ func New(c Config) (*Scheduler, error) {
 
 	if err := s.loadJobs(); err != nil {
 		return nil, err
-	}
-
-	for _, jt := range s.jobTask {
-		if jt.group != nil {
-			jt.group.notifyJob(jt)
-		}
 	}
 
 	return s, nil
@@ -231,20 +225,23 @@ func (s *Scheduler) onNotifyRemove(name string) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobTask[name]
+	jt, ok := s.jobs[name]
 	if ok {
 		if jt.hasTask() {
 			return
 		}
 
+        jt.group.l.Lock()
+        defer jt.group.l.Unlock()
+
 		jt.remove()
-		delete(s.jobTask, name)
+		delete(s.jobs, name)
 	}
 }
 
 func (s *Scheduler) dayCheck() {
 	if s.today != s.now.Day() {
-		for _, j := range s.jobTask {
+		for _, j := range s.jobs {
 			j.dayChange()
 		}
 
@@ -479,12 +476,12 @@ func (s *Scheduler) saveRouter(r *router) error {
 }
 
 func (s *Scheduler) routeChanged() {
-	for _, jt := range s.jobTask {
+	for _, jt := range s.jobs {
 		for _, r := range s.routes {
 			if r.match(jt.name) {
 
 				if jt.group != nil && jt.group.Id != r.GroupId {
-					jt.group.notifyDelJob(jt.name)
+					jt.group.delJob(jt)
 				}
 
 				if g, ok := s.groups[r.GroupId]; ok {
@@ -555,8 +552,8 @@ func (s *Scheduler) addTask(t *Task) error {
 	return jt.addTask(t)
 }
 
-func (s *Scheduler) getJobTask(name string) (*jobTask, error) {
-	jt, ok := s.jobTask[name]
+func (s *Scheduler) getJobTask(name string) (*job, error) {
+	jt, ok := s.jobs[name]
 
 	if !ok {
 		var err error
@@ -566,16 +563,16 @@ func (s *Scheduler) getJobTask(name string) (*jobTask, error) {
 			return nil, err
 		}
 
-		s.jobTask[name] = jt
+		s.jobs[name] = jt
 	}
 
 	return jt, nil
 }
 
-func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
+func (s *Scheduler) addJobTask(name string) (*job, error) {
 	for _, r := range s.routes {
 		if r.match(name) {
-			jt := new(jobTask)
+			jt := new(job)
 			jt.s = s
 			jt.TaskBase = r.TaskBase
 			jt.JobConfig = r.JobConfig
@@ -591,6 +588,9 @@ func (s *Scheduler) addJobTask(name string) (*jobTask, error) {
 			}
 
 			jt.group = g
+            jt.init()
+
+            g.addJob(jt)
 
 			return jt, nil
 		}
@@ -610,14 +610,14 @@ func (s *Scheduler) loadJobs() error {
 		return bucket.ForEachBucket(func(k []byte) error {
 			name := string(k)
 
-			_, ok := s.jobTask[name]
+			_, ok := s.jobs[name]
 			if !ok {
 				jt, err := s.addJobTask(name)
 				if err != nil {
 					return err
 				}
 
-				s.jobTask[name] = jt
+				s.jobs[name] = jt
 			}
 
 			return nil

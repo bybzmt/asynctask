@@ -10,13 +10,13 @@ func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobTask[jname]
+	jt, ok := s.jobs[jname]
 	if !ok {
 		return c, NotFound
 	}
 
-    jt.l.Lock()
-    defer jt.l.Unlock()
+	jt.l.Lock()
+	defer jt.l.Unlock()
 
 	return jt.JobConfig, nil
 }
@@ -25,13 +25,13 @@ func (s *Scheduler) SetJobConfig(jname string, cfg JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobTask[jname]
+	jt, ok := s.jobs[jname]
 	if !ok {
 		return NotFound
 	}
 
-    jt.l.Lock()
-    defer jt.l.Unlock()
+	jt.l.Lock()
+	defer jt.l.Unlock()
 
 	jt.JobConfig = cfg
 
@@ -116,10 +116,6 @@ func (s *Scheduler) DelGroup(gid ID) error {
 
 	g.l.Lock()
 	defer g.l.Unlock()
-
-	if len(g.jobs.all) > 0 {
-		return errors.New("Jobs Not Empty")
-	}
 
 	g.close()
 	delete(s.groups, gid)
@@ -231,29 +227,9 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 	return NotFound
 }
 
-func (s *Scheduler) JobDelIdle(gid ID, jname string) error {
+func (s *Scheduler) JobDelIdle(jname string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-
-	g, ok := s.groups[gid]
-	if !ok {
-		return NotFound
-	}
-
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	j, ok := g.jobs.all[jname]
-	if !ok {
-		return NotFound
-	}
-
-	if j.mode != job_mode_idle {
-		return NotFound
-	}
-
-	g.jobs.removeJob(j)
-	g.jobs.idleLen--
 
 	return nil
 }
@@ -262,7 +238,7 @@ func (s *Scheduler) JobEmpty(jname string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobTask[jname]
+	jt, ok := s.jobs[jname]
 	if !ok {
 		return NotFound
 	}
@@ -274,7 +250,7 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobTask[jname]
+	jt, ok := s.jobs[jname]
 	if !ok {
 		return NotFound
 	}
@@ -292,9 +268,9 @@ func (s *Scheduler) GetStatData() Statistics {
 
 	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
 	out.Groups = make([]GroupStat, 0, len(s.groups))
-	out.Tasks = make([]TaskStat, 0, len(s.jobTask))
+	out.Tasks = make([]TaskStat, 0, len(s.jobs))
 
-	for _, jt := range s.jobTask {
+	for _, jt := range s.jobs {
 		useTime := 0
 		if len(jt.useTimeStat.data) > 0 {
 			useTime = int(jt.useTimeStat.getAll() / int64(len(jt.useTimeStat.data)) / int64(time.Millisecond))
@@ -318,17 +294,8 @@ func (s *Scheduler) GetStatData() Statistics {
 			UseTime:   useTime,
 			LastTime:  sec,
 			GroupId:   jt.group.Id,
-		}
-
-		if jt.group != nil {
-			jt.group.l.Lock()
-
-			if j, ok := jt.group.jobs.all[jt.name]; ok {
-				tmp.Load = j.loadStat.getAll()
-				tmp.Score = j.score
-			}
-
-			jt.group.l.Unlock()
+			Load:      jt.loadStat.getAll(),
+			Score:     jt.score,
 		}
 
 		out.RunNum += tmp.RunNum

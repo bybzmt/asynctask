@@ -79,10 +79,9 @@ func (s *HttpServer) page_job_empty(r *http.Request) any {
 }
 
 func (s *HttpServer) page_job_delIdle(r *http.Request) any {
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	jname := strings.TrimSpace(r.FormValue("name"))
 
-	return s.Hub.JobDelIdle(scheduler.ID(gid), jname)
+	return s.Hub.JobDelIdle(jname)
 }
 
 func (s *HttpServer) page_job_config(r *http.Request) any {

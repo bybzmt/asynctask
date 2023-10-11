@@ -29,7 +29,7 @@ type group struct {
 	tick     chan time.Time
 	cmd      chan int
 
-	now   time.Time
+	now time.Time
 
 	//己执行任务计数
 	runNum int
@@ -107,7 +107,7 @@ func (g *group) dispatch() {
 	t, err := g.jobs.GetOrder()
 	if err != nil {
 
-        g.s.Log.Debugln("Group", g.Id, "GetOrder", err)
+		g.s.Log.Debugln("Group", g.Id, "GetOrder", err)
 		if err == Empty {
 			return
 		}
@@ -135,11 +135,10 @@ func (g *group) dispatch() {
 
 func (g *group) end(t *order) {
 
-
 	g.l.Lock()
 	defer g.l.Unlock()
 
-            g.s.Log.Debugln("Group", g.Id, "end")
+	g.s.Log.Debugln("Group", g.Id, "end")
 	g.now = time.Now()
 
 	t.EndTime = g.now
@@ -150,7 +149,7 @@ func (g *group) end(t *order) {
 	useTime := t.EndTime.Sub(t.StartTime)
 
 	if t.Err != nil {
-		t.job.errAdd()
+		t.job.errNum.Add(1)
 	}
 
 	g.jobs.end(t.job, loadTime, useTime)
@@ -166,7 +165,7 @@ func (g *group) end(t *order) {
 }
 
 func (g *group) Run() {
-    g.init()
+	g.init()
 
 	g.s.Log.Debugln("scheduler group", g.Id, "run")
 
@@ -229,12 +228,19 @@ func (g *group) statTick(now time.Time) {
 	g.loadStat.push(int64(g.loadTime))
 	g.loadTime = 0
 
-	for _, j := range g.jobs.all {
+	for j := g.jobs.run.next; j != g.jobs.run; j = j.next {
+		j.loadStat.push(int64(j.loadTime))
+		j.loadTime = 0
+	}
+	for j := g.jobs.block.next; j != g.jobs.block; j = j.next {
+		j.loadStat.push(int64(j.loadTime))
+		j.loadTime = 0
+	}
+	for j := g.jobs.idle.next; j != g.jobs.idle; j = j.next {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
 }
-
 
 func (g *group) logTask(t *order) {
 
@@ -260,24 +266,18 @@ func (g *group) logTask(t *order) {
 	g.s.Log.Infoln("[Task]", string(msg))
 }
 
-func (g *group) notifyDelJob(jname string) {
+func (g *group) delJob(j *job) {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	j, ok := g.jobs.all[jname]
-	if ok {
-		g.jobs.remove(j)
-		delete(g.jobs.all, jname)
-	}
+	g.jobs.remove(j)
 }
 
-func (g *group) notifyJob(jtask *jobTask) {
+func (g *group) addJob(j *job) {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	j := g.jobs.addJob(jtask)
-
-	g.jobs.modeCheck(j)
+	g.jobs.addJob(j)
 }
 
 func (g *group) dayChange() {
@@ -285,5 +285,5 @@ func (g *group) dayChange() {
 	defer g.l.Unlock()
 
 	g.oldNum = g.runNum
-    g.runNum = 0
+	g.runNum = 0
 }
