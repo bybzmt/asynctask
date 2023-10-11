@@ -62,7 +62,6 @@ func TestRun(t *testing.T) {
 		<-taskend
 
 		runnum++
-		log.Println("taskend", runnum)
 
 		if runnum == num {
 			break
@@ -71,17 +70,22 @@ func TestRun(t *testing.T) {
 
 	log.Println("taskend all")
 
+	hub.Close()
+
 	stat := hub.GetStatData()
 
 	if stat.Timed != 0 {
 		t.Error("timer task not empty num:", stat.Timed)
 	}
 
-	for stat.WaitNum != 0 {
+	if stat.WaitNum != 0 {
 		t.Error("task not empty num:", stat.WaitNum)
 	}
 
-	hub.Close()
+    if stat.RunNum != 5000 {
+		t.Error("run task num != 5000 is ", stat.RunNum)
+    }
+
 	my.Close()
 }
 

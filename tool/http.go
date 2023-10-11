@@ -148,7 +148,7 @@ func (s *HttpServer) page_route_del(r *http.Request) any {
 
 func (s *HttpServer) page_route_config(r *http.Request) any {
 
-	var cfg scheduler.RouteConfig
+	var cfg scheduler.TaskConfig
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err

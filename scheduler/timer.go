@@ -63,7 +63,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 
 func (s *Scheduler) timerAddTask(t *Task) error {
 
-	if _, err := s.getJobTask(t.Name); err != nil {
+	if _, err := s.getJob(t.Name); err != nil {
 		return err
 	}
 

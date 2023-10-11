@@ -38,7 +38,7 @@ type RunTaskStat struct {
 	UseTime int
 }
 
-type TaskStat struct {
+type JobStat struct {
 	JobConfig
 	Name     string
 	RunNum   int
@@ -48,9 +48,9 @@ type TaskStat struct {
 	UseTime  int
 	LastTime int
 	GroupId  ID
-	Load   int64
-	NowNum int
-	Score  int
+	Load     int64
+	NowNum   int
+	Score    int
 }
 
 type GroupStat struct {
@@ -65,7 +65,7 @@ type GroupStat struct {
 type Statistics struct {
 	schedulerConfig
 	Groups    []GroupStat
-	Tasks     []TaskStat
+	Tasks     []JobStat
 	Runs      []RunTaskStat
 	Capacity  int64
 	Load      int64
@@ -78,7 +78,41 @@ type Statistics struct {
 	Timed     int
 }
 
-func (s *group) getStatData() (GroupStat, []RunTaskStat) {
+func (s *group) getJobStat(jt *job) JobStat {
+	jt.group.l.Lock()
+	defer jt.group.l.Unlock()
+
+	useTime := 0
+	if len(jt.useTimeStat.data) > 0 {
+		useTime = int(jt.useTimeStat.getAll() / int64(len(jt.useTimeStat.data)) / int64(time.Millisecond))
+	}
+
+	sec := 0
+
+	sec2 := jt.lastTime.Unix()
+	if sec2 > 0 {
+		sec = int(s.now.Sub(jt.lastTime) / time.Second)
+	}
+
+	tmp := JobStat{
+		JobConfig: jt.JobConfig,
+		Name:      jt.name,
+		NowNum:    int(jt.nowNum),
+		RunNum:    int(jt.runNum),
+		OldNum:    int(jt.oldNum),
+		ErrNum:    int(jt.errNum),
+		WaitNum:   int(jt.waitNum),
+		UseTime:   useTime,
+		LastTime:  sec,
+		GroupId:   jt.group.Id,
+		Load:      jt.loadStat.getAll(),
+		Score:     jt.score,
+	}
+
+	return tmp
+}
+
+func (s *group) getGroupStat() GroupStat {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -89,6 +123,13 @@ func (s *group) getStatData() (GroupStat, []RunTaskStat) {
 	t.RunNum = s.runNum
 	t.OldNum = s.oldNum
 	t.NowNum = s.nowNum
+
+	return t
+}
+
+func (s *group) getRunTaskStat() []RunTaskStat {
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	now := time.Now()
 
@@ -105,5 +146,5 @@ func (s *group) getStatData() (GroupStat, []RunTaskStat) {
 		runs = append(runs, st)
 	}
 
-	return t, runs
+	return runs
 }

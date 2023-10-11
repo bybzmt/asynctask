@@ -81,4 +81,19 @@ func atoiId(key []byte) ID {
 	return ID(id)
 }
 
+func copyMap(src map[string]string) map[string]string {
+    dst := make(map[string]string, len(src))
 
+    for k, v := range src {
+        dst[k] = v
+    }
+
+    return dst
+}
+
+func copyTaskBase(src TaskBase) (dst TaskBase) {
+    dst = src
+    dst.CliEnv = copyMap(src.CliEnv)
+    dst.HttpHeader = copyMap(src.HttpHeader)
+    return
+}

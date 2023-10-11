@@ -225,24 +225,35 @@ func (s *Scheduler) onNotifyRemove(name string) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobs[name]
-	if ok {
-		if jt.hasTask() {
-			return
-		}
+	s.delIdleJob(name)
+}
 
-        jt.group.l.Lock()
-        defer jt.group.l.Unlock()
-
-		jt.remove()
-		delete(s.jobs, name)
+func (s *Scheduler) delIdleJob(name string) error {
+	j, ok := s.jobs[name]
+	if !ok {
+		return NotFound
 	}
+
+	j.group.l.Lock()
+	defer j.group.l.Unlock()
+
+    ok = j.group.jobs.removeJob(j)
+	if !ok {
+		return errors.New("Job Not idle")
+	}
+
+	j.removeBucket()
+	delete(s.jobs, name)
+
+	return nil
 }
 
 func (s *Scheduler) dayCheck() {
 	if s.today != s.now.Day() {
 		for _, j := range s.jobs {
+            j.group.l.Lock()
 			j.dayChange()
+            j.group.l.Unlock()
 		}
 
 		for _, g := range s.groups {
@@ -403,7 +414,7 @@ func (s *Scheduler) loadGroups() error {
 
 func (s *Scheduler) addRoute() (*router, error) {
 	r := new(router)
-	var cfg RouteConfig
+	var cfg TaskConfig
 	cfg.Parallel = s.Parallel
 	cfg.Mode = MODE_HTTP
 	cfg.Timeout = 60
@@ -441,7 +452,7 @@ func (s *Scheduler) addRoute() (*router, error) {
 		return nil, err
 	}
 
-	r.RouteConfig = cfg
+	r.TaskConfig = cfg
 	r.init()
 
 	s.routes = append(s.routes, r)
@@ -458,7 +469,7 @@ func (s *Scheduler) saveRouter(r *router) error {
 		}
 
 		key := []byte(fmt.Sprintf("%d", r.Id))
-		val, err := json.Marshal(&r.RouteConfig)
+		val, err := json.Marshal(&r.TaskConfig)
 
 		if err != nil {
 			return err
@@ -476,22 +487,26 @@ func (s *Scheduler) saveRouter(r *router) error {
 }
 
 func (s *Scheduler) routeChanged() {
-	for _, jt := range s.jobs {
+	for _, j := range s.jobs {
 		for _, r := range s.routes {
-			if r.match(jt.name) {
+			if r.match(j.name) {
+				if j.group.Id != r.GroupId {
+					j.group.delJob(j)
 
-				if jt.group != nil && jt.group.Id != r.GroupId {
-					jt.group.delJob(jt)
+					g, ok := s.groups[r.GroupId]
+
+					if !ok {
+						delete(s.jobs, j.name)
+						s.Log.Errorf("routeChanged Miss Group route:%d job:%s\n", r.Id, j.name)
+						continue
+					}
+
+					j.group = g
+					j.JobConfig = r.JobConfig
+					j.TaskBase = copyTaskBase(r.TaskBase)
+
+					j.group.addJob(j)
 				}
-
-				if g, ok := s.groups[r.GroupId]; ok {
-					jt.group = g
-				} else {
-					jt.group = nil
-				}
-
-				jt.TaskBase = r.TaskBase
-				jt.JobConfig = r.JobConfig
 			}
 		}
 	}
@@ -507,7 +522,7 @@ func (s *Scheduler) loadRouters() error {
 		}
 
 		return bucket.ForEach(func(key, val []byte) error {
-			var cfg RouteConfig
+			var cfg TaskConfig
 			err := json.Unmarshal(val, &cfg)
 			if err != nil {
 				s.Log.Warnln("[store] key=config/router/"+string(key), "json.Unmarshal:", err)
@@ -515,7 +530,7 @@ func (s *Scheduler) loadRouters() error {
 			}
 
 			r := new(router)
-			r.RouteConfig = cfg
+			r.TaskConfig = cfg
 			r.Id = atoiId(key)
 			err = r.init()
 			if err != nil {
@@ -544,21 +559,24 @@ func (s *Scheduler) routersSort() {
 
 func (s *Scheduler) addTask(t *Task) error {
 
-	jt, err := s.getJobTask(t.Name)
+	j, err := s.getJob(t.Name)
 	if err != nil {
 		return err
 	}
 
-	return jt.addTask(t)
+	j.group.l.Lock()
+	defer j.group.l.Unlock()
+
+	return j.addTask(t)
 }
 
-func (s *Scheduler) getJobTask(name string) (*job, error) {
+func (s *Scheduler) getJob(name string) (*job, error) {
 	jt, ok := s.jobs[name]
 
 	if !ok {
 		var err error
 
-		jt, err = s.addJobTask(name)
+		jt, err = s.addJob(name)
 		if err != nil {
 			return nil, err
 		}
@@ -569,14 +587,14 @@ func (s *Scheduler) getJobTask(name string) (*job, error) {
 	return jt, nil
 }
 
-func (s *Scheduler) addJobTask(name string) (*job, error) {
+func (s *Scheduler) addJob(name string) (*job, error) {
 	for _, r := range s.routes {
 		if r.match(name) {
-			jt := new(job)
-			jt.s = s
-			jt.TaskBase = r.TaskBase
-			jt.JobConfig = r.JobConfig
-			jt.name = name
+			j := new(job)
+			j.s = s
+			j.TaskBase = r.TaskBase
+			j.JobConfig = r.JobConfig
+			j.name = name
 
 			g, ok := s.groups[r.GroupId]
 			if !ok {
@@ -587,16 +605,16 @@ func (s *Scheduler) addJobTask(name string) (*job, error) {
 				return nil, err
 			}
 
-			jt.group = g
-            jt.init()
+			j.group = g
+			j.init()
 
-            g.addJob(jt)
+			g.addJob(j)
 
-			return jt, nil
+			return j, nil
 		}
 	}
 
-	return nil, errors.New("no match router")
+	return nil, errors.New("Task Not Allow")
 }
 
 func (s *Scheduler) loadJobs() error {
@@ -612,7 +630,7 @@ func (s *Scheduler) loadJobs() error {
 
 			_, ok := s.jobs[name]
 			if !ok {
-				jt, err := s.addJobTask(name)
+				jt, err := s.addJob(name)
 				if err != nil {
 					return err
 				}
@@ -636,7 +654,7 @@ func (s *Scheduler) AddDefaultGroup() error {
 		return err
 	}
 
-	g.Note = "Default WorkGroup"
+	g.Note = "Default"
 
 	return s.saveGroup(g)
 }
@@ -651,7 +669,7 @@ func (s *Scheduler) AddDefaultRouter() error {
 	}
 
 	r.Used = true
-	r.Note = "Default Router"
+	r.Note = "Default"
 	r.Mode = MODE_HTTP
 
 	for _, g := range s.groups {

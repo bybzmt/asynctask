@@ -5,16 +5,13 @@ import (
 )
 
 type router struct {
-	RouteConfig
+	TaskConfig
 
 	exp *regexp.Regexp
 }
 
 func (r *router) init() error {
-
-    if r.CmdEnv == nil {
-        r.TaskBase.init()
-    }
+    r.TaskBase.init()
 
     if r.Match == "" {
         return nil

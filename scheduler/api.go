@@ -3,7 +3,6 @@ package scheduler
 import (
 	"errors"
 	"strings"
-	"time"
 )
 
 func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
@@ -15,8 +14,8 @@ func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
 		return c, NotFound
 	}
 
-	jt.l.Lock()
-	defer jt.l.Unlock()
+	jt.group.l.Lock()
+	defer jt.group.l.Unlock()
 
 	return jt.JobConfig, nil
 }
@@ -30,8 +29,8 @@ func (s *Scheduler) SetJobConfig(jname string, cfg JobConfig) error {
 		return NotFound
 	}
 
-	jt.l.Lock()
-	defer jt.l.Unlock()
+	jt.group.l.Lock()
+	defer jt.group.l.Unlock()
 
 	jt.JobConfig = cfg
 
@@ -104,14 +103,14 @@ func (s *Scheduler) DelGroup(gid ID) error {
 		return NotFound
 	}
 
-	if len(s.groups) == 1 {
-		return errors.New("Last Group Can not Del")
-	}
-
 	for _, r := range s.routes {
 		if gid == r.GroupId {
 			return errors.New("Group Use In Route")
 		}
+	}
+
+	if len(s.groups) == 1 {
+		return errors.New("Last Group Can not Del")
 	}
 
 	g.l.Lock()
@@ -123,15 +122,15 @@ func (s *Scheduler) DelGroup(gid ID) error {
 	return nil
 }
 
-func (s *Scheduler) AddRoute() (RouteConfig, error) {
+func (s *Scheduler) AddRoute() (TaskConfig, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	r, err := s.addRoute()
 	if err != nil {
-		return RouteConfig{}, err
+		return TaskConfig{}, err
 	}
-	return r.RouteConfig, err
+	return r.TaskConfig, err
 }
 
 func (s *Scheduler) DelRoute(rid ID) error {
@@ -159,13 +158,19 @@ func (s *Scheduler) DelRoute(rid ID) error {
 	return nil
 }
 
-func (s *Scheduler) SetRouteConfig(cfg RouteConfig) error {
+func (s *Scheduler) SetRouteConfig(cfg TaskConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
+    _, ok := s.groups[cfg.GroupId]
+    if !ok {
+        return errors.New("Group Not Found")
+    }
+
 	for _, r := range s.routes {
 		if r.Id == cfg.Id {
-			r.RouteConfig = cfg
+			r.TaskConfig = cfg
+            r.TaskBase = copyTaskBase(cfg.TaskBase)
 
 			if err := r.init(); err != nil {
 				return err
@@ -181,25 +186,25 @@ func (s *Scheduler) SetRouteConfig(cfg RouteConfig) error {
 	return Empty
 }
 
-func (s *Scheduler) GetRouteConfig(id ID) (RouteConfig, error) {
+func (s *Scheduler) GetRouteConfig(id ID) (TaskConfig, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	for _, r := range s.routes {
 		if r.Id == id {
-			return r.RouteConfig, nil
+			return r.TaskConfig, nil
 		}
 	}
 
-	return RouteConfig{}, NotFound
+	return TaskConfig{}, NotFound
 }
 
-func (s *Scheduler) GetRouteConfigs() (out []RouteConfig) {
+func (s *Scheduler) GetRouteConfigs() (out []TaskConfig) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	for _, r := range s.routes {
-		out = append(out, r.RouteConfig)
+		out = append(out, r.TaskConfig)
 	}
 
 	return
@@ -227,11 +232,11 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 	return NotFound
 }
 
-func (s *Scheduler) JobDelIdle(jname string) error {
+func (s *Scheduler) JobDelIdle(name string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	return nil
+    return s.delIdleJob(name)
 }
 
 func (s *Scheduler) JobEmpty(jname string) error {
@@ -242,6 +247,9 @@ func (s *Scheduler) JobEmpty(jname string) error {
 	if !ok {
 		return NotFound
 	}
+
+    jt.group.l.Lock()
+    defer jt.group.l.Unlock()
 
 	return jt.delAllTask()
 }
@@ -255,68 +263,10 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 		return NotFound
 	}
 
+    jt.group.l.Lock()
+    defer jt.group.l.Unlock()
+
 	return jt.delTask(tid)
-}
-
-func (s *Scheduler) GetStatData() Statistics {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	var out Statistics
-	out.schedulerConfig = s.schedulerConfig
-	out.Timed = s.timerTaskNum()
-
-	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
-	out.Groups = make([]GroupStat, 0, len(s.groups))
-	out.Tasks = make([]TaskStat, 0, len(s.jobs))
-
-	for _, jt := range s.jobs {
-		useTime := 0
-		if len(jt.useTimeStat.data) > 0 {
-			useTime = int(jt.useTimeStat.getAll() / int64(len(jt.useTimeStat.data)) / int64(time.Millisecond))
-		}
-
-		sec := 0
-
-		sec2 := jt.lastTime.Unix()
-		if sec2 > 0 {
-			sec = int(s.now.Sub(jt.lastTime) / time.Second)
-		}
-
-		tmp := TaskStat{
-			JobConfig: jt.JobConfig,
-			Name:      jt.name,
-			NowNum:    int(jt.nowNum.Load()),
-			RunNum:    int(jt.runNum.Load()),
-			OldNum:    int(jt.oldNum.Load()),
-			ErrNum:    int(jt.errNum.Load()),
-			WaitNum:   int(jt.waitNum.Load()),
-			UseTime:   useTime,
-			LastTime:  sec,
-			GroupId:   jt.group.Id,
-			Load:      jt.loadStat.getAll(),
-			Score:     jt.score,
-		}
-
-		out.RunNum += tmp.RunNum
-		out.ErrNum += tmp.ErrNum
-		out.WaitNum += tmp.WaitNum
-		out.OldNum += tmp.OldNum
-		out.Tasks = append(out.Tasks, tmp)
-	}
-
-	for _, s := range s.groups {
-		group, runs := s.getStatData()
-
-		out.Capacity += group.Capacity
-		out.Load += group.Load
-		out.NowNum += group.NowNum
-		out.WorkerNum += group.WorkerNum
-		out.Groups = append(out.Groups, group)
-		out.Runs = append(out.Runs, runs...)
-	}
-
-	return out
 }
 
 func (s *Scheduler) AddTask(t *Task) error {
@@ -343,3 +293,42 @@ func (s *Scheduler) AddTask(t *Task) error {
 
 	return s.addTask(t)
 }
+
+func (s *Scheduler) GetStatData() Statistics {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	var out Statistics
+	out.schedulerConfig = s.schedulerConfig
+	out.Timed = s.timerTaskNum()
+
+	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
+	out.Groups = make([]GroupStat, 0, len(s.groups))
+	out.Tasks = make([]JobStat, 0, len(s.jobs))
+
+	for _, jt := range s.jobs {
+        tmp := jt.group.getJobStat(jt)
+
+		out.RunNum += tmp.RunNum
+		out.ErrNum += tmp.ErrNum
+		out.WaitNum += tmp.WaitNum
+		out.OldNum += tmp.OldNum
+		out.Tasks = append(out.Tasks, tmp)
+	}
+
+	for _, s := range s.groups {
+		group := s.getGroupStat()
+		runs := s.getRunTaskStat()
+
+		out.Capacity += group.Capacity
+		out.Load += group.Load
+		out.NowNum += group.NowNum
+		out.WorkerNum += group.WorkerNum
+		out.Groups = append(out.Groups, group)
+
+		out.Runs = append(out.Runs, runs...)
+	}
+
+	return out
+}
+

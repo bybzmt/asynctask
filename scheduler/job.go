@@ -3,8 +3,6 @@ package scheduler
 import (
 	"time"
 	"encoding/json"
-	"sync"
-	"sync/atomic"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -21,8 +19,6 @@ type job struct {
 	JobConfig
 	TaskBase
 
-	l sync.Mutex
-
 	name string
 
 	s     *Scheduler
@@ -33,13 +29,11 @@ type job struct {
 
     score int
 
-	nowNum  atomic.Int32
-	waitNum atomic.Int32
-	errNum  atomic.Int32
-	runNum  atomic.Int32
-	oldNum  atomic.Int32
-
-	initd bool
+	nowNum  int32
+	waitNum int32
+	errNum  int32
+	runNum  int32
+	oldNum  int32
 
 	useTimeStat statRow
 	loadStat statRow
@@ -49,11 +43,6 @@ type job struct {
 }
 
 func (j *job) init() error {
-	if j.initd {
-		return nil
-	}
-	j.initd = true
-
 	j.useTimeStat.init(10)
 	j.loadStat.init(j.s.statSize)
 
@@ -61,13 +50,6 @@ func (j *job) init() error {
 }
 
 func (j *job) addTask(t *Task) error {
-    j.l.Lock()
-    defer j.l.Unlock()
-
-	if err := j.init(); err != nil {
-		return err
-	}
-
 	val, err := json.Marshal(t)
 	if err != nil {
 		return err
@@ -92,24 +74,15 @@ func (j *job) addTask(t *Task) error {
 		return err
 	}
 
-	j.waitNum.Add(1)
+	j.waitNum += 1
 	j.s.waitNum.Add(1)
 
-    if j.mode == job_mode_idle {
-        j.group.l.Lock()
-        defer j.group.l.Unlock()
-
-        j.group.jobs.modeCheck(j)
-    }
+    j.group.jobs.modeCheck(j)
 
 	return nil
 }
 
 func (j *job) delTask(tid ID) error {
-	if err := j.init(); err != nil {
-		return err
-	}
-
 	has := false
 
 	//key: task/:jname
@@ -134,11 +107,8 @@ func (j *job) delTask(tid ID) error {
 	}
 
 	if has {
-		j.waitNum.Add(-1)
+		j.waitNum -= 1
 	}
-
-    j.group.l.Lock()
-    defer j.group.l.Unlock()
 
     j.group.jobs.modeCheck(j)
 
@@ -146,10 +116,6 @@ func (j *job) delTask(tid ID) error {
 }
 
 func (j *job) popTask() (*Task, error) {
-	if err := j.init(); err != nil {
-		return nil, err
-	}
-
 	t := Task{}
 
 	//key: task/:jname
@@ -188,17 +154,18 @@ func (j *job) popTask() (*Task, error) {
 		return nil, err
 	}
 
-	j.waitNum.Add(-1)
+	j.nowNum += 1
+	j.waitNum -= 1
 	j.s.waitNum.Add(-1)
 
 	return &t, nil
 }
 
-func (j *job) end(now time.Time, useTime time.Duration) {
-	j.l.Lock()
-	defer j.l.Unlock()
-
+func (j *job) end(now time.Time, loadTime, useTime time.Duration) {
+	j.nowNum -= 1
+	j.runNum += 1
 	j.lastTime = now
+	j.loadTime += loadTime
 	j.useTimeStat.push(int64(useTime))
 }
 
@@ -224,7 +191,7 @@ func (j *job) hasTask() bool {
 	return has
 }
 
-func (j *job) remove() error {
+func (j *job) removeBucket() error {
 	//key: task/:jname
 	err := j.s.Db.Update(func(tx *bolt.Tx) error {
 
@@ -241,13 +208,13 @@ func (j *job) remove() error {
 }
 
 func (j *job) delAllTask() error {
-	err := j.remove()
+	err := j.removeBucket()
 
 	if err != nil {
 		return err
 	}
 
-	j.waitNum.Store(0)
+	j.waitNum = 0
 
 	return nil
 }
@@ -257,13 +224,13 @@ func (j *job) loadWaitNum() error {
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
 		bucket := getBucket(tx, "task", j.name)
 		if bucket == nil {
-			j.waitNum.Store(0)
+			j.waitNum = 0
 			return nil
 		}
 
 		s := bucket.Stats()
 
-		j.waitNum.Store(int32(s.KeyN))
+		j.waitNum = int32(s.KeyN)
 		j.s.waitNum.Add(int32(s.KeyN))
 
 		return nil
@@ -273,13 +240,9 @@ func (j *job) loadWaitNum() error {
 }
 
 func (j *job) dayChange() {
-	n1 := j.runNum.Load()
-	j.runNum.Add(-n1)
-
-	n2 := j.errNum.Load()
-	j.errNum.Add(-n2)
-
-	j.oldNum.Store(n1)
+	j.oldNum = j.runNum
+	j.runNum = 0
+	j.errNum = 0
 }
 
 
@@ -288,7 +251,7 @@ func (j *job) countScore() {
 
 	area = 10000
 
-	x = float64(j.nowNum.Load()) * (area / float64(j.group.WorkerNum))
+	x = float64(j.nowNum) * (area / float64(j.group.WorkerNum))
 
 	if j.group.loadStat.getAll() > 0 {
 		y = float64(j.loadStat.getAll()) / float64(j.group.loadStat.getAll()) * area
@@ -296,26 +259,9 @@ func (j *job) countScore() {
 
     xx := j.group.s.waitNum.Load()
 	if xx > 0 {
-		z = area - float64(j.waitNum.Load())/float64(xx)*area
+		z = area - float64(j.waitNum)/float64(xx)*area
 	}
 
 	j.score = int(x + y + z + float64(j.Priority))
-}
-
-
-func (j *job) popOrder() (*order, error) {
-    t, err := j.popTask()
-    if err != nil {
-        return nil, err
-    }
-
-    o := new(order)
-    o.Id = ID(t.Id)
-    o.Task = t
-    o.Base = j.TaskBase
-    o.AddTime = time.Unix(int64(t.AddTime), 0)
-    o.job = j
-
-    return o, nil
 }
 

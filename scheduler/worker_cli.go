@@ -31,8 +31,8 @@ func (w *workerCli) Cancel() {
 func (w *workerCli) Run(o *order) (status int, msg string) {
 	var task string
 
-	if o.Base.CmdBase != "" {
-		task = o.Base.CmdBase + " " + o.Task.Cli.Cmd
+	if o.Base.CliBase != "" {
+		task = o.Base.CliBase + " " + o.Task.Cli.Cmd
 	} else {
 		task = o.Task.Cli.Cmd
 	}
@@ -57,14 +57,14 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 
 	c := exec.CommandContext(ctx, task, params...)
-	c.Env = make([]string, 0, len(o.Base.CmdEnv))
+	c.Env = make([]string, 0, len(o.Base.CliEnv))
 
-	for k, v := range o.Base.CmdEnv {
+	for k, v := range o.Base.CliEnv {
 		c.Env = append(c.Env, k+"="+v)
 	}
 
-	if o.Base.CmdDir != "" {
-		c.Dir = o.Base.CmdDir
+	if o.Base.CliDir != "" {
+		c.Dir = o.Base.CliDir
 	} else {
 		c.Dir = os.TempDir()
 	}

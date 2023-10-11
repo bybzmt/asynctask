@@ -106,9 +106,8 @@ func (g *group) dispatch() {
 
 	t, err := g.jobs.GetOrder()
 	if err != nil {
-
-		g.s.Log.Debugln("Group", g.Id, "GetOrder", err)
 		if err == Empty {
+            g.s.Log.Debugln("Group", g.Id, "Empty")
 			return
 		}
 		g.s.Log.Warnln("GetTask Error", err)
@@ -138,7 +137,6 @@ func (g *group) end(t *order) {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	g.s.Log.Debugln("Group", g.Id, "end")
 	g.now = time.Now()
 
 	t.EndTime = g.now
@@ -149,7 +147,7 @@ func (g *group) end(t *order) {
 	useTime := t.EndTime.Sub(t.StartTime)
 
 	if t.Err != nil {
-		t.job.errNum.Add(1)
+		t.job.errNum += 1
 	}
 
 	g.jobs.end(t.job, loadTime, useTime)

@@ -47,24 +47,15 @@ func (js *jobs) modeCheck(j *job) {
 		return
 	}
 
-	nowNum := j.nowNum.Load()
-
-	if nowNum >= int32(j.Parallel) {
+	if j.nowNum >= int32(j.Parallel) || (j.waitNum < 1 && j.nowNum > 0) {
 		if j.mode != job_mode_block {
 			js.remove(j)
 			js.blockAdd(j)
 		}
-	} else if !j.hasTask() {
-		if nowNum > 0 {
-			if j.mode != job_mode_block {
-				js.remove(j)
-				js.blockAdd(j)
-			}
-		} else {
-			if j.mode != job_mode_idle {
-				js.remove(j)
-				js.idleAdd(j)
-			}
+	} else if j.waitNum < 1 {
+		if j.mode != job_mode_idle {
+			js.remove(j)
+			js.idleAdd(j)
 		}
 	} else {
 		j.countScore()
@@ -81,21 +72,10 @@ func (js *jobs) modeCheck(j *job) {
 func (js *jobs) GetOrder() (*order, error) {
 	j := js.front()
 	if j == nil {
-		if js.block.next != js.block {
-			js.modeCheck(js.block.next)
-		} else {
-			// for x := js.idle; x.next != js.idle; x = x.next {
-			//              if x.hasTask() {
-			//                  js.modeCheck(x)
-			//                  break;
-			//              }
-			// }
-		}
-
 		return nil, Empty
 	}
 
-	o, err := j.popOrder()
+	o, err := js.popOrder(j)
 
 	if err != nil {
 		if err == Empty {
@@ -104,19 +84,29 @@ func (js *jobs) GetOrder() (*order, error) {
 		return nil, err
 	}
 
-	j.nowNum.Add(1)
-
 	js.modeCheck(j)
 
 	return o, nil
 }
 
-func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
-	j.nowNum.Add(-1)
-	j.runNum.Add(1)
-	j.loadTime += loadTime
+func (js *jobs) popOrder(j *job) (*order, error) {
+	t, err := j.popTask()
+	if err != nil {
+		return nil, err
+	}
 
-	j.end(js.g.now, useTime)
+	o := new(order)
+	o.Id = ID(t.Id)
+	o.Task = t
+	o.Base = copyTaskBase(j.TaskBase)
+	o.AddTime = time.Unix(int64(t.AddTime), 0)
+	o.job = j
+
+	return o, nil
+}
+
+func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
+	j.end(js.g.now, loadTime, useTime)
 
 	js.modeCheck(j)
 }

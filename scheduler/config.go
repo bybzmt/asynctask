@@ -84,11 +84,11 @@ func (o *order) taskTxt() string {
 		}
 	} else if o.Base.Mode&MODE_CLI == MODE_CLI {
 		if o.Task.Cli != nil {
-            str := make([]string, 0, 1+len(o.Task.Cli.Params))
-            str = append(str, o.Task.Cli.Cmd)
-            str = append(str, o.Task.Cli.Params...)
+			str := make([]string, 0, 1+len(o.Task.Cli.Params))
+			str = append(str, o.Task.Cli.Cmd)
+			str = append(str, o.Task.Cli.Params...)
 
-            return strings.Join(str, " ")
+			return strings.Join(str, " ")
 		}
 	}
 
@@ -98,27 +98,31 @@ func (o *order) taskTxt() string {
 type TaskBase struct {
 	Mode       Mode
 	Timeout    uint //最大超时时间
-	CmdBase    string
-	CmdEnv     map[string]string
-	CmdDir     string //工作目录
+	CliBase    string
+	CliEnv     map[string]string
+	CliDir     string //工作目录
 	HttpBase   string
 	HttpHeader map[string]string
 }
 
 func (b *TaskBase) init() {
-	b.HttpHeader = make(map[string]string)
-	b.CmdEnv = make(map[string]string)
+	if b.HttpHeader == nil {
+		b.HttpHeader = make(map[string]string)
+	}
+	if b.CliEnv == nil {
+		b.CliEnv = make(map[string]string)
+	}
 }
 
-type RouteConfig struct {
+type TaskConfig struct {
 	JobConfig
 	TaskBase
-	Id     ID
-	Match  string
-	Note   string
+	Id      ID
+	Match   string
+	Note    string
 	GroupId ID
-	Sort   int
-	Used   bool
+	Sort    int
+	Used    bool
 }
 
 type GroupConfig struct {
