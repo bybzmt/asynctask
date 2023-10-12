@@ -84,12 +84,12 @@ export async function sendJson(url, data) {
 
 export function taskCancel(task) {
     var ok = confirm(
-        "Cancel Task?\r\nName: " + task.Name + " " + task.Task
+        "Cancel Task?\r\nId: " + task.Id + " Name: " + task.Name + " " + task.Task
     );
     if (ok) {
         sendPost(mkUrl("api/task/cancel"), {
-            gid: task.Gid,
-            tid: task.Name,
+            gid: task.Group,
+            tid: task.Id,
         });
     }
 }
@@ -150,9 +150,3 @@ export function jobParallel(job) {
     }
 }
 
-export async function getStatus() {
-
-    let json = await fetch(mkUrl("api/status")).then((t) => t.json())
-
-    return json.Data
-}

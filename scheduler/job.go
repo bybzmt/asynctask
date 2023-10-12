@@ -76,7 +76,7 @@ func (j *job) addTask(t *Task) error {
 	}
 
 	j.waitNum += 1
-	j.s.waitNum.Add(1)
+    j.group.waitNum += 1
 
 	if j.next == nil || j.prev == nil {
 		j.group.jobs.runAdd(j)
@@ -113,6 +113,7 @@ func (j *job) delTask(tid ID) error {
 
 	if has {
 		j.waitNum -= 1
+        j.group.waitNum -= 1
 	}
 
 	j.group.jobs.modeCheck(j)
@@ -161,7 +162,7 @@ func (j *job) popTask() (*Task, error) {
 
 	j.nowNum += 1
 	j.waitNum -= 1
-	j.s.waitNum.Add(-1)
+	j.group.waitNum -= 1
 
 	return &t, nil
 }
@@ -236,7 +237,7 @@ func (j *job) loadWaitNum() error {
 		s := bucket.Stats()
 
 		j.waitNum = int32(s.KeyN)
-		j.s.waitNum.Add(int32(s.KeyN))
+        j.group.waitNum += s.KeyN
 
 		return nil
 	})
@@ -262,7 +263,7 @@ func (j *job) countScore() {
 		y = float64(j.loadStat.getAll()) / float64(j.group.loadStat.getAll()) * area
 	}
 
-	xx := j.group.s.waitNum.Load()
+	xx := j.group.waitNum
 	if xx > 0 {
 		z = area - float64(j.waitNum)/float64(xx)*area
 	}

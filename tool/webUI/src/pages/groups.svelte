@@ -13,7 +13,7 @@
     let isShow = false;
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/groups")).then((t) => t.json());
+        let json = await fetch(mkUrl("api/group/status")).then((t) => t.json());
 
         Groups = json.Data;
     }
@@ -53,12 +53,6 @@
 </script>
 
 <Layout>
-    <div id="tab">
-        <a href="#/">Tasks</a>
-        <a href="#/routes">Routes</a>
-        <a href="#/groups">WorkGroups</a>
-    </div>
-
     <div id="tasks">
         <table>
             <thead>

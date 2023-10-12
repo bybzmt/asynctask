@@ -181,11 +181,11 @@ func (js *jobs) removeJob(j *job) bool {
 func (js *jobs) priority(j *job) {
 	x := j
 
-	for x.next != js.run && x.score > x.next.score {
+	for x.next != js.run && j.score > x.next.score {
 		x = x.next
 	}
 
-	for x.prev != js.run && x.score < x.prev.score {
+	for x.prev != js.run && j.score < x.prev.score {
 		x = x.prev
 	}
 

@@ -32,6 +32,7 @@ type group struct {
 	errNum int
 	oldRun int
 	oldErr int
+	waitNum int
 
 	loadTime time.Duration
 	loadStat statRow
@@ -101,6 +102,9 @@ func (g *group) dispatch() {
 	t, err := g.jobs.GetOrder()
 	if err != nil {
 		if err == Empty {
+            if g.nowNum == 0 {
+                g.waitNum = 0
+            }
             g.s.Log.Debugln("Group", g.Id, "Empty")
 			return
 		}

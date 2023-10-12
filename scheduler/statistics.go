@@ -34,6 +34,7 @@ type RunTaskStat struct {
 	Id      ID
 	Group   ID
 	Name    string
+	Mode    string
 	Task    string
 	UseTime int
 }
@@ -63,23 +64,14 @@ type GroupStat struct {
 	ErrNum   int
 	OldRun   int
 	OldErr   int
+	WaitNum  int
 }
 
 type Statistics struct {
 	schedulerConfig
-	Groups    []GroupStat
-	Tasks     []JobStat
-	Runs      []RunTaskStat
-	Capacity  int64
-	Load      int64
-	NowNum    int
-	RunNum    int
-	ErrNum    int
-	OldRun    int
-	OldErr    int
-	WaitNum   int
-	WorkerNum uint32
-	Timed     int
+	Groups []GroupStat
+	Tasks  []JobStat
+	Timed  int
 }
 
 func (s *group) getJobStat(jt *job) JobStat {
@@ -130,6 +122,7 @@ func (s *group) getGroupStat() GroupStat {
 	t.ErrNum = s.errNum
 	t.OldRun = s.oldRun
 	t.OldErr = s.oldErr
+	t.WaitNum = s.waitNum
 
 	return t
 }
@@ -143,9 +136,17 @@ func (s *group) getRunTaskStat() []RunTaskStat {
 	runs := make([]RunTaskStat, 0, s.WorkerNum)
 
 	for t2 := range s.orders {
+		var mode string
+		if t2.Base.Mode&MODE_HTTP == MODE_HTTP {
+			mode = "HTTP"
+		} else {
+			mode = "CLI"
+		}
+
 		st := RunTaskStat{
 			Id:      t2.Id,
 			Group:   s.Id,
+			Mode:    mode,
 			Name:    t2.Task.Name,
 			Task:    t2.taskTxt(),
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),

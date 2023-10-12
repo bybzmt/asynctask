@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -34,7 +33,6 @@ type Scheduler struct {
 	statTick time.Duration
 	statSize int
 
-	waitNum atomic.Int32
 	today   int
 
 	running bool
@@ -254,8 +252,12 @@ func (s *Scheduler) delIdleJob(name string) error {
 	j.group.l.Lock()
 	defer j.group.l.Unlock()
 
-	if j.next != nil {
+    if j.mode != job_mode_idle {
 		return NotFound
+    }
+
+	if j.next != nil {
+        j.group.jobs.remove(j)
 	}
 
 	delete(s.jobs, name)

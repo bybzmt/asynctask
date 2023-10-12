@@ -4,6 +4,9 @@ export default {
         "/": {
             page: () => import('./pages/index.svelte'),
         },
+        "/runing": {
+            page: () => import('./pages/runing.svelte'),
+        },
         "/groups": {
             page: () => import('./pages/groups.svelte'),
         },

@@ -40,17 +40,19 @@ func (s *HttpServer) Init() {
 	tfs, _ := fs.Sub(uifiles, "dist")
 	h.Handle("/", http.FileServer(http.FS(tfs)))
 
-	h.HandleFunc("/api/status", page_error(s.page_status))
+	h.HandleFunc("/api/task/status", page_error(s.page_status))
+	h.HandleFunc("/api/group/status", page_error(s.page_groups_status))
+
+	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
-	h.HandleFunc("/api/job/delIdle", page_error(s.page_job_empty))
+	h.HandleFunc("/api/job/delIdle", page_error(s.page_job_delIdle))
 	h.HandleFunc("/api/job/emptyAll", page_error(s.page_job_empty))
 	h.HandleFunc("/api/job/setConfig", page_error(s.page_job_config))
 	h.HandleFunc("/api/routes", page_error(s.page_routes))
 	h.HandleFunc("/api/route/add", page_error(s.page_route_add))
 	h.HandleFunc("/api/route/del", page_error(s.page_route_del))
 	h.HandleFunc("/api/route/setConfig", page_error(s.page_route_config))
-	h.HandleFunc("/api/groups", page_error(s.page_groups))
 	h.HandleFunc("/api/group/add", page_error(s.page_group_add))
 	h.HandleFunc("/api/group/del", page_error(s.page_group_del))
 	h.HandleFunc("/api/group/setConfig", page_error(s.page_group_config))
@@ -60,6 +62,10 @@ func (s *HttpServer) Init() {
 
 func (s *HttpServer) page_status(r *http.Request) any {
 	return s.Hub.GetStatData()
+}
+
+func (s *HttpServer) page_runing(r *http.Request) any {
+	return s.Hub.GetRunTaskStat()
 }
 
 func (s *HttpServer) page_task_add(r *http.Request) any {
@@ -97,8 +103,8 @@ func (s *HttpServer) page_job_config(r *http.Request) any {
 	return s.Hub.SetJobConfig(jname, cfg)
 }
 
-func (s *HttpServer) page_groups(r *http.Request) any {
-    return s.Hub.GetGroupConfigs()
+func (s *HttpServer) page_groups_status(r *http.Request) any {
+    return s.Hub.GetGroupStat()
 }
 
 func (s *HttpServer) page_group_add(r *http.Request) any {

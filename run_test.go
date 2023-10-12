@@ -22,7 +22,7 @@ var ts_actions = []int{
 	100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
 	200, 230, 240, 270,
 	300, 350, 400, 500,
-	1000,
+	1000, 1000, 1000, 2000,
 	3000,
 	6000,
 }
@@ -46,7 +46,7 @@ func TestRun(t *testing.T) {
 	log.Println("listen", to)
 	log.Println("http", ":8080")
 
-	go addTask(hub, 5000, to, taskadd)
+	go addTask(hub, 10000, to, taskadd)
 
 	httpNum := 0
 	allNum := 0
@@ -73,7 +73,7 @@ func TestRun(t *testing.T) {
 
 			runnum++
 
-            // log.Println("taskend", runnum, httpNum)
+			// log.Println("taskend", runnum, httpNum)
 
 			if runnum == httpNum {
 				goto toend
@@ -95,12 +95,17 @@ toend:
 		t.Error("timer task not empty num:", stat.Timed)
 	}
 
-	if stat.WaitNum != 0 {
-		t.Error("task not empty num:", stat.WaitNum)
+	RunNum := 0
+	for _, g := range stat.Groups {
+		if g.WaitNum != 0 {
+			t.Error("task not empty num:", g.WaitNum)
+		}
+
+		RunNum += g.RunNum
 	}
 
-	if stat.RunNum != allNum {
-		t.Error("run task num err", stat.RunNum, "/", allNum)
+	if RunNum != allNum {
+		t.Error("run task num err", RunNum, "/", allNum)
 	}
 
 	my.Close()
@@ -118,7 +123,7 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 
 		var task scheduler.Task
 
-		if ts_getRand()%11 == 0 {
+		if ts_getRand()%(num/100) == 0 {
 			task.Trigger = uint(time.Now().Unix()) + 2
 		}
 

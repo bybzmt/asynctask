@@ -4,12 +4,10 @@
     import {
         jobSort,
         mkUrl,
-        taskCancel,
         jobEmpty,
         jobDelIdle,
         jobPriority,
         jobParallel,
-        getStatus,
     } from "./lib/base";
 
     let timer;
@@ -28,7 +26,6 @@
     let AllData = {};
     let Tasks = [];
     let Groups = [];
-    let Runs = [];
 
     let sortby = 2;
     let tab = 2;
@@ -39,10 +36,10 @@
         { k: 3, n: "执行中" },
         { k: 4, n: "己执行" },
         { k: 5, n: "昨天" },
-        { k: 6, n: "昨天错" },
-        { k: 7, n: "队列" },
-        { k: 8, n: "平均时间" },
-        { k: 9, n: "优先级" },
+        { k: 10, n: "昨出错" },
+        { k: 6, n: "队列" },
+        { k: 7, n: "平均时间" },
+        { k: 8, n: "优先级" },
     ];
 
     function getCapacity(gid) {
@@ -63,9 +60,9 @@
     }
 
     async function showStatus() {
-        let res = await getStatus();
+        let json = await fetch(mkUrl("api/task/status")).then((t) => t.json());
 
-        console.log(res);
+        let res = json.Data;
 
         res.Groups.sort(function (a, b) {
             return a.Id < b.Id ? -1 : 1;
@@ -86,7 +83,29 @@
 
         Groups = res.Groups;
         Tasks = res.Tasks;
-        Runs = res.Runs;
+
+        res.Capacity = 0;
+        res.Load = 0;
+        res.NowNum = 0;
+        res.RunNum = 0;
+        res.ErrNum = 0;
+        res.OldRun = 0;
+        res.OldErr = 0;
+        res.WaitNum = 0;
+        res.WorkerNum = 0;
+
+        res.Groups.forEach((g) => {
+            res.Load += g.Load;
+            res.Capacity += g.Capacity;
+            res.NowNum += g.NowNum;
+            res.RunNum += g.RunNum;
+            res.ErrNum += g.ErrNum;
+            res.OldRun += g.OldRun;
+            res.OldErr += g.OldErr;
+            res.WaitNum += g.WaitNum;
+            res.WorkerNum += g.WorkerNum;
+        });
+
         AllData = res;
     }
 
@@ -100,12 +119,6 @@
 </script>
 
 <Layout>
-    <div id="tab">
-        <a href="#/">Tasks</a>
-        <a href="#/routes">Routes</a>
-        <a href="#/groups">WorkGroups</a>
-    </div>
-
     <div id="All">
         <table>
             <thead>
@@ -117,6 +130,7 @@
                     <th class="old">昨天</th>
                     <th class="old">昨出错</th>
                     <th class="wait">队列</th>
+                    <th>定时</th>
                 </tr>
             </thead>
             <tbody>
@@ -132,6 +146,7 @@
                     <td>{AllData.OldRun}</td>
                     <td>{AllData.OldErr}</td>
                     <td>{AllData.WaitNum}</td>
+                    <td>{AllData.Timed}</td>
                 </tr>
                 {#each Groups as g}
                     <tr>
@@ -141,6 +156,7 @@
                         <td>{g.RunNum}</td>
                         <td>{g.OldRun}</td>
                         <td>{g.OldErr}</td>
+                        <td>{g.WaitNum}</td>
                         <td />
                     </tr>
                 {/each}
@@ -149,9 +165,6 @@
     </div>
 
     <div id="tab">
-        <span class="run {tab == 1 ? 'active' : ''}" on:click={() => setTab(1)}
-            >runing</span
-        >
         <span class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}
             >waiting</span
         >
@@ -163,93 +176,58 @@
         >
     </div>
 
-    {#if tab == 1}
-        <div id="tasks">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th class="name">分组</th>
-                        <th class="params">任务</th>
-                        <th class="time">用时</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each Runs as task}
-                        <tr>
-                            <td
-                                ><span on:dblclick={() => taskCancel(task)}
-                                    >{task.Id}</span
-                                ></td
-                            >
-                            <td>{task.Name}</td>
-                            <td class="params">{task.Task}</td>
-                            <td>{task.UseTime / 1000}s</td>
-                        </tr>
-                    {:else}
-                        <tr>
-                            <td colspan="4" class="center">empty</td>
-                        </tr>
+    <div id="jobs">
+        <table>
+            <thead>
+                <tr>
+                    {#each sortName as d}
+                        <th on:click={() => setSort(d.k)}
+                            >{d.n}
+                            {#if Math.abs(sortby) == d.k}
+                                {sortby < 0 ? " ↑" : " ↓"}
+                            {/if}
+                        </th>
                     {/each}
-                </tbody>
-            </table>
-        </div>
-    {/if}
-
-    {#if tab != 1}
-        <div id="jobs">
-            <table>
-                <thead>
+                    <th>上次</th>
+                    <th>报错</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#each Tasks as j}
                     <tr>
-                        {#each sortName as d}
-                            <th on:click={() => setSort(d.k)}
-                                >{d.n}
-                                {#if Math.abs(sortby) == d.k}
-                                    {sortby < 0 ? " ↑" : " ↓"}
-                                {/if}
-                            </th>
-                        {/each}
-                        <th>上次</th>
-                        <th>报错</th>
+                        <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
+
+                        <td>{j.GroupId}</td>
+
+                        <td
+                            >{Math.round(
+                                (j.Load / getCapacity(j.GroupId)) * 100
+                            )}%</td
+                        >
+
+                        <td on:dblclick={() => jobParallel(j)}
+                            >{j.NowNum + "/" + j.Parallel}</td
+                        >
+
+                        <td>{j.RunNum}</td>
+                        <td>{j.OldRun}</td>
+                        <td>{j.OldErr}</td>
+                        <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
+                        <td>{j.UseTime / 1000}s</td>
+
+                        <td on:dblclick={() => jobPriority(j)}>
+                            {j.Score + fmtPriority(j.Priority)}
+                        </td>
+
+                        <td>{j.LastTime}s</td>
+                        <td>{j.ErrNum}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    {#each Tasks as j}
-                        <tr>
-                            <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
-
-                            <td>{j.GroupId}</td>
-
-                            <td
-                                >{Math.round(
-                                    (j.Load / getCapacity(j.GroupId)) * 100
-                                )}%</td
-                            >
-
-                            <td on:dblclick={() => jobParallel(j)}
-                                >{j.NowNum + "/" + j.Parallel}</td
-                            >
-
-                            <td>{j.RunNum}</td>
-                            <td>{j.OldRun}</td>
-                            <td>{j.OldErr}</td>
-                            <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
-                            <td>{j.UseTime / 1000}s</td>
-
-                            <td on:dblclick={() => jobPriority(j)}>
-                                {j.Score + fmtPriority(j.Priority)}
-                            </td>
-
-                            <td>{j.LastTime}s</td>
-                            <td>{j.ErrNum}</td>
-                        </tr>
-                    {:else}
-                        <tr><td colspan="11" class="center">empty</td> </tr>
-                    {/each}
-                </tbody>
-            </table>
-        </div>
-    {/if}
+                {:else}
+                    <tr><td colspan="11" class="center">empty</td> </tr>
+                {/each}
+            </tbody>
+        </table>
+    </div>
 </Layout>
 
 <style>

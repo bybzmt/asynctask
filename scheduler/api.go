@@ -49,14 +49,12 @@ func (s *Scheduler) AddGroup() (GroupConfig, error) {
 	return g.GroupConfig, nil
 }
 
-func (s *Scheduler) GetGroupConfigs() (out []GroupConfig) {
+func (s *Scheduler) GetGroupStat() (out []GroupStat) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	for _, g := range s.groups {
-		g.l.Lock()
-		out = append(out, g.GroupConfig)
-		g.l.Unlock()
+		out = append(out, g.getGroupStat())
 	}
 
 	return
@@ -162,15 +160,15 @@ func (s *Scheduler) SetRouteConfig(cfg TaskConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    _, ok := s.groups[cfg.GroupId]
-    if !ok {
-        return errors.New("Group Not Found")
-    }
+	_, ok := s.groups[cfg.GroupId]
+	if !ok {
+		return errors.New("Group Not Found")
+	}
 
 	for _, r := range s.routes {
 		if r.Id == cfg.Id {
 			r.TaskConfig = cfg
-            r.TaskBase = copyTaskBase(cfg.TaskBase)
+			r.TaskBase = copyTaskBase(cfg.TaskBase)
 
 			if err := r.init(); err != nil {
 				return err
@@ -236,7 +234,7 @@ func (s *Scheduler) JobDelIdle(name string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    return s.delIdleJob(name)
+	return s.delIdleJob(name)
 }
 
 func (s *Scheduler) JobEmpty(jname string) error {
@@ -248,8 +246,8 @@ func (s *Scheduler) JobEmpty(jname string) error {
 		return NotFound
 	}
 
-    jt.group.l.Lock()
-    defer jt.group.l.Unlock()
+	jt.group.l.Lock()
+	defer jt.group.l.Unlock()
 
 	return jt.delAllTask()
 }
@@ -263,8 +261,8 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 		return NotFound
 	}
 
-    jt.group.l.Lock()
-    defer jt.group.l.Unlock()
+	jt.group.l.Lock()
+	defer jt.group.l.Unlock()
 
 	return jt.delTask(tid)
 }
@@ -302,34 +300,34 @@ func (s *Scheduler) GetStatData() Statistics {
 	out.schedulerConfig = s.schedulerConfig
 	out.Timed = s.timerTaskNum()
 
-	out.Runs = make([]RunTaskStat, 0, s.WorkerNum)
 	out.Groups = make([]GroupStat, 0, len(s.groups))
 	out.Tasks = make([]JobStat, 0, len(s.jobs))
 
 	for _, jt := range s.jobs {
-        tmp := jt.group.getJobStat(jt)
+		tmp := jt.group.getJobStat(jt)
 
-		out.WaitNum += tmp.WaitNum
 		out.Tasks = append(out.Tasks, tmp)
 	}
 
 	for _, s := range s.groups {
 		group := s.getGroupStat()
-		runs := s.getRunTaskStat()
 
-		out.Capacity += group.Capacity
-		out.Load += group.Load
-		out.NowNum += group.NowNum
-		out.RunNum += group.RunNum
-		out.ErrNum += group.ErrNum
-		out.OldRun += group.OldRun
-		out.OldErr += group.OldErr
-		out.WorkerNum += group.WorkerNum
 		out.Groups = append(out.Groups, group)
-
-		out.Runs = append(out.Runs, runs...)
 	}
 
 	return out
 }
 
+func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	runs := make([]RunTaskStat, 0, s.WorkerNum)
+
+	for _, s := range s.groups {
+		tmp := s.getRunTaskStat()
+		runs = append(runs, tmp...)
+	}
+
+	return runs
+}

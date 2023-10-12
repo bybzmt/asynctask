@@ -20,20 +20,8 @@
         return GroupsKv[id] || {};
     }
 
-    function addGroup() {
-        if (!editRoute.Groups.includes(addGroupId)) {
-            editRoute.Groups.push(addGroupId);
-            editRoute = editRoute;
-        }
-    }
-
-    function delGroup(id) {
-        editRoute.Groups = editRoute.Groups.filter((g) => g != id);
-        editRoute = editRoute;
-    }
-
     async function showStatus() {
-        let json = await fetch(mkUrl("api/groups")).then((t) => t.json());
+        let json = await fetch(mkUrl("api/group/status")).then((t) => t.json());
 
         let tmp = {};
         json.Data.forEach((v) => (tmp[v.Id] = v));
@@ -104,12 +92,6 @@
 </script>
 
 <Layout>
-    <div id="tab">
-        <a href="#/">Tasks</a>
-        <a href="#/routes">Routes</a>
-        <a href="#/groups">WorkGroups</a>
-    </div>
-
     <div id="tasks">
         <table>
             <thead>

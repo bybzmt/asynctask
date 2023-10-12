@@ -6,6 +6,7 @@ asynctask
 #js
 /tool/dist/*
 /tool/webUI/node_modules
+/tool/webUI/.vite
 
 #vim
 *.swp
