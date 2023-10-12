@@ -309,10 +309,7 @@ func (s *Scheduler) GetStatData() Statistics {
 	for _, jt := range s.jobs {
         tmp := jt.group.getJobStat(jt)
 
-		out.RunNum += tmp.RunNum
-		out.ErrNum += tmp.ErrNum
 		out.WaitNum += tmp.WaitNum
-		out.OldNum += tmp.OldNum
 		out.Tasks = append(out.Tasks, tmp)
 	}
 
@@ -323,6 +320,10 @@ func (s *Scheduler) GetStatData() Statistics {
 		out.Capacity += group.Capacity
 		out.Load += group.Load
 		out.NowNum += group.NowNum
+		out.RunNum += group.RunNum
+		out.ErrNum += group.ErrNum
+		out.OldRun += group.OldRun
+		out.OldErr += group.OldErr
 		out.WorkerNum += group.WorkerNum
 		out.Groups = append(out.Groups, group)
 

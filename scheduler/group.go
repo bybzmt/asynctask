@@ -15,13 +15,9 @@ type group struct {
 
 	l sync.Mutex
 
-	//所有工作进程
 	allWorkers []*worker
-	//空闲工作进程
 	workers list.List
-	//运行中的任务
 	orders map[*order]struct{}
-	//所有任务
 	jobs jobs
 
 	running  bool
@@ -31,14 +27,12 @@ type group struct {
 
 	now time.Time
 
-	//己执行任务计数
-	runNum int
-	//昨天任务计数
-	oldNum int
-	//执行中的任务
 	nowNum int
+	runNum int
+	errNum int
+	oldRun int
+	oldErr int
 
-	//负载数据
 	loadTime time.Duration
 	loadStat statRow
 }
@@ -147,6 +141,7 @@ func (g *group) end(t *order) {
 	useTime := t.EndTime.Sub(t.StartTime)
 
 	if t.Err != nil {
+        g.errNum += 1
 		t.job.errNum += 1
 	}
 
@@ -282,6 +277,8 @@ func (g *group) dayChange() {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	g.oldNum = g.runNum
+	g.oldRun = g.runNum
+    g.oldErr = g.errNum
 	g.runNum = 0
+    g.errNum = 0
 }

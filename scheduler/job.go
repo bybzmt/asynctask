@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"time"
 	"encoding/json"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -27,16 +27,17 @@ type job struct {
 	next, prev *job
 	mode       job_mode
 
-    score int
+	score int
 
 	nowNum  int32
 	waitNum int32
 	errNum  int32
 	runNum  int32
-	oldNum  int32
+	oldRun  int32
+	oldErr  int32
 
 	useTimeStat statRow
-	loadStat statRow
+	loadStat    statRow
 
 	loadTime time.Duration
 	lastTime time.Time
@@ -77,7 +78,11 @@ func (j *job) addTask(t *Task) error {
 	j.waitNum += 1
 	j.s.waitNum.Add(1)
 
-    j.group.jobs.modeCheck(j)
+	if j.next == nil || j.prev == nil {
+		j.group.jobs.runAdd(j)
+	}
+
+	j.group.jobs.modeCheck(j)
 
 	return nil
 }
@@ -110,7 +115,7 @@ func (j *job) delTask(tid ID) error {
 		j.waitNum -= 1
 	}
 
-    j.group.jobs.modeCheck(j)
+	j.group.jobs.modeCheck(j)
 
 	return nil
 }
@@ -240,11 +245,11 @@ func (j *job) loadWaitNum() error {
 }
 
 func (j *job) dayChange() {
-	j.oldNum = j.runNum
+	j.oldRun = j.runNum
+	j.oldErr = j.errNum
 	j.runNum = 0
 	j.errNum = 0
 }
-
 
 func (j *job) countScore() {
 	var x, y, z, area float64
@@ -257,11 +262,10 @@ func (j *job) countScore() {
 		y = float64(j.loadStat.getAll()) / float64(j.group.loadStat.getAll()) * area
 	}
 
-    xx := j.group.s.waitNum.Load()
+	xx := j.group.s.waitNum.Load()
 	if xx > 0 {
 		z = area - float64(j.waitNum)/float64(xx)*area
 	}
 
 	j.score = int(x + y + z + float64(j.Priority))
 }
-

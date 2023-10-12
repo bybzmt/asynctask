@@ -48,31 +48,48 @@ func TestRun(t *testing.T) {
 
 	go addTask(hub, 5000, to, taskadd)
 
-	num := 0
-
-	for range taskadd {
-		num++
-	}
-
-	log.Println("taskadd", num)
-
+	httpNum := 0
+	allNum := 0
 	runnum := 0
+	oldTrigger := 0
 
 	for {
-		<-taskend
+		select {
+		case x := <-taskadd:
+			allNum++
+			if x == 2 {
+				httpNum++
+			}
 
-		runnum++
+		case trigger := <-taskend:
 
-		if runnum == num {
-			break
+			if trigger > 0 {
+				if trigger >= oldTrigger {
+					oldTrigger = trigger
+				} else {
+					t.Error("timer task order error")
+				}
+			}
+
+			runnum++
+
+            // log.Println("taskend", runnum, httpNum)
+
+			if runnum == httpNum {
+				goto toend
+			}
 		}
 	}
 
+toend:
+
 	log.Println("taskend all")
 
-	hub.Close()
+	time.Sleep(time.Millisecond * 200)
 
 	stat := hub.GetStatData()
+
+	hub.Close()
 
 	if stat.Timed != 0 {
 		t.Error("timer task not empty num:", stat.Timed)
@@ -82,9 +99,9 @@ func TestRun(t *testing.T) {
 		t.Error("task not empty num:", stat.WaitNum)
 	}
 
-    if stat.RunNum != 5000 {
-		t.Error("run task num != 5000 is ", stat.RunNum)
-    }
+	if stat.RunNum != allNum {
+		t.Error("run task num err", stat.RunNum, "/", allNum)
+	}
 
 	my.Close()
 }
@@ -101,7 +118,7 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 
 		var task scheduler.Task
 
-		if ts_getRand()%5 == 0 {
+		if ts_getRand()%11 == 0 {
 			task.Trigger = uint(time.Now().Unix()) + 2
 		}
 
@@ -111,6 +128,7 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 				Cmd:    "echo",
 				Params: []string{task.Name},
 			}
+			taskadd <- 1
 		} else {
 
 			tmp := ts_getRand()
@@ -119,20 +137,23 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 			p := url.Values{}
 			p.Add("code", "200")
 			p.Add("sleep", strconv.Itoa(sleep))
+			p.Add("trigger", strconv.Itoa(int(task.Trigger)))
 
 			l := to + "/?" + p.Encode()
 
-			if sl > 1000 {
+			if task.Trigger > 0 {
+				task.Name = "http/trigger"
+			} else if sl > 1000 {
 				task.Name = "slow/" + strconv.Itoa(sl)
 			} else {
-				task.Name = "http/" + strconv.Itoa(sl)
+				task.Name = "http/" + strconv.Itoa(sleep)
 			}
 
 			task.Http = &scheduler.TaskHttp{
 				Url: l,
 			}
 
-			taskadd <- 1
+			taskadd <- 2
 		}
 
 		err := hub.AddTask(&task)
@@ -142,8 +163,6 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 	}
 
 	log.Println("i:", num, "/", num)
-
-	close(taskadd)
 }
 
 func ts_getRand() int {
@@ -158,7 +177,7 @@ type myServer struct {
 	l net.Listener
 }
 
-func initTestServer(my *myServer, rund chan int) {
+func initTestServer(my *myServer, taskend chan int) {
 	l, err := net.ListenTCP("tcp", nil)
 	if err != nil {
 		panic(err)
@@ -169,9 +188,11 @@ func initTestServer(my *myServer, rund chan int) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s_code := r.FormValue("code")
 		s_sleep := r.FormValue("sleep")
+		s_trigger := r.FormValue("trigger")
 
 		code, _ := strconv.Atoi(s_code)
 		sleep, _ := strconv.Atoi(s_sleep)
+		trigger, _ := strconv.Atoi(s_trigger)
 
 		if sleep > 0 {
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
@@ -180,7 +201,7 @@ func initTestServer(my *myServer, rund chan int) {
 		w.WriteHeader(code)
 		w.Write([]byte(http.StatusText(code)))
 
-		rund <- 1
+		taskend <- trigger
 	})
 
 	my.Serve(my.l)

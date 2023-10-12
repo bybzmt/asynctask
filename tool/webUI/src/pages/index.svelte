@@ -39,9 +39,10 @@
         { k: 3, n: "执行中" },
         { k: 4, n: "己执行" },
         { k: 5, n: "昨天" },
-        { k: 6, n: "队列" },
-        { k: 7, n: "平均时间" },
-        { k: 8, n: "优先级" },
+        { k: 6, n: "昨天错" },
+        { k: 7, n: "队列" },
+        { k: 8, n: "平均时间" },
+        { k: 9, n: "优先级" },
     ];
 
     function getCapacity(gid) {
@@ -114,6 +115,7 @@
                     <th class="now">执行中</th>
                     <th class="run">己执行</th>
                     <th class="old">昨天</th>
+                    <th class="old">昨出错</th>
                     <th class="wait">队列</th>
                 </tr>
             </thead>
@@ -127,7 +129,8 @@
                     >
                     <td>{AllData.NowNum} / {AllData.WorkerNum}</td>
                     <td>{AllData.RunNum}</td>
-                    <td>{AllData.OldNum}</td>
+                    <td>{AllData.OldRun}</td>
+                    <td>{AllData.OldErr}</td>
                     <td>{AllData.WaitNum}</td>
                 </tr>
                 {#each Groups as g}
@@ -136,7 +139,8 @@
                         <td>{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td>{g.NowNum} / {g.WorkerNum}</td>
                         <td>{g.RunNum}</td>
-                        <td>{g.OldNum}</td>
+                        <td>{g.OldRun}</td>
+                        <td>{g.OldErr}</td>
                         <td />
                     </tr>
                 {/each}
@@ -227,7 +231,8 @@
                             >
 
                             <td>{j.RunNum}</td>
-                            <td>{j.OldNum}</td>
+                            <td>{j.OldRun}</td>
+                            <td>{j.OldErr}</td>
                             <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
                             <td>{j.UseTime / 1000}s</td>
 

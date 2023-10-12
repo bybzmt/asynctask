@@ -21,10 +21,9 @@ type Scheduler struct {
 
 	l sync.Mutex
 
-	now          time.Time
-	groupEnd     chan *group
-	notifyRemove chan string
-	closed       chan int
+	now      time.Time
+	groupEnd chan *group
+	closed   chan int
 
 	jobs map[string]*job
 
@@ -67,7 +66,6 @@ func New(c Config) (*Scheduler, error) {
 	s.groups = make(map[ID]*group)
 	s.jobs = make(map[string]*job)
 
-	s.notifyRemove = make(chan string, 10)
 	s.closed = make(chan int)
 
 	s.loadScheduler()
@@ -81,11 +79,11 @@ func New(c Config) (*Scheduler, error) {
 	}
 
 	if len(s.groups) < 1 && len(s.routes) < 1 {
-		if err := s.AddDefaultGroup(); err != nil {
+		if err := s.addDefaultGroup(); err != nil {
 			return nil, err
 		}
 
-		if err := s.AddDefaultRouter(); err != nil {
+		if err := s.addDefaultRouter(); err != nil {
 			return nil, err
 		}
 	}
@@ -124,6 +122,8 @@ func (s *Scheduler) Run() {
 	ticker := time.NewTicker(s.statTick)
 	defer ticker.Stop()
 
+	minuteTick := 0
+
 	for {
 		select {
 		case now := <-ticker.C:
@@ -143,15 +143,20 @@ func (s *Scheduler) Run() {
 
 			s.dayCheck()
 
+			minuteTick++
+
+			if minuteTick > 60 {
+				minuteTick = 0
+
+                s.checkJobs()
+			}
+
 			s.l.Unlock()
 
 			if !s.running && l == 0 {
 				s.Log.Debugln("all close")
 				return
 			}
-
-		case name := <-s.notifyRemove:
-			s.onNotifyRemove(name)
 
 		case g := <-s.groupEnd:
 			s.Log.Debugln("groupEnd", g.Id)
@@ -210,6 +215,25 @@ func (s *Scheduler) Close() error {
 	}
 }
 
+func (s *Scheduler) checkJobs() {
+	for _, j := range s.jobs {
+		j.group.l.Lock()
+
+		if j.mode == job_mode_idle {
+			j.loadWaitNum()
+			if j.waitNum > 0 {
+				j.group.jobs.addJob(j)
+			}
+
+			if j.next == nil {
+				delete(s.jobs, j.name)
+			}
+		}
+
+		j.group.l.Unlock()
+	}
+}
+
 func (s *Scheduler) allTaskCancel() {
 	s.Log.Debugln("allTaskCancel")
 
@@ -221,13 +245,6 @@ func (s *Scheduler) allTaskCancel() {
 	}
 }
 
-func (s *Scheduler) onNotifyRemove(name string) {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	s.delIdleJob(name)
-}
-
 func (s *Scheduler) delIdleJob(name string) error {
 	j, ok := s.jobs[name]
 	if !ok {
@@ -237,12 +254,10 @@ func (s *Scheduler) delIdleJob(name string) error {
 	j.group.l.Lock()
 	defer j.group.l.Unlock()
 
-    ok = j.group.jobs.removeJob(j)
-	if !ok {
-		return errors.New("Job Not idle")
+	if j.next != nil {
+		return NotFound
 	}
 
-	j.removeBucket()
 	delete(s.jobs, name)
 
 	return nil
@@ -251,9 +266,9 @@ func (s *Scheduler) delIdleJob(name string) error {
 func (s *Scheduler) dayCheck() {
 	if s.today != s.now.Day() {
 		for _, j := range s.jobs {
-            j.group.l.Lock()
+			j.group.l.Lock()
 			j.dayChange()
-            j.group.l.Unlock()
+			j.group.l.Unlock()
 		}
 
 		for _, g := range s.groups {
@@ -608,8 +623,6 @@ func (s *Scheduler) addJob(name string) (*job, error) {
 			j.group = g
 			j.init()
 
-			g.addJob(j)
-
 			return j, nil
 		}
 	}
@@ -645,7 +658,7 @@ func (s *Scheduler) loadJobs() error {
 	return err
 }
 
-func (s *Scheduler) AddDefaultGroup() error {
+func (s *Scheduler) addDefaultGroup() error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -659,7 +672,7 @@ func (s *Scheduler) AddDefaultGroup() error {
 	return s.saveGroup(g)
 }
 
-func (s *Scheduler) AddDefaultRouter() error {
+func (s *Scheduler) addDefaultRouter() error {
 	s.l.Lock()
 	defer s.l.Unlock()
 

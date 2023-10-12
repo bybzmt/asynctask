@@ -35,8 +35,7 @@ func (js *jobs) init(max int, g *group) *jobs {
 }
 
 func (js *jobs) addJob(j *job) {
-	//添加到idle链表
-	js.idleAdd(j)
+	js.runAdd(j)
 
 	js.g.jobs.modeCheck(j)
 }
@@ -79,6 +78,9 @@ func (js *jobs) GetOrder() (*order, error) {
 
 	if err != nil {
 		if err == Empty {
+            js.g.s.Log.Warnln("Job PopOrder Empty")
+
+            j.waitNum = 0
 			js.modeCheck(j)
 		}
 		return nil, err
@@ -160,7 +162,7 @@ func (js *jobs) idleAdd(j *job) {
 	for js.idleLen > js.idleMax {
 		j := js.idleFront()
 		if j != nil {
-			js.g.s.notifyRemove <- j.name
+            js.removeJob(j)
 		}
 	}
 }

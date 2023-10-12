@@ -43,7 +43,8 @@ type JobStat struct {
 	Name     string
 	RunNum   int
 	ErrNum   int
-	OldNum   int
+	OldRun   int
+	OldErr   int
 	WaitNum  int
 	UseTime  int
 	LastTime int
@@ -59,7 +60,9 @@ type GroupStat struct {
 	Load     int64
 	NowNum   int
 	RunNum   int
-	OldNum   int
+	ErrNum   int
+	OldRun   int
+	OldErr   int
 }
 
 type Statistics struct {
@@ -72,7 +75,8 @@ type Statistics struct {
 	NowNum    int
 	RunNum    int
 	ErrNum    int
-	OldNum    int
+	OldRun    int
+	OldErr    int
 	WaitNum   int
 	WorkerNum uint32
 	Timed     int
@@ -97,11 +101,12 @@ func (s *group) getJobStat(jt *job) JobStat {
 	tmp := JobStat{
 		JobConfig: jt.JobConfig,
 		Name:      jt.name,
+		WaitNum:   int(jt.waitNum),
 		NowNum:    int(jt.nowNum),
 		RunNum:    int(jt.runNum),
-		OldNum:    int(jt.oldNum),
 		ErrNum:    int(jt.errNum),
-		WaitNum:   int(jt.waitNum),
+		OldRun:    int(jt.oldRun),
+		OldErr:    int(jt.oldErr),
 		UseTime:   useTime,
 		LastTime:  sec,
 		GroupId:   jt.group.Id,
@@ -120,9 +125,11 @@ func (s *group) getGroupStat() GroupStat {
 	t.GroupConfig = s.GroupConfig
 	t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
 	t.Load = s.loadStat.getAll()
-	t.RunNum = s.runNum
-	t.OldNum = s.oldNum
 	t.NowNum = s.nowNum
+	t.RunNum = s.runNum
+	t.ErrNum = s.errNum
+	t.OldRun = s.oldRun
+	t.OldErr = s.oldErr
 
 	return t
 }
