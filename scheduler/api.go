@@ -298,7 +298,7 @@ func (s *Scheduler) GetStatData() Statistics {
 
 	var out Statistics
 	out.schedulerConfig = s.schedulerConfig
-	out.Timed = s.timerTaskNum()
+	out.Timed = s.timedNum
 
 	out.Groups = make([]GroupStat, 0, len(s.groups))
 	out.Tasks = make([]JobStat, 0, len(s.jobs))

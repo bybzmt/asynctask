@@ -1,4 +1,4 @@
-package tool
+package server
 
 import (
 	"asynctask/scheduler"
@@ -19,23 +19,8 @@ type Result struct {
 	Data interface{}
 }
 
-type HttpServer struct {
-    http.Server
-    Hub *scheduler.Scheduler
-}
-
-func HttpRun(hub *scheduler.Scheduler, addr string) {
-    s := HttpServer{
-        Hub: hub,
-    }
-    s.Addr = addr
-
-    s.Init()
-	s.Hub.Log.Fatalln(s.ListenAndServe())
-}
-
-func (s *HttpServer) Init() {
-    h := http.NewServeMux()
+func (s *Server) initHttp() {
+	h := http.NewServeMux()
 
 	tfs, _ := fs.Sub(uifiles, "dist")
 	h.Handle("/", http.FileServer(http.FS(tfs)))
@@ -57,72 +42,72 @@ func (s *HttpServer) Init() {
 	h.HandleFunc("/api/group/del", page_error(s.page_group_del))
 	h.HandleFunc("/api/group/setConfig", page_error(s.page_group_config))
 
-    s.Handler = h
+	s.Http.Handler = h
 }
 
-func (s *HttpServer) page_status(r *http.Request) any {
-	return s.Hub.GetStatData()
+func (s *Server) page_status(r *http.Request) any {
+	return s.Scheduler.GetStatData()
 }
 
-func (s *HttpServer) page_runing(r *http.Request) any {
-	return s.Hub.GetRunTaskStat()
+func (s *Server) page_runing(r *http.Request) any {
+	return s.Scheduler.GetRunTaskStat()
 }
 
-func (s *HttpServer) page_task_add(r *http.Request) any {
+func (s *Server) page_task_add(r *http.Request) any {
 	var o scheduler.Task
 
 	if err := httpReadJson(r, &o); err != nil {
 		return err
 	}
 
-	return s.Hub.AddTask(&o)
+	return s.Scheduler.AddTask(&o)
 }
 
-func (s *HttpServer) page_job_empty(r *http.Request) any {
+func (s *Server) page_job_empty(r *http.Request) any {
 	name := r.FormValue("name")
 
-	return s.Hub.JobEmpty(name)
+	return s.Scheduler.JobEmpty(name)
 }
 
-func (s *HttpServer) page_job_delIdle(r *http.Request) any {
+func (s *Server) page_job_delIdle(r *http.Request) any {
 	jname := strings.TrimSpace(r.FormValue("name"))
 
-	return s.Hub.JobDelIdle(jname)
+	return s.Scheduler.JobDelIdle(jname)
 }
 
-func (s *HttpServer) page_job_config(r *http.Request) any {
+func (s *Server) page_job_config(r *http.Request) any {
 	jname := strings.TrimSpace(r.FormValue("name"))
-    _cfg := r.FormValue("cfg")
+	_cfg := r.FormValue("cfg")
 
 	var cfg scheduler.JobConfig
 
-    if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
-        return err
-    }
+	if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
+		return err
+	}
 
-	return s.Hub.SetJobConfig(jname, cfg)
+	return s.Scheduler.SetJobConfig(jname, cfg)
 }
 
-func (s *HttpServer) page_groups_status(r *http.Request) any {
-    return s.Hub.GetGroupStat()
+func (s *Server) page_groups_status(r *http.Request) any {
+	return s.Scheduler.GetGroupStat()
 }
 
-func (s *HttpServer) page_group_add(r *http.Request) any {
-    cfg, err := s.Hub.AddGroup()
-    if err != nil {
-        return err
-    }
-    return cfg
+func (s *Server) page_group_add(r *http.Request) any {
+	cfg, err := s.Scheduler.AddGroup()
+	if err != nil {
+		return err
+	}
+	return cfg
 }
 
-func (s *HttpServer) page_group_del(r *http.Request) any {
+func (s *Server) page_group_del(r *http.Request) any {
 
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
 
-	return s.Hub.DelGroup(scheduler.ID(gid))
+	return s.Scheduler.DelGroup(scheduler.ID(gid))
 }
 
-func (s *HttpServer) page_group_config(r *http.Request) any {
+func (s *Server) page_group_config(r *http.Request) any {
 
 	var cfg scheduler.GroupConfig
 
@@ -130,29 +115,29 @@ func (s *HttpServer) page_group_config(r *http.Request) any {
 		return err
 	}
 
-	return s.Hub.SetGroupConfig(cfg)
+	return s.Scheduler.SetGroupConfig(cfg)
 }
 
-func (s *HttpServer) page_routes(r *http.Request) any {
-	return s.Hub.GetRouteConfigs()
+func (s *Server) page_routes(r *http.Request) any {
+	return s.Scheduler.GetRouteConfigs()
 }
 
-func (s *HttpServer) page_route_add(r *http.Request) any {
-    cfg, err := s.Hub.AddRoute()
-    if err != nil {
-        return err
-    }
-    return cfg
+func (s *Server) page_route_add(r *http.Request) any {
+	cfg, err := s.Scheduler.AddRoute()
+	if err != nil {
+		return err
+	}
+	return cfg
 }
 
-func (s *HttpServer) page_route_del(r *http.Request) any {
+func (s *Server) page_route_del(r *http.Request) any {
 
 	rid, _ := strconv.Atoi(r.FormValue("rid"))
 
-	return s.Hub.DelRoute(scheduler.ID(rid))
+	return s.Scheduler.DelRoute(scheduler.ID(rid))
 }
 
-func (s *HttpServer) page_route_config(r *http.Request) any {
+func (s *Server) page_route_config(r *http.Request) any {
 
 	var cfg scheduler.TaskConfig
 
@@ -160,16 +145,15 @@ func (s *HttpServer) page_route_config(r *http.Request) any {
 		return err
 	}
 
-	return s.Hub.SetRouteConfig(cfg)
+	return s.Scheduler.SetRouteConfig(cfg)
 }
 
-func (s *HttpServer) page_task_cancel(r *http.Request) any {
+func (s *Server) page_task_cancel(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	tid, _ := strconv.Atoi(r.FormValue("tid"))
 
-	return s.Hub.OrderCancel(scheduler.ID(gid), scheduler.ID(tid))
+	return s.Scheduler.OrderCancel(scheduler.ID(gid), scheduler.ID(tid))
 }
-
 
 func httpReadJson(r *http.Request, out any) error {
 	body, err := io.ReadAll(r.Body)

@@ -43,7 +43,7 @@
     }
 </script>
 
-<Layout>
+<Layout tab=1>
     <div id="tasks">
         <table>
             <thead>

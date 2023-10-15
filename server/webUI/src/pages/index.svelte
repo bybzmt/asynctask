@@ -118,7 +118,7 @@
     }
 </script>
 
-<Layout>
+<Layout tab=2>
     <div id="All">
         <table>
             <thead>
@@ -165,14 +165,14 @@
     </div>
 
     <div id="tab">
-        <span class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}
-            >waiting</span
+        <a class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}
+            >waiting</a
         >
-        <span class="idle {tab == 3 ? 'active' : ''}" on:click={() => setTab(3)}
-            >idle</span
+        <a class="idle {tab == 3 ? 'active' : ''}" on:click={() => setTab(3)}
+            >idle</a
         >
-        <span class="all {tab == 4 ? 'active' : ''}" on:click={() => setTab(4)}
-            >all</span
+        <a class="all {tab == 4 ? 'active' : ''}" on:click={() => setTab(4)}
+            >all</a
         >
     </div>
 
@@ -246,16 +246,12 @@
     #tab {
         margin: 0 0.5em;
     }
-    #tab span {
+    #tab a {
         margin: auto 0.5em;
         color: #777;
     }
-    #tab span.active {
+    #tab a.active {
         color: black;
         font-weight: bold;
-    }
-    .params {
-        max-width: 500px;
-        overflow: hidden;
     }
 </style>

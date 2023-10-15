@@ -4,9 +4,9 @@ asynctask
 *.log
 
 #js
-/tool/dist/*
-/tool/webUI/node_modules
-/tool/webUI/.vite
+/server/dist/*
+/server/webUI/node_modules
+/server/webUI/.vite
 
 #vim
 *.swp

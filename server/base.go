@@ -1,9 +1,8 @@
-package tool
+package server
 
 import (
 	"errors"
 	"fmt"
-
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -51,4 +50,3 @@ func getBucket(bk bucketer, keys ...string) *bolt.Bucket {
 func fmtId(id any) string {
 	return fmt.Sprintf("%12d", id)
 }
-

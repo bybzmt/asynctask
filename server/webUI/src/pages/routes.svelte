@@ -91,7 +91,7 @@
     }
 </script>
 
-<Layout>
+<Layout tab=3>
     <div id="tasks">
         <table>
             <thead>

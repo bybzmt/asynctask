@@ -14,6 +14,8 @@ func (s *Scheduler) timerChecker(now time.Time) {
 		i := 0
 		nt := make([]Task, 20)
 
+        empty := false
+
 		// path: /timer/:unix-:id
 		s.Db.Update(func(tx *bolt.Tx) error {
 			bucket, err := getBucketMust(tx, "timer")
@@ -27,6 +29,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 			for i < 20 {
 				k, v := c.First()
 				if k == nil {
+                    empty = true
 					return nil
 				}
 
@@ -48,6 +51,12 @@ func (s *Scheduler) timerChecker(now time.Time) {
 
 			return nil
 		})
+
+        if empty {
+            s.timedNum = 0
+        } else {
+            s.timedNum -= i
+        }
 
 		for x := 0; x < i; x++ {
 			if err := s.addTask(&nt[x]); err != nil {
@@ -88,6 +97,10 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 
 		return bucket.Put([]byte(key), val)
 	})
+
+    if err == nil {
+        s.timedNum++
+    }
 
 	return err
 }

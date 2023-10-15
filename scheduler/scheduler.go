@@ -34,29 +34,28 @@ type Scheduler struct {
 	statSize int
 
 	today   int
+    timedNum int
 
 	running bool
 }
 
-func New(c Config) (*Scheduler, error) {
-	if c.WorkerNum < 1 {
-		c.WorkerNum = 10
+func (s *Scheduler) Init() error {
+	if s.WorkerNum < 1 {
+		s.WorkerNum = 10
 	}
 
-	if c.Parallel < 1 {
-		c.Parallel = 1
+	if s.Parallel < 1 {
+		s.Parallel = 1
 	}
 
-	if c.Client == nil {
-		c.Client = http.DefaultClient
+	if s.Client == nil {
+		s.Client = http.DefaultClient
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.StandardLogger()
+	if s.Log == nil {
+		s.Log = logrus.StandardLogger()
 	}
 
-	s := new(Scheduler)
-	s.Config = c
 	s.statSize = 60 * 5
 	s.statTick = time.Second
 
@@ -66,31 +65,11 @@ func New(c Config) (*Scheduler, error) {
 
 	s.closed = make(chan int)
 
-	s.loadScheduler()
+    if err := s.init(); err != nil {
+        return err
+    }
 
-	if err := s.loadGroups(); err != nil {
-		return nil, err
-	}
-
-	if err := s.loadRouters(); err != nil {
-		return nil, err
-	}
-
-	if len(s.groups) < 1 && len(s.routes) < 1 {
-		if err := s.addDefaultGroup(); err != nil {
-			return nil, err
-		}
-
-		if err := s.addDefaultRouter(); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := s.loadJobs(); err != nil {
-		return nil, err
-	}
-
-	return s, nil
+	return nil
 }
 
 func (s *Scheduler) Running() bool {
@@ -98,6 +77,37 @@ func (s *Scheduler) Running() bool {
 	defer s.l.Unlock()
 
 	return s.running
+}
+
+
+func (s *Scheduler) init() error {
+	s.loadScheduler()
+
+	if err := s.loadGroups(); err != nil {
+		return err
+	}
+
+	if err := s.loadRouters(); err != nil {
+		return err
+	}
+
+	if len(s.groups) < 1 && len(s.routes) < 1 {
+		if err := s.addDefaultGroup(); err != nil {
+			return err
+		}
+
+		if err := s.addDefaultRouter(); err != nil {
+			return err
+		}
+	}
+
+	if err := s.loadJobs(); err != nil {
+		return err
+	}
+
+	s.timedNum = s.timerTaskNum()
+
+    return nil
 }
 
 func (s *Scheduler) Run() {

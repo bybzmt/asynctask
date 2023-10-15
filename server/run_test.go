@@ -1,12 +1,11 @@
-package main
+package server
 
 import (
 	"asynctask/scheduler"
-	"asynctask/tool"
+	"context"
 	"crypto/rand"
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,25 +27,28 @@ var ts_actions = []int{
 }
 
 func TestRun(t *testing.T) {
-	var hub *scheduler.Scheduler
+	var hub Server
 	var my myServer
 
 	taskadd := make(chan int, 10)
 	taskend := make(chan int, 10)
 
-	go initTestServer(&my, taskend)
+	initServer(&hub)
 
-	initHub(&hub)
-	go hub.Run()
-	go tool.HttpRun(hub, ":8080")
+	ctx, canceler := context.WithCancel(context.Background())
+
+	go initTestServer(&my, taskend)
+	defer my.Close()
+
+	go hub.Run(ctx)
 
 	time.Sleep(time.Millisecond * 100)
 
 	to := "http://" + my.l.Addr().String()
-	log.Println("listen", to)
-	log.Println("http", ":8080")
+	logrus.Println("listen", to)
+	logrus.Println("http", ":8080")
 
-	go addTask(hub, 10000, to, taskadd)
+	go addTask(&hub, 10000, to, taskadd)
 
 	httpNum := 0
 	allNum := 0
@@ -73,8 +75,6 @@ func TestRun(t *testing.T) {
 
 			runnum++
 
-			// log.Println("taskend", runnum, httpNum)
-
 			if runnum == httpNum {
 				goto toend
 			}
@@ -83,13 +83,13 @@ func TestRun(t *testing.T) {
 
 toend:
 
-	log.Println("taskend all")
+	logrus.Println("all task end")
 
 	time.Sleep(time.Millisecond * 200)
 
-	stat := hub.GetStatData()
+	stat := hub.Scheduler.GetStatData()
 
-	hub.Close()
+	canceler()
 
 	if stat.Timed != 0 {
 		t.Error("timer task not empty num:", stat.Timed)
@@ -106,16 +106,16 @@ toend:
 
 	if RunNum != allNum {
 		t.Error("run task num err", RunNum, "/", allNum)
+	} else {
+		logrus.Println("run task", RunNum, "/", allNum)
 	}
-
-	my.Close()
 }
 
-func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
+func addTask(hub *Server, num int, to string, taskadd chan int) {
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
-			log.Println("i:", i, "/", num)
+			logrus.Println("i:", i, "/", num)
 		}
 
 		an := ts_getRand() % len(ts_actions)
@@ -161,13 +161,13 @@ func addTask(hub *scheduler.Scheduler, num int, to string, taskadd chan int) {
 			taskadd <- 2
 		}
 
-		err := hub.AddTask(&task)
+		err := hub.Scheduler.AddTask(&task)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	log.Println("i:", num, "/", num)
+	logrus.Println("i:", num, "/", num)
 }
 
 func ts_getRand() int {
@@ -212,20 +212,19 @@ func initTestServer(my *myServer, taskend chan int) {
 	my.Serve(my.l)
 }
 
-func initHub(hub **scheduler.Scheduler) {
+func initServer(hub *Server) {
 
 	logrus.SetLevel(logrus.DebugLevel)
-	cfg.Log = logrus.StandardLogger()
 
-	cfg.WorkerNum = 10
-	cfg.Parallel = 1
+	(*hub).Scheduler.WorkerNum = 10
+	(*hub).Scheduler.Parallel = 1
 
 	f, err := os.CreateTemp("", "asynctask_*.bolt")
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("tmpfile", f.Name())
+	logrus.Println("tmpfile", f.Name())
 
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -235,28 +234,28 @@ func initHub(hub **scheduler.Scheduler) {
 		panic(err)
 	}
 
-	cfg.Db = db
+	(*hub).Scheduler.Db = db
 
-	*hub, err = scheduler.New(cfg)
+	err = (*hub).Scheduler.Init()
 	if err != nil {
 		panic(err)
 	}
 
-	gc, err := (*hub).AddGroup()
+	gc, err := (*hub).Scheduler.AddGroup()
 	if err != nil {
 		panic(err)
 	}
 
 	gc.Note = "test_group2"
 
-	err = (*hub).SetGroupConfig(gc)
+	err = (*hub).Scheduler.SetGroupConfig(gc)
 	if err != nil {
 		panic(err)
 	}
 
 	//------ 2 groups -----
 
-	rc, err := (*hub).AddRoute()
+	rc, err := (*hub).Scheduler.AddRoute()
 	if err != nil {
 		panic(err)
 	}
@@ -268,14 +267,14 @@ func initHub(hub **scheduler.Scheduler) {
 	rc.GroupId = gc.Id
 	rc.Used = true
 
-	err = (*hub).SetRouteConfig(rc)
+	err = (*hub).Scheduler.SetRouteConfig(rc)
 	if err != nil {
 		panic(err)
 	}
 
 	//------ cli -----
 
-	rc, err = (*hub).AddRoute()
+	rc, err = (*hub).Scheduler.AddRoute()
 	if err != nil {
 		panic(err)
 	}
@@ -288,7 +287,7 @@ func initHub(hub **scheduler.Scheduler) {
 	rc.Mode = scheduler.MODE_CLI
 	rc.Used = true
 
-	err = (*hub).SetRouteConfig(rc)
+	err = (*hub).Scheduler.SetRouteConfig(rc)
 	if err != nil {
 		panic(err)
 	}
