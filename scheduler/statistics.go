@@ -74,10 +74,7 @@ type Statistics struct {
 	Timed  int
 }
 
-func (s *group) getJobStat(jt *job) JobStat {
-	jt.group.l.Lock()
-	defer jt.group.l.Unlock()
-
+func (g *group) getJobStat(jt *job) JobStat {
 	useTime := 0
 	if len(jt.useTimeStat.data) > 0 {
 		useTime = int(jt.useTimeStat.getAll() / int64(len(jt.useTimeStat.data)) / int64(time.Millisecond))
@@ -87,7 +84,7 @@ func (s *group) getJobStat(jt *job) JobStat {
 
 	sec2 := jt.lastTime.Unix()
 	if sec2 > 0 {
-		sec = int(s.now.Sub(jt.lastTime) / time.Second)
+		sec = int(g.s.now.Sub(jt.lastTime) / time.Second)
 	}
 
 	tmp := JobStat{
@@ -110,9 +107,6 @@ func (s *group) getJobStat(jt *job) JobStat {
 }
 
 func (s *group) getGroupStat() GroupStat {
-	s.l.Lock()
-	defer s.l.Unlock()
-
 	t := GroupStat{}
 	t.GroupConfig = s.GroupConfig
 	t.Capacity = int64(len(s.loadStat.data)) * int64(s.s.statTick) * int64(s.WorkerNum)
@@ -127,7 +121,7 @@ func (s *group) getGroupStat() GroupStat {
 	return t
 }
 
-func (s *group) getRunTaskStat() []RunTaskStat {
+func (s *Scheduler) getRunTaskStat() []RunTaskStat {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -145,7 +139,7 @@ func (s *group) getRunTaskStat() []RunTaskStat {
 
 		st := RunTaskStat{
 			Id:      t2.Id,
-			Group:   s.Id,
+			Group:   t2.g.Id,
 			Mode:    mode,
 			Name:    t2.Task.Name,
 			Task:    t2.taskTxt,

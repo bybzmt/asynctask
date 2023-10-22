@@ -20,14 +20,21 @@ type Scheduler struct {
 
 	l sync.Mutex
 
-	now      time.Time
-	groupEnd chan *group
-	closed   chan int
+	now    time.Time
+	closed chan int
+
+	idleMax int
+	idleLen int
+
+	idle *job
 
 	jobs map[string]*job
 
 	groups map[ID]*group
 	routes []*router
+
+	orders   map[*order]struct{}
+	complete chan *order
 
 	//统计周期
 	statTick time.Duration
@@ -67,11 +74,16 @@ func (s *Scheduler) Init() error {
 	s.statSize = 60 * 5
 	s.statTick = time.Second
 
-	s.groupEnd = make(chan *group)
 	s.groups = make(map[ID]*group)
 	s.jobs = make(map[string]*job)
-
+	s.complete = make(chan *order)
+	s.orders = make(map[*order]struct{})
 	s.closed = make(chan int)
+
+	s.idleMax = 200
+	s.idle = &job{}
+	s.idle.next = s.idle
+	s.idle.prev = s.idle
 
 	if err := s.init(); err != nil {
 		return err
@@ -124,10 +136,6 @@ func (s *Scheduler) Run() {
 		panic(errors.New("Run only run once"))
 	}
 
-	for _, g := range s.groups {
-		go g.Run()
-	}
-
 	s.today = time.Now().Day()
 
 	s.running = true
@@ -136,8 +144,6 @@ func (s *Scheduler) Run() {
 
 	ticker := time.NewTicker(s.statTick)
 	defer ticker.Stop()
-
-	minuteTick := 0
 
 	for {
 		select {
@@ -148,43 +154,45 @@ func (s *Scheduler) Run() {
 			s.Log.Debugln("ticker")
 			s.now = now
 
-			s.timerChecker(now)
-
-			for _, g := range s.groups {
-				g.tick <- now
-			}
-
-			l := len(s.groups)
-
 			s.dayCheck()
 
-			minuteTick++
+			s.statMaintain(now)
 
-			if minuteTick > 60 {
-				minuteTick = 0
+			l := len(s.orders)
 
-				s.checkJobs()
+			s.timerChecker(now)
+
+			if s.running {
+				for _, g := range s.groups {
+					g.dispatch()
+				}
 			}
 
 			s.l.Unlock()
 
 			if !s.running && l == 0 {
 				s.Log.Debugln("all close")
-				return
-			}
-
-		case g := <-s.groupEnd:
-			s.Log.Debugln("groupEnd", g.Id)
-
-			s.l.Lock()
-			delete(s.groups, g.Id)
-			l := len(s.groups)
-			s.l.Unlock()
-
-			if !s.running && l == 0 {
 				s.closed <- 1
 				return
 			}
+
+		case o := <-s.complete:
+			s.l.Lock()
+
+			o.g.end(o)
+
+			if s.running {
+                s.now = time.Now()
+
+				for o.g.dispatch() {
+				}
+			} else {
+				if len(s.orders) == 0 {
+					s.closed <- 1
+				}
+			}
+
+			s.l.Unlock()
 		}
 	}
 }
@@ -200,10 +208,6 @@ func (s *Scheduler) Close() error {
 	s.running = false
 
 	s.Log.Debugln("Scheduler closing...")
-
-	for _, s := range s.groups {
-		s.close()
-	}
 
 	s.l.Unlock()
 
@@ -232,8 +236,6 @@ func (s *Scheduler) Close() error {
 
 func (s *Scheduler) checkJobs() {
 	for _, j := range s.jobs {
-		j.group.l.Lock()
-
 		if j.mode == job_mode_idle {
 			j.loadWaitNum()
 			if j.waitNum > 0 {
@@ -244,8 +246,6 @@ func (s *Scheduler) checkJobs() {
 				delete(s.jobs, j.name)
 			}
 		}
-
-		j.group.l.Unlock()
 	}
 }
 
@@ -256,7 +256,7 @@ func (s *Scheduler) allTaskCancel() {
 	defer s.l.Unlock()
 
 	for _, g := range s.groups {
-		g.allTaskCancel()
+		g.cancel()
 	}
 }
 
@@ -266,16 +266,11 @@ func (s *Scheduler) delIdleJob(name string) error {
 		return NotFound
 	}
 
-	j.group.l.Lock()
-	defer j.group.l.Unlock()
-
 	if j.mode != job_mode_idle {
 		return NotFound
 	}
 
-	if j.next != nil {
-		j.group.jobs.remove(j)
-	}
+	jobRemove(j)
 
 	delete(s.jobs, name)
 
@@ -285,9 +280,7 @@ func (s *Scheduler) delIdleJob(name string) error {
 func (s *Scheduler) dayCheck() {
 	if s.today != s.now.Day() {
 		for _, j := range s.jobs {
-			j.group.l.Lock()
 			j.dayChange()
-			j.group.l.Unlock()
 		}
 
 		for _, g := range s.groups {
@@ -384,12 +377,9 @@ func (s *Scheduler) addGroup() (*group, error) {
 
 	g.GroupConfig = cfg
 	g.s = s
+	g.init()
 
 	s.groups[g.Id] = g
-
-	if s.running {
-		go g.Run()
-	}
 
 	return g, nil
 }
@@ -438,6 +428,7 @@ func (s *Scheduler) loadGroups() error {
 			g.GroupConfig = cfg
 			g.Id = atoiId(key)
 			g.s = s
+			g.init()
 
 			s.groups[g.Id] = g
 
@@ -525,7 +516,7 @@ func (s *Scheduler) routeChanged() {
 		for _, r := range s.routes {
 			if r.match(j.name) {
 				if j.group.Id != r.GroupId {
-					j.group.delJob(j)
+					jobRemove(j)
 
 					g, ok := s.groups[r.GroupId]
 
@@ -539,7 +530,7 @@ func (s *Scheduler) routeChanged() {
 					j.JobConfig = r.JobConfig
 					j.TaskBase = copyTaskBase(r.TaskBase)
 
-					j.group.addJob(j)
+					j.group.jobs.addJob(j)
 				}
 			}
 		}
@@ -597,9 +588,6 @@ func (s *Scheduler) addTask(t *Task) error {
 	if err != nil {
 		return err
 	}
-
-	j.group.l.Lock()
-	defer j.group.l.Unlock()
 
 	return j.addTask(t)
 }

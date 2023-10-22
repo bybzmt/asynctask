@@ -89,7 +89,7 @@ func (o *order) Run() {
 			}
 		}
 	} else {
-		o.Err = errors.New("task error")
+		o.Err = TaskError
 	}
 
 	if has {
@@ -98,10 +98,13 @@ func (o *order) Run() {
 		}
 	}
 
-	o.g.complete <- o
+    o.logTask()
+
+	o.g.s.complete <- o
 }
 
 func (o *order) logTask() {
+	o.EndTime = time.Now()
 
 	runTime := o.EndTime.Sub(o.StartTime).Seconds()
 

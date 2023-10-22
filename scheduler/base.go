@@ -78,3 +78,26 @@ func copyTaskBase(src TaskBase) (dst TaskBase) {
     dst.HttpHeader = copyMap(src.HttpHeader)
     return
 }
+
+func jobAppend(j, at *job) {
+	at.next.prev = j
+	j.next = at.next
+	j.prev = at
+	at.next = j
+}
+
+func jobRemove(j *job) {
+	j.prev.next = j.next
+	j.next.prev = j.prev
+	j.next = nil
+	j.prev = nil
+}
+
+func jobMoveBefore(j, x *job) {
+	if j == x {
+		return
+	}
+
+	jobRemove(j)
+	jobAppend(j, x.prev)
+}

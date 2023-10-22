@@ -14,9 +14,6 @@ func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
 		return c, NotFound
 	}
 
-	jt.group.l.Lock()
-	defer jt.group.l.Unlock()
-
 	return jt.JobConfig, nil
 }
 
@@ -28,9 +25,6 @@ func (s *Scheduler) SetJobConfig(jname string, cfg JobConfig) error {
 	if !ok {
 		return NotFound
 	}
-
-	jt.group.l.Lock()
-	defer jt.group.l.Unlock()
 
 	jt.JobConfig = cfg
 
@@ -69,9 +63,6 @@ func (s *Scheduler) GetGroupConfig(id ID) (GroupConfig, error) {
 		return GroupConfig{}, NotFound
 	}
 
-	g.l.Lock()
-	defer g.l.Unlock()
-
 	return g.GroupConfig, nil
 }
 
@@ -83,9 +74,6 @@ func (s *Scheduler) SetGroupConfig(cfg GroupConfig) error {
 	if !ok {
 		return NotFound
 	}
-
-	g.l.Lock()
-	defer g.l.Unlock()
 
 	g.GroupConfig = cfg
 
@@ -111,10 +99,7 @@ func (s *Scheduler) DelGroup(gid ID) error {
 		return errors.New("Last Group Can not Del")
 	}
 
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	g.close()
+	g.cancel()
 	delete(s.groups, gid)
 
 	return nil
@@ -212,15 +197,7 @@ func (s *Scheduler) TaskCancel(gid, oid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	g, ok := s.groups[gid]
-	if !ok {
-		return NotFound
-	}
-
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	for t := range g.orders {
+	for t := range s.orders {
 		if t.Id == oid {
 			t.cancel()
 			return nil
@@ -246,9 +223,6 @@ func (s *Scheduler) JobEmpty(jname string) error {
 		return NotFound
 	}
 
-	jt.group.l.Lock()
-	defer jt.group.l.Unlock()
-
 	return jt.delAllTask()
 }
 
@@ -260,9 +234,6 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 	if !ok {
 		return NotFound
 	}
-
-	jt.group.l.Lock()
-	defer jt.group.l.Unlock()
 
 	return jt.delTask(tid)
 }
@@ -330,12 +301,5 @@ func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	runs := make([]RunTaskStat, 0, s.WorkerNum)
-
-	for _, s := range s.groups {
-		tmp := s.getRunTaskStat()
-		runs = append(runs, tmp...)
-	}
-
-	return runs
+    return s.getRunTaskStat()
 }

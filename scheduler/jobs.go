@@ -5,23 +5,11 @@ import (
 )
 
 type jobs struct {
-	g *group
-
-	idleMax int
-	idleLen int
-
-	idle  *job
 	block *job
 	run   *job
 }
 
-func (js *jobs) init(max int, g *group) *jobs {
-	js.idleMax = max
-
-	js.idle = &job{}
-	js.idle.next = js.idle
-	js.idle.prev = js.idle
-
+func (js *jobs) init() {
 	js.block = &job{}
 	js.block.next = js.block
 	js.block.prev = js.block
@@ -29,38 +17,35 @@ func (js *jobs) init(max int, g *group) *jobs {
 	js.run = &job{}
 	js.run.next = js.run
 	js.run.prev = js.run
-
-	js.g = g
-	return js
 }
 
 func (js *jobs) addJob(j *job) {
 	js.runAdd(j)
 
-	js.g.jobs.modeCheck(j)
+	js.modeCheck(j)
 }
 
 func (js *jobs) modeCheck(j *job) {
 	if j.next == nil || j.prev == nil {
-		js.g.s.Log.Warning("modeCheck nil")
+		j.s.Log.Warning("modeCheck nil")
 		return
 	}
 
 	if j.nowNum >= int32(j.Parallel) || (j.waitNum < 1 && j.nowNum > 0) {
 		if j.mode != job_mode_block {
-			js.remove(j)
+			jobRemove(j)
 			js.blockAdd(j)
 		}
 	} else if j.waitNum < 1 {
 		if j.mode != job_mode_idle {
-			js.remove(j)
-			js.idleAdd(j)
+			jobRemove(j)
+			j.s.idleAdd(j)
 		}
 	} else {
 		j.countScore()
 
 		if j.mode != job_mode_runnable {
-			js.remove(j)
+			jobRemove(j)
 			js.runAdd(j)
 		}
 
@@ -78,7 +63,7 @@ func (js *jobs) GetOrder() (*order, error) {
 
 	if err != nil {
 		if err == Empty {
-            js.g.s.Log.Warnln("Job PopOrder Empty")
+            j.s.Log.Warnln("Job PopOrder Empty")
 
             j.waitNum = 0
 			js.modeCheck(j)
@@ -99,7 +84,7 @@ func (js *jobs) popOrder(j *job) (*order, error) {
 
 	o := new(order)
 	o.Id = ID(t.Id)
-    o.g = js.g
+    o.g = j.group
 	o.Task = t
 	o.Base = copyTaskBase(j.TaskBase)
 	o.AddTime = time.Unix(int64(t.AddTime), 0)
@@ -109,7 +94,7 @@ func (js *jobs) popOrder(j *job) (*order, error) {
 }
 
 func (js *jobs) end(j *job, loadTime, useTime time.Duration) {
-	j.end(js.g.now, loadTime, useTime)
+	j.end(j.s.now, loadTime, useTime)
 
 	js.modeCheck(j)
 }
@@ -121,62 +106,14 @@ func (js *jobs) front() *job {
 	return js.run.next
 }
 
-func (js *jobs) append(j, at *job) {
-	at.next.prev = j
-	j.next = at.next
-	j.prev = at
-	at.next = j
-}
-
-func (js *jobs) remove(j *job) {
-	j.prev.next = j.next
-	j.next.prev = j.prev
-	j.next = nil
-	j.prev = nil
-}
-
 func (js *jobs) blockAdd(j *job) {
 	j.mode = job_mode_block
-	js.append(j, js.block.prev)
+	jobAppend(j, js.block.prev)
 }
 
 func (js *jobs) runAdd(j *job) {
 	j.mode = job_mode_runnable
-	js.append(j, js.run.prev)
-}
-
-func (js *jobs) idleFront() *job {
-	if js.idle == js.idle.next {
-		return nil
-	}
-	return js.idle.next
-}
-
-func (js *jobs) idleAdd(j *job) {
-	j.mode = job_mode_idle
-
-	js.append(j, js.idle.prev)
-
-	js.idleLen++
-
-	//移除多余的idle
-	for js.idleLen > js.idleMax {
-		j := js.idleFront()
-		if j != nil {
-            js.removeJob(j)
-		}
-	}
-}
-
-func (js *jobs) removeJob(j *job) bool {
-	if j.mode != job_mode_idle {
-		return false
-	}
-
-	js.remove(j)
-	js.idleLen--
-
-	return true
+	jobAppend(j, js.run.prev)
 }
 
 func (js *jobs) priority(j *job) {
@@ -190,14 +127,31 @@ func (js *jobs) priority(j *job) {
 		x = x.prev
 	}
 
-	js.moveBefore(j, x)
+    jobMoveBefore(j, x)
 }
 
-func (js *jobs) moveBefore(j, x *job) {
-	if j == x {
-		return
+func (s *Scheduler) idleFront() *job {
+	if s.idle == s.idle.next {
+		return nil
 	}
-
-	js.remove(j)
-	js.append(j, x.prev)
+	return s.idle.next
 }
+
+func (s *Scheduler) idleAdd(j *job) {
+	j.mode = job_mode_idle
+
+	jobAppend(j, s.idle.prev)
+
+	s.idleLen++
+
+	//移除多余的idle
+	for s.idleLen > s.idleMax {
+		j := s.idleFront()
+		if j != nil {
+			jobRemove(j)
+			s.idleLen--
+		}
+	}
+}
+
+

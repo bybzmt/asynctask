@@ -11,7 +11,7 @@ func TestPriority(t *testing.T) {
 
 	var scores []int
 	js := new(jobs)
-	js.init(1, nil)
+	js.init()
 
 	for i := 0; i < 20; i++ {
 		scores = append(scores, ts_getRand()%100)

@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"sync"
 	"time"
 )
 
@@ -11,26 +10,19 @@ type group struct {
 
 	s *Scheduler
 
-	l sync.Mutex
+	ctx    context.Context
+	cancel context.CancelFunc
 
-    ctx context.Context
-    cancel context.CancelFunc
-
-	orders map[*order]struct{}
 	jobs jobs
 
-	running  bool
-	complete chan *order
-	tick     chan time.Time
-	cmd      chan int
+	running bool
+	tick    chan time.Time
 
-	now time.Time
-
-	nowNum int
-	runNum int
-	errNum int
-	oldRun int
-	oldErr int
+	nowNum  int
+	runNum  int
+	errNum  int
+	oldRun  int
+	oldErr  int
 	waitNum int
 
 	loadTime time.Duration
@@ -38,36 +30,27 @@ type group struct {
 }
 
 func (g *group) init() {
-	g.complete = make(chan *order)
 	g.tick = make(chan time.Time)
-	g.cmd = make(chan int)
 
-	g.jobs.init(100, g)
-
-	g.orders = make(map[*order]struct{})
+	g.jobs.init()
 
 	g.loadStat.init(g.s.statSize)
 
-    g.ctx, g.cancel = context.WithCancel(context.Background())
+	g.ctx, g.cancel = context.WithCancel(context.Background())
 }
 
 func (g *group) dispatch() bool {
-	g.l.Lock()
-	defer g.l.Unlock()
-
-    l := uint32(len(g.orders))
-
-    if l >= g.WorkerNum {
-        return false
-    }
+	if g.nowNum >= int(g.WorkerNum) {
+		return false
+	}
 
 	t, err := g.jobs.GetOrder()
 	if err != nil {
 		if err == Empty {
-            if g.nowNum == 0 {
-                g.waitNum = 0
-            }
-            g.s.Log.Debugln("Group", g.Id, "Empty")
+			if g.nowNum == 0 {
+				g.waitNum = 0
+			}
+			g.s.Log.Debugln("Group", g.Id, "Empty")
 			return false
 		}
 		g.s.Log.Warnln("GetTask Error", err)
@@ -75,38 +58,42 @@ func (g *group) dispatch() bool {
 		return false
 	}
 
-	t.StartTime = g.now
-	t.StatTime = g.now
+	t.StartTime = g.s.now
+	t.StatTime = g.s.now
 
-    t.ctx, t.cancel = context.WithCancel(g.ctx)
+	t.ctx, t.cancel = context.WithCancel(g.ctx)
 
-	g.orders[t] = struct{}{}
+	g.s.orders[t] = struct{}{}
 
 	//总状态
 	g.nowNum++
 
 	go t.Run()
 
-    return l+1 < g.WorkerNum
+	return g.nowNum+1 < int(g.WorkerNum)
 }
 
 func (g *group) end(t *order) {
-
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	g.now = time.Now()
-
-	t.EndTime = g.now
-
-	t.logTask()
-
 	loadTime := t.EndTime.Sub(t.StatTime)
 	useTime := t.EndTime.Sub(t.StartTime)
 
 	if t.Err != nil {
-        g.errNum += 1
+		g.errNum += 1
 		t.job.errNum += 1
+	} else {
+		if t.Task.Retry > 0 {
+			t.Task.Retry--
+
+			var sec uint = 60
+
+			if t.Task.RetrySec > 0 {
+				sec = t.Task.RetrySec
+			}
+
+			t.Task.Timer = uint(g.s.now.Unix()) + sec
+
+			g.s.timerAddTask(t.Task)
+		}
 	}
 
 	g.jobs.end(t.job, loadTime, useTime)
@@ -115,64 +102,10 @@ func (g *group) end(t *order) {
 	g.nowNum--
 	g.loadTime += loadTime
 
-	delete(g.orders, t)
+	delete(g.s.orders, t)
 }
 
-func (g *group) Run() {
-	g.init()
-
-	g.s.Log.Debugln("scheduler group", g.Id, "run")
-
-	g.running = true
-
-	for {
-		select {
-		case t := <-g.complete:
-			g.end(t)
-
-		case now := <-g.tick:
-			g.statTick(now)
-
-		case <-g.cmd:
-			g.l.Lock()
-			g.running = false
-			g.WorkerNum = 0
-			g.l.Unlock()
-		}
-
-		if g.running {
-			for g.dispatch() {
-            }
-		} else {
-			if len(g.orders) == 0 {
-				break
-			}
-		}
-	}
-}
-
-func (g *group) close() {
-	g.cmd <- 1
-}
-
-func (g *group) allTaskCancel() {
-    g.cancel()
-}
-
-func (g *group) statTick(now time.Time) {
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	g.now = now
-
-	for t := range g.orders {
-		us := now.Sub(t.StatTime)
-		t.StatTime = now
-
-		g.loadTime += us
-		t.job.loadTime += us
-	}
-
+func (g *group) statMaintain() {
 	g.loadStat.push(int64(g.loadTime))
 	g.loadTime = 0
 
@@ -180,36 +113,35 @@ func (g *group) statTick(now time.Time) {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
+
 	for j := g.jobs.block.next; j != g.jobs.block; j = j.next {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
-	for j := g.jobs.idle.next; j != g.jobs.idle; j = j.next {
-		j.loadStat.push(int64(j.loadTime))
-		j.loadTime = 0
-	}
 }
 
-func (g *group) delJob(j *job) {
-	g.l.Lock()
-	defer g.l.Unlock()
+func (s *Scheduler) statMaintain(now time.Time) {
+    for t := range s.orders {
+        us := now.Sub(t.StatTime)
+        t.StatTime = now
 
-	g.jobs.remove(j)
-}
+        t.g.loadTime += us
+        t.job.loadTime += us
+    }
 
-func (g *group) addJob(j *job) {
-	g.l.Lock()
-	defer g.l.Unlock()
+    for j := s.idle.next; j != s.idle; j = j.next {
+        j.loadStat.push(int64(j.loadTime))
+        j.loadTime = 0
+    }
 
-	g.jobs.addJob(j)
+    for _, g := range s.groups {
+        g.statMaintain()
+    }
 }
 
 func (g *group) dayChange() {
-	g.l.Lock()
-	defer g.l.Unlock()
-
 	g.oldRun = g.runNum
-    g.oldErr = g.errNum
+	g.oldErr = g.errNum
 	g.runNum = 0
-    g.errNum = 0
+	g.errNum = 0
 }

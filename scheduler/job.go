@@ -76,7 +76,7 @@ func (j *job) addTask(t *Task) error {
 	}
 
 	j.waitNum += 1
-    j.group.waitNum += 1
+	j.group.waitNum += 1
 
 	if j.next == nil || j.prev == nil {
 		j.group.jobs.runAdd(j)
@@ -113,7 +113,7 @@ func (j *job) delTask(tid ID) error {
 
 	if has {
 		j.waitNum -= 1
-        j.group.waitNum -= 1
+		j.group.waitNum -= 1
 	}
 
 	j.group.jobs.modeCheck(j)
@@ -160,16 +160,16 @@ func (j *job) popTask() (*Task, error) {
 		return nil, err
 	}
 
-	j.nowNum += 1
-	j.waitNum -= 1
+	j.nowNum++
+	j.waitNum--
 	j.group.waitNum -= 1
 
 	return &t, nil
 }
 
 func (j *job) end(now time.Time, loadTime, useTime time.Duration) {
-	j.nowNum -= 1
-	j.runNum += 1
+	j.nowNum--
+	j.runNum++
 	j.lastTime = now
 	j.loadTime += loadTime
 	j.useTimeStat.push(int64(useTime))
@@ -237,7 +237,7 @@ func (j *job) loadWaitNum() error {
 		s := bucket.Stats()
 
 		j.waitNum = int32(s.KeyN)
-        j.group.waitNum += s.KeyN
+		j.group.waitNum += s.KeyN
 
 		return nil
 	})
