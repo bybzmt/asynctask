@@ -5,86 +5,81 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"strings"
-	"sync"
 	"time"
 )
 
 var ErrCmdStatus = errors.New("Code != 200")
 
 type workerCli struct {
-	Id   int
-	l    sync.Mutex
-	resp context.CancelFunc
+    order *order
+    cmd *exec.Cmd
+
+    cancel context.CancelFunc
 }
 
-func (w *workerCli) Cancel() {
-	w.l.Lock()
-	defer w.l.Unlock()
 
-	if w.resp != nil {
-		w.resp()
-		w.resp = nil
-	}
-}
+func (w *workerCli) init() error {
 
-func (w *workerCli) Run(o *order) (status int, msg string) {
-	var task string
+	var cmd string
+    args := []string{}
 
-	if o.Base.CliBase != "" {
-		task = o.Base.CliBase + " " + o.Task.Cli.Cmd
+	if w.order.Base.CliBase != "" {
+        cmd = w.order.Base.CliBase
+        args = append(args, w.order.Task.Cmd)
 	} else {
-		task = o.Task.Cli.Cmd
+		cmd = w.order.Task.Cmd
 	}
 
-	task = strings.TrimSpace(task)
+    args = append(args, w.order.Task.Args...)
 
-	params := strings.Split(task, " ")
-	task = params[0]
-	params = params[1:]
-	params = append(params, o.Task.Cli.Params...)
-
-	timeout := o.Task.Timeout
-	if o.Base.Timeout > 0 {
-		if timeout < 1 || timeout > o.Base.Timeout {
-			timeout = o.Base.Timeout
+	timeout := w.order.Task.Timeout
+	if w.order.Base.Timeout > 0 {
+		if timeout < 1 || timeout > w.order.Base.Timeout {
+			timeout = w.order.Base.Timeout
 		}
 	}
 	if timeout < 1 {
 		timeout = 60 * 60
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(w.order.ctx, time.Duration(timeout)*time.Second)
+    w.cancel = cancel
 
-	c := exec.CommandContext(ctx, task, params...)
-	c.Env = make([]string, 0, len(o.Base.CliEnv))
+	c := exec.CommandContext(ctx, cmd, args...)
+	c.Env = make([]string, 0, len(w.order.Base.CliEnv))
 
-	for k, v := range o.Base.CliEnv {
+	for k, v := range w.order.Base.CliEnv {
 		c.Env = append(c.Env, k+"="+v)
 	}
 
-	if o.Base.CliDir != "" {
-		c.Dir = o.Base.CliDir
+	if w.order.Base.CliDir != "" {
+		c.Dir = w.order.Base.CliDir
 	} else {
 		c.Dir = os.TempDir()
 	}
 
-	w.l.Lock()
-	w.resp = cancel
-	w.l.Unlock()
+    w.cmd = c
 
-	defer func() {
-		w.l.Lock()
-		w.resp = nil
-		w.l.Unlock()
-	}()
+    return nil
+}
 
-	out, err := c.CombinedOutput()
+func (w *workerCli) run() (status int, msg string) {
+	if err := w.init(); err != nil {
+		status = -1
+		w.order.Err = err
+		return
+	}
+
+    w.order.taskTxt = w.cmd.String()
+
+    defer w.cancel()
+
+	out, err := w.cmd.CombinedOutput()
 	if err != nil {
-		if c.ProcessState != nil {
-			status = c.ProcessState.ExitCode()
+		if w.cmd.ProcessState != nil {
+			status = w.cmd.ProcessState.ExitCode()
 		} else {
-			status = 1
+			status = -1
 		}
 
 		if len(out) == 0 {
@@ -92,15 +87,15 @@ func (w *workerCli) Run(o *order) (status int, msg string) {
 		} else {
 			msg = string(out)
 		}
-		o.Err = err
+		w.order.Err = err
 		return
 	}
 
-	status = c.ProcessState.ExitCode()
+	status = w.cmd.ProcessState.ExitCode()
 	msg = string(out)
 
-	if status != 0 {
-		o.Err = ErrCmdStatus
+	if status != w.order.Task.Code {
+		w.order.Err = ErrCmdStatus
 	}
 
 	return

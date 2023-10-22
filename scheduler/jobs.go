@@ -99,6 +99,7 @@ func (js *jobs) popOrder(j *job) (*order, error) {
 
 	o := new(order)
 	o.Id = ID(t.Id)
+    o.g = js.g
 	o.Task = t
 	o.Base = copyTaskBase(j.TaskBase)
 	o.AddTime = time.Unix(int64(t.AddTime), 0)

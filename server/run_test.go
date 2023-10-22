@@ -35,6 +35,13 @@ func TestRun(t *testing.T) {
 
 	initServer(&hub)
 
+    hub.HttpEnable = true
+    hub.Http.Addr = "127.0.0.1:8080"
+
+    if err := hub.Init(); err != nil {
+        panic(err)
+    }
+
 	ctx, canceler := context.WithCancel(context.Background())
 
 	go initTestServer(&my, taskend)
@@ -46,7 +53,7 @@ func TestRun(t *testing.T) {
 
 	to := "http://" + my.l.Addr().String()
 	logrus.Println("listen", to)
-	logrus.Println("http", ":8080")
+	logrus.Println("http", hub.Http.Addr)
 
 	go addTask(&hub, 10000, to, taskadd)
 
@@ -124,15 +131,15 @@ func addTask(hub *Server, num int, to string, taskadd chan int) {
 		var task scheduler.Task
 
 		if ts_getRand()%(num/100) == 0 {
-			task.Trigger = uint(time.Now().Unix()) + 2
+			task.Timer = uint(time.Now().Unix()) + 2
 		}
 
 		if ts_getRand()%7 == 0 {
 			task.Name = "cli/" + strconv.Itoa(sl)
-			task.Cli = &scheduler.TaskCli{
-				Cmd:    "echo",
-				Params: []string{task.Name},
-			}
+
+			task.Cmd = "echo"
+			task.Args = []string{task.Name}
+
 			taskadd <- 1
 		} else {
 
@@ -142,11 +149,14 @@ func addTask(hub *Server, num int, to string, taskadd chan int) {
 			p := url.Values{}
 			p.Add("code", "200")
 			p.Add("sleep", strconv.Itoa(sleep))
-			p.Add("trigger", strconv.Itoa(int(task.Trigger)))
+
+			if task.Timer > 0 {
+				p.Add("trigger", strconv.Itoa(int(task.Timer)))
+			}
 
 			l := to + "/?" + p.Encode()
 
-			if task.Trigger > 0 {
+			if task.Timer > 0 {
 				task.Name = "http/trigger"
 			} else if sl > 1000 {
 				task.Name = "slow/" + strconv.Itoa(sl)
@@ -154,14 +164,12 @@ func addTask(hub *Server, num int, to string, taskadd chan int) {
 				task.Name = "http/" + strconv.Itoa(sleep)
 			}
 
-			task.Http = &scheduler.TaskHttp{
-				Url: l,
-			}
+			task.Url = l
 
 			taskadd <- 2
 		}
 
-		err := hub.Scheduler.AddTask(&task)
+		err := hub.Scheduler.TaskAdd(&task)
 		if err != nil {
 			panic(err)
 		}
@@ -215,9 +223,13 @@ func initTestServer(my *myServer, taskend chan int) {
 func initServer(hub *Server) {
 
 	logrus.SetLevel(logrus.DebugLevel)
+    logrus.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
 
-	(*hub).Scheduler.WorkerNum = 10
-	(*hub).Scheduler.Parallel = 1
+	hub.Scheduler.WorkerNum = 10
+	hub.Scheduler.Parallel = 1
 
 	f, err := os.CreateTemp("", "asynctask_*.bolt")
 	if err != nil {
@@ -234,28 +246,28 @@ func initServer(hub *Server) {
 		panic(err)
 	}
 
-	(*hub).Scheduler.Db = db
+	hub.Scheduler.Db = db
 
-	err = (*hub).Scheduler.Init()
+	err = hub.Scheduler.Init()
 	if err != nil {
 		panic(err)
 	}
 
-	gc, err := (*hub).Scheduler.AddGroup()
+	gc, err := hub.Scheduler.AddGroup()
 	if err != nil {
 		panic(err)
 	}
 
 	gc.Note = "test_group2"
 
-	err = (*hub).Scheduler.SetGroupConfig(gc)
+	err = hub.Scheduler.SetGroupConfig(gc)
 	if err != nil {
 		panic(err)
 	}
 
 	//------ 2 groups -----
 
-	rc, err := (*hub).Scheduler.AddRoute()
+	rc, err := hub.Scheduler.AddRoute()
 	if err != nil {
 		panic(err)
 	}
@@ -267,14 +279,14 @@ func initServer(hub *Server) {
 	rc.GroupId = gc.Id
 	rc.Used = true
 
-	err = (*hub).Scheduler.SetRouteConfig(rc)
+	err = hub.Scheduler.SetRouteConfig(rc)
 	if err != nil {
 		panic(err)
 	}
 
 	//------ cli -----
 
-	rc, err = (*hub).Scheduler.AddRoute()
+	rc, err = hub.Scheduler.AddRoute()
 	if err != nil {
 		panic(err)
 	}
@@ -287,7 +299,7 @@ func initServer(hub *Server) {
 	rc.Mode = scheduler.MODE_CLI
 	rc.Used = true
 
-	err = (*hub).Scheduler.SetRouteConfig(rc)
+	err = hub.Scheduler.SetRouteConfig(rc)
 	if err != nil {
 		panic(err)
 	}

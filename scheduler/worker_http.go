@@ -1,121 +1,164 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 )
 
 var ErrHttpStatus = errors.New("Code != 200")
 
 type workerHttp struct {
-	l    sync.Mutex
-	resp context.CancelFunc
+	order  *order
+	req    *http.Request
+	cancel context.CancelFunc
 }
 
-func (w *workerHttp) Cancel() {
-	w.l.Lock()
-	defer w.l.Unlock()
+func (w *workerHttp) init() error {
 
-	if w.resp != nil {
-		w.resp()
-		w.resp = nil
-	}
-}
-
-var nop = func() {
-}
-
-func (w *workerHttp) Run(o *order) (status int, msg string) {
 	var uri string
 
-	if o.Base.HttpBase != "" {
-		uri = o.Base.HttpBase + o.Task.Http.Url
+	if w.order.Base.HttpBase != "" {
+		uri = w.order.Base.HttpBase + w.order.Task.Url
 	} else {
-		uri = o.Task.Http.Url
+		uri = w.order.Task.Url
 	}
 
-	var resp *http.Response
 	var err error
 
 	u, err := url.Parse(uri)
 	if err != nil {
-		status = -1
-		msg = err.Error()
-		o.Err = err
-		return
+		return err
 	}
 
 	if u.Hostname() == "" {
-		status = -1
-		msg = "host is empty"
-		return
+		return errors.New("host is empty")
 	}
 
-	q := u.Query()
+	header := url.Values{}
 
-	for k, v := range o.Task.Http.Get {
-		q.Set(k, v)
+	for k, v := range w.order.Base.HttpHeader {
+		header.Set(k, v)
 	}
 
-	u.RawQuery = q.Encode()
+	method := w.order.Task.Method
+	var body []byte
 
-	timeout := o.Task.Timeout
+	if w.order.Task.Body != nil {
+		if method == "" {
+			method = "POST"
+		}
 
-	if o.Base.Timeout > 0 {
-		if timeout < 1 || timeout > o.Base.Timeout {
-			timeout = o.Base.Timeout
+		var t string
+
+		if err := json.Unmarshal(w.order.Task.Body, &t); err != nil {
+			body = w.order.Task.Body
+
+			if !header.Has("Content-Type") {
+				header.Set("Content-Type", "application/x-www-form-urlencoded")
+			}
+		} else {
+			if !header.Has("Content-Type") {
+				header.Set("Content-Type", "application/json")
+			}
+
+			body = []byte(t)
+		}
+	} else if w.order.Task.Form != nil {
+
+		if method == "GET" {
+			q := u.Query()
+
+			for k, v := range w.order.Task.Form {
+				q.Set(k, v)
+			}
+
+			u.RawQuery = q.Encode()
+		} else {
+			if method == "" {
+				method = "POST"
+			}
+
+			if !header.Has("Content-Type") {
+				header.Set("Content-Type", "application/x-www-form-urlencoded")
+			}
+
+			t := url.Values{}
+
+			for k, v := range w.order.Task.Form {
+				t.Set(k, v)
+			}
+
+			body = []byte(t.Encode())
+		}
+	}
+
+	timeout := w.order.Task.Timeout
+
+	if w.order.Base.Timeout > 0 {
+		if timeout < 1 || timeout > w.order.Base.Timeout {
+			timeout = w.order.Base.Timeout
 		}
 	}
 	if timeout < 1 {
 		timeout = 60
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(w.order.ctx, time.Duration(timeout)*time.Second)
+	w.cancel = cancel
 
-	w.l.Lock()
-	w.resp = cancel
-	w.l.Unlock()
+	var rb io.Reader
+	if body != nil {
+		rb = bytes.NewReader(body)
+	}
 
-	defer func() {
-		w.l.Lock()
-		defer w.l.Unlock()
-		w.resp = nil
-	}()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), rb)
 	if err != nil {
+		return err
+	}
+
+	w.req = req
+
+	return nil
+}
+
+func (w *workerHttp) run() (status int, msg string) {
+
+	if err := w.init(); err != nil {
 		status = -1
-		msg = err.Error()
-		o.Err = err
+		w.order.Err = err
 		return
 	}
 
-    for k, v := range o.Base.HttpHeader {
-        req.Header.Set(k, v)
-    }
+    w.order.taskTxt = w.req.URL.String()
 
-	resp, err = o.job.s.Client.Do(req)
+    defer w.cancel()
+
+    resp, err := w.order.job.s.Client.Do(w.req)
 	if err != nil {
 		status = -1
-		msg = err.Error()
-		o.Err = err
+		w.order.Err = err
 		return
 	}
 
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	b2, _ := io.ReadAll(resp.Body)
 
 	status = resp.StatusCode
-	msg = string(body)
+	msg = string(b2)
 
-	if !(status >= 200 && status < 300) {
-		o.Err = ErrHttpStatus
+	if w.order.Task.Code == 0 {
+		if !(status >= 200 && status < 300) {
+            w.order.Err = ErrHttpStatus
+		}
+	} else if w.order.Task.Code != status {
+        w.order.Err = ErrHttpStatus
 	}
 
 	return

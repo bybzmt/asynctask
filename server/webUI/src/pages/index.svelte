@@ -1,9 +1,11 @@
 <script>
     import Layout from "./lib/layout.svelte";
+    import Dialog from "./lib/dialog.svelte";
     import { onMount, onDestroy } from "svelte";
     import {
         jobSort,
         mkUrl,
+        sendJson,
         jobEmpty,
         jobDelIdle,
         jobPriority,
@@ -71,11 +73,7 @@
         if (tab == 2 || tab == 3) {
             res.Tasks = res.Tasks.filter(function (task) {
                 let ok = () => task.NowNum > 0 || task.WaitNum > 0;
-
-                if (tab == 3) {
-                    return !ok();
-                }
-                return ok;
+                return tab == 3 ? !ok() : ok();
             });
         }
 
@@ -116,9 +114,43 @@
 
         return val > 0 ? "(+" + val + ")" : "(" + val + ")";
     }
+
+    let showAddTask = false;
+    let addTaskTxt = "";
+
+    function addTask() {
+        addTaskTxt = `{
+    "url": "http://g.com",
+    "form": {"k":"v"}
+
+    "cmd": "echo",
+    "args": ["hellworld"]
+}`;
+        showAddTask = !showAddTask;
+    }
+
+    async function doAddTask() {
+        let task = {};
+
+        try {
+            task = JSON.parse(addTaskTxt);
+        } catch (e) {
+            alert("Task JSON.parse " + e.message);
+            return;
+        }
+
+        let resp = await sendJson(mkUrl("api/task/add"), task);
+
+        if (resp.Code != 0) {
+            alert(resp.Data);
+            return;
+        }
+
+        showAddTask = !showAddTask;
+    }
 </script>
 
-<Layout tab=2>
+<Layout tab="2">
     <div id="All">
         <table>
             <thead>
@@ -165,15 +197,19 @@
     </div>
 
     <div id="tab">
-        <a class="wait {tab == 2 ? 'active' : ''}" on:click={() => setTab(2)}
-            >waiting</a
+        <button
+            class="wait {tab == 2 ? 'active' : ''}"
+            on:click={() => setTab(2)}>waiting</button
         >
-        <a class="idle {tab == 3 ? 'active' : ''}" on:click={() => setTab(3)}
-            >idle</a
+        <button
+            class="idle {tab == 3 ? 'active' : ''}"
+            on:click={() => setTab(3)}>idle</button
         >
-        <a class="all {tab == 4 ? 'active' : ''}" on:click={() => setTab(4)}
-            >all</a
+        <button
+            class="all {tab == 4 ? 'active' : ''}"
+            on:click={() => setTab(4)}>all</button
         >
+        <button on:click={() => addTask()}>add</button>
     </div>
 
     <div id="jobs">
@@ -223,12 +259,26 @@
                         <td>{j.ErrNum}</td>
                     </tr>
                 {:else}
-                    <tr><td colspan="11" class="center">empty</td> </tr>
+                    <tr><td colspan="12" class="center">empty</td> </tr>
                 {/each}
             </tbody>
         </table>
     </div>
 </Layout>
+
+<Dialog bind:isShow={showAddTask}>
+    <div class="box">
+        <div>
+            <textarea id="row_task" bind:value={addTaskTxt} />
+        </div>
+        <div class="center">
+            <button type="button" on:click={doAddTask}>添加</button>
+            <button type="button" on:click={() => (showAddTask = !showAddTask)}
+                >取消</button
+            >
+        </div>
+    </div>
+</Dialog>
 
 <style>
     table {
@@ -246,12 +296,23 @@
     #tab {
         margin: 0 0.5em;
     }
-    #tab a {
+    #tab button {
         margin: auto 0.5em;
         color: #777;
     }
-    #tab a.active {
+    #tab .active {
         color: black;
         font-weight: bold;
+    }
+    .box {
+        padding: 10px;
+        background: #fff;
+        border-radius: 10px;
+        width: 500px;
+    }
+    textarea {
+        width: 100%;
+        border: 1px solid #777;
+        min-height: 200px;
     }
 </style>

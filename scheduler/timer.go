@@ -36,7 +36,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 				if err = json.Unmarshal(v, &nt[i]); err != nil {
 					s.Log.Error("[timed] Unmarshal err:", err, "json:", string(v))
 				} else {
-					if int64(nt[i].Trigger) > trigger {
+					if int64(nt[i].Timer) > trigger {
 						return nil
 					} else {
 						i++
@@ -93,7 +93,7 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 			return err
 		}
 
-		key := fmtId(t.Trigger) + "-" + fmtId(id)
+		key := fmtId(t.Timer) + "-" + fmtId(id)
 
 		return bucket.Put([]byte(key), val)
 	})

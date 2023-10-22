@@ -4,10 +4,12 @@ import (
 	"asynctask/server"
 	"context"
 	"flag"
-	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
+
+	"github.com/sirupsen/logrus"
 )
 
 var Server server.Server
@@ -16,7 +18,14 @@ func init() {
 	dbfile := os.Getenv("dbfile")
 
 	if dbfile == "" {
-		dbfile = "./asynctask.bolt"
+		file, _ := os.Executable()
+		base := path.Base(file)
+
+		if base != "" {
+			dbfile = base + ".bolt"
+		} else {
+			dbfile = "asynctask.bolt"
+		}
 	}
 
 	logLevel := os.Getenv("logLevel")
@@ -39,8 +48,6 @@ func init() {
 
 func main() {
 	flag.Parse()
-
-	logrus.SetLevel(logrus.DebugLevel)
 
 	err := Server.Init()
 	if err != nil {

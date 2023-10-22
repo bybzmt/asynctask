@@ -13,5 +13,8 @@ export default {
         "/routes": {
             page: () => import('./pages/routes.svelte'),
         },
+        "/cron": {
+            page: () => import('./pages/cron.svelte'),
+        },
     }
 }

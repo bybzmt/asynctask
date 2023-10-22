@@ -1,9 +1,8 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
@@ -33,66 +32,24 @@ type Config struct {
 }
 
 type Task struct {
-	Name    string    `json:"name,omitempty"`
-	Trigger uint      `json:"trigger,omitempty"`
-	Http    *TaskHttp `json:"http,omitempty"`
-	Cli     *TaskCli  `json:"cli,omitempty"`
-	Timeout uint      `json:"timeout,omitempty"`
-	Hold    string    `json:"hold,omitempty"`
-	Id      uint      `json:",omitempty"`
-	AddTime uint      `json:",omitempty"`
-}
+	Cmd  string   `json:"cmd,omitempty"`
+	Args []string `json:"args,omitempty"`
 
-type TaskHttp struct {
+	Url    string            `json:"url,omitempty"`
 	Method string            `json:"method,omitempty"`
-	Url    string            `json:"url"`
 	Header map[string]string `json:"header,omitempty"`
-	Body   string            `json:"body,omitempty"`
-	Get    map[string]string `json:"get,omitempty"`
-	Post   map[string]string `json:"post,omitempty"`
-	Json   string            `json:"json,omitempty"`
-}
+	Form   map[string]string `json:"form,omitempty"`
+	Body   json.RawMessage   `json:"body,omitempty"`
 
-type TaskCli struct {
-	Cmd    string   `json:"cmd"`
-	Params []string `json:"params,omitempty"`
-}
-
-// 运行的任务
-type order struct {
-	Id     ID
-	job    *job
-	worker *worker
-
-	Task *Task
-	Base TaskBase
-
-	Status int
-	Msg    string
-	Err    error
-
-	AddTime   time.Time
-	StartTime time.Time
-	StatTime  time.Time
-	EndTime   time.Time
-}
-
-func (o *order) taskTxt() string {
-	if o.Base.Mode&MODE_HTTP == MODE_HTTP {
-		if o.Task.Http != nil {
-			return o.Task.Http.Url
-		}
-	} else if o.Base.Mode&MODE_CLI == MODE_CLI {
-		if o.Task.Cli != nil {
-			str := make([]string, 0, 1+len(o.Task.Cli.Params))
-			str = append(str, o.Task.Cli.Cmd)
-			str = append(str, o.Task.Cli.Params...)
-
-			return strings.Join(str, " ")
-		}
-	}
-
-	return "Error Task"
+	Name     string `json:"name,omitempty"`
+	Timer    uint   `json:"timer,omitempty"`
+	Timeout  uint   `json:"timeout,omitempty"`
+	Hold     string `json:"hold,omitempty"`
+	Code     int    `json:"code,omitempty"`
+	Retry    uint   `json:"retry,omitempty"`
+	RetrySec uint   `json:"retrySec,omitempty"`
+	Id       uint   `json:",omitempty"`
+	AddTime  uint   `json:",omitempty"`
 }
 
 type TaskBase struct {

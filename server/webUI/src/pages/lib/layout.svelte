@@ -9,7 +9,8 @@
         <a class="{tab == 1 ? 'active' : ''}" href="#/runing">Runing</a>
         <a class="{tab == 2 ? 'active' : ''}" href="#/">Tasks</a>
         <a class="{tab == 3 ? 'active' : ''}" href="#/routes">Routes</a>
-        <a class="{tab == 4 ? 'active' : ''}" href="#/groups">WorkGroups</a>
+        <a class="{tab == 4 ? 'active' : ''}" href="#/groups">Groups</a>
+        <a class="{tab == 5 ? 'active' : ''}" href="#/cron">Cron</a>
     </div>
 
     <slot />

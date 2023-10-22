@@ -1,10 +1,8 @@
 package scheduler
 
 import (
-	"container/list"
-	"encoding/json"
+	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -15,8 +13,9 @@ type group struct {
 
 	l sync.Mutex
 
-	allWorkers []*worker
-	workers list.List
+    ctx context.Context
+    cancel context.CancelFunc
+
 	orders map[*order]struct{}
 	jobs jobs
 
@@ -45,59 +44,22 @@ func (g *group) init() {
 
 	g.jobs.init(100, g)
 
-	g.workers.Init()
 	g.orders = make(map[*order]struct{})
 
 	g.loadStat.init(g.s.statSize)
+
+    g.ctx, g.cancel = context.WithCancel(context.Background())
 }
 
-func (g *group) workerNumCheck() {
+func (g *group) dispatch() bool {
 	g.l.Lock()
 	defer g.l.Unlock()
 
-	for len(g.allWorkers) != int(g.WorkerNum) {
-		if len(g.allWorkers) < int(g.WorkerNum) {
+    l := uint32(len(g.orders))
 
-			id := atomic.AddUint32((*uint32)(&g.s.WorkerId), 1)
-
-			w := new(worker)
-			w.Init(ID(id), g)
-
-			g.allWorkers = append(g.allWorkers, w)
-			g.workers.PushBack(w)
-
-			go w.Run()
-		} else {
-			ew := g.workers.Back()
-			if ew == nil {
-				return
-			}
-
-			g.workers.Remove(ew)
-			w := ew.Value.(*worker)
-
-			w.Close()
-
-			workers := make([]*worker, 0, g.WorkerNum)
-			for _, t := range g.allWorkers {
-				if t != w {
-					workers = append(workers, t)
-				}
-			}
-			g.allWorkers = workers
-		}
-	}
-}
-
-func (g *group) dispatch() {
-	g.l.Lock()
-	defer g.l.Unlock()
-
-	//得到工人
-	ew := g.workers.Back()
-	if ew == nil {
-		return
-	}
+    if l >= g.WorkerNum {
+        return false
+    }
 
 	t, err := g.jobs.GetOrder()
 	if err != nil {
@@ -106,28 +68,26 @@ func (g *group) dispatch() {
                 g.waitNum = 0
             }
             g.s.Log.Debugln("Group", g.Id, "Empty")
-			return
+			return false
 		}
 		g.s.Log.Warnln("GetTask Error", err)
 
-		return
+		return false
 	}
 
 	t.StartTime = g.now
 	t.StatTime = g.now
 
-	g.orders[t] = struct{}{}
+    t.ctx, t.cancel = context.WithCancel(g.ctx)
 
-	g.workers.Remove(ew)
-	w := ew.Value.(*worker)
+	g.orders[t] = struct{}{}
 
 	//总状态
 	g.nowNum++
 
-	//分配任务
-	t.worker = w
+	go t.Run()
 
-	w.Exec(t)
+    return l+1 < g.WorkerNum
 }
 
 func (g *group) end(t *order) {
@@ -139,7 +99,7 @@ func (g *group) end(t *order) {
 
 	t.EndTime = g.now
 
-	g.logTask(t)
+	t.logTask()
 
 	loadTime := t.EndTime.Sub(t.StatTime)
 	useTime := t.EndTime.Sub(t.StartTime)
@@ -154,9 +114,6 @@ func (g *group) end(t *order) {
 	g.runNum++
 	g.nowNum--
 	g.loadTime += loadTime
-
-	g.workers.PushBack(t.worker)
-	t.worker = nil
 
 	delete(g.orders, t)
 }
@@ -175,27 +132,23 @@ func (g *group) Run() {
 
 		case now := <-g.tick:
 			g.statTick(now)
-			g.workerNumCheck()
 
 		case <-g.cmd:
 			g.l.Lock()
 			g.running = false
 			g.WorkerNum = 0
 			g.l.Unlock()
-
-			g.workerNumCheck()
 		}
 
 		if g.running {
-			g.dispatch()
+			for g.dispatch() {
+            }
 		} else {
-			if len(g.allWorkers) == 0 {
+			if len(g.orders) == 0 {
 				break
 			}
 		}
 	}
-
-	g.s.groupEnd <- g
 }
 
 func (g *group) close() {
@@ -203,9 +156,7 @@ func (g *group) close() {
 }
 
 func (g *group) allTaskCancel() {
-	for t := range g.orders {
-		t.worker.Cancel()
-	}
+    g.cancel()
 }
 
 func (g *group) statTick(now time.Time) {
@@ -237,30 +188,6 @@ func (g *group) statTick(now time.Time) {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
-}
-
-func (g *group) logTask(t *order) {
-
-	var waitTime float64 = 0
-	if t.AddTime.Unix() > 0 {
-		waitTime = t.StartTime.Sub(t.AddTime).Seconds()
-	}
-
-	runTime := t.EndTime.Sub(t.StartTime).Seconds()
-
-	d := taskLog{
-		Id:       t.Id,
-		Name:     t.Task.Name,
-		Task:     t.taskTxt(),
-		Status:   t.Status,
-		WaitTime: logSecond(waitTime),
-		RunTime:  logSecond(runTime),
-		Output:   t.Msg,
-	}
-
-	msg, _ := json.Marshal(d)
-
-	g.s.Log.Infoln("[Task]", string(msg))
 }
 
 func (g *group) delJob(j *job) {

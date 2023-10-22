@@ -33,8 +33,8 @@ type Scheduler struct {
 	statTick time.Duration
 	statSize int
 
-	today   int
-    timedNum int
+	today    int
+	timedNum int
 
 	running bool
 }
@@ -53,7 +53,15 @@ func (s *Scheduler) Init() error {
 	}
 
 	if s.Log == nil {
-		s.Log = logrus.StandardLogger()
+		l := logrus.StandardLogger()
+
+		l.SetLevel(logrus.InfoLevel)
+		l.SetFormatter(&logrus.TextFormatter{
+			DisableColors: true,
+			FullTimestamp: true,
+		})
+
+		s.Log = l
 	}
 
 	s.statSize = 60 * 5
@@ -65,9 +73,9 @@ func (s *Scheduler) Init() error {
 
 	s.closed = make(chan int)
 
-    if err := s.init(); err != nil {
-        return err
-    }
+	if err := s.init(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -78,7 +86,6 @@ func (s *Scheduler) Running() bool {
 
 	return s.running
 }
-
 
 func (s *Scheduler) init() error {
 	s.loadScheduler()
@@ -107,7 +114,7 @@ func (s *Scheduler) init() error {
 
 	s.timedNum = s.timerTaskNum()
 
-    return nil
+	return nil
 }
 
 func (s *Scheduler) Run() {
@@ -156,7 +163,7 @@ func (s *Scheduler) Run() {
 			if minuteTick > 60 {
 				minuteTick = 0
 
-                s.checkJobs()
+				s.checkJobs()
 			}
 
 			s.l.Unlock()
@@ -262,12 +269,12 @@ func (s *Scheduler) delIdleJob(name string) error {
 	j.group.l.Lock()
 	defer j.group.l.Unlock()
 
-    if j.mode != job_mode_idle {
+	if j.mode != job_mode_idle {
 		return NotFound
-    }
+	}
 
 	if j.next != nil {
-        j.group.jobs.remove(j)
+		j.group.jobs.remove(j)
 	}
 
 	delete(s.jobs, name)

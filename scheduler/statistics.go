@@ -148,7 +148,7 @@ func (s *group) getRunTaskStat() []RunTaskStat {
 			Group:   s.Id,
 			Mode:    mode,
 			Name:    t2.Task.Name,
-			Task:    t2.taskTxt(),
+			Task:    t2.taskTxt,
 			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
 		}
 		runs = append(runs, st)

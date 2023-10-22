@@ -12,25 +12,6 @@ var Empty = errors.New("empty")
 var NotFound = errors.New("NotFound")
 var TaskError = errors.New("TaskError")
 
-// 输出日志时间（为了不显示太长的小数)
-type logSecond float64
-
-func (l logSecond) MarshalJSON() ([]byte, error) {
-	str := fmt.Sprintf("%.2f", l)
-	return []byte(str), nil
-}
-
-// task 日志记录
-type taskLog struct {
-	Id       ID
-	Name     string
-	Task     string
-	Status   int
-	WaitTime logSecond
-	RunTime  logSecond
-	Output   string
-}
-
 type bucketer interface {
 	Bucket(key []byte) *bolt.Bucket
 	CreateBucketIfNotExists(key []byte) (*bolt.Bucket, error)

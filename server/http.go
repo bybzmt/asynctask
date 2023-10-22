@@ -31,16 +31,23 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
+
 	h.HandleFunc("/api/job/delIdle", page_error(s.page_job_delIdle))
 	h.HandleFunc("/api/job/emptyAll", page_error(s.page_job_empty))
 	h.HandleFunc("/api/job/setConfig", page_error(s.page_job_config))
+
 	h.HandleFunc("/api/routes", page_error(s.page_routes))
 	h.HandleFunc("/api/route/add", page_error(s.page_route_add))
 	h.HandleFunc("/api/route/del", page_error(s.page_route_del))
 	h.HandleFunc("/api/route/setConfig", page_error(s.page_route_config))
+
 	h.HandleFunc("/api/group/add", page_error(s.page_group_add))
 	h.HandleFunc("/api/group/del", page_error(s.page_group_del))
 	h.HandleFunc("/api/group/setConfig", page_error(s.page_group_config))
+
+	h.HandleFunc("/api/cron/getConfig", page_error(s.page_cron_getConfig))
+	h.HandleFunc("/api/cron/setConfig", page_error(s.page_cron_setConfig))
+	h.HandleFunc("/api/cron/reload", page_error(s.page_cron_reload))
 
 	s.Http.Handler = h
 }
@@ -60,7 +67,7 @@ func (s *Server) page_task_add(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.AddTask(&o)
+	return s.Scheduler.TaskAdd(&o)
 }
 
 func (s *Server) page_job_empty(r *http.Request) any {
@@ -152,7 +159,7 @@ func (s *Server) page_task_cancel(r *http.Request) any {
 	gid, _ := strconv.Atoi(r.FormValue("gid"))
 	tid, _ := strconv.Atoi(r.FormValue("tid"))
 
-	return s.Scheduler.OrderCancel(scheduler.ID(gid), scheduler.ID(tid))
+	return s.Scheduler.TaskCancel(scheduler.ID(gid), scheduler.ID(tid))
 }
 
 func httpReadJson(r *http.Request, out any) error {

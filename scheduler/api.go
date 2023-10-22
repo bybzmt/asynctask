@@ -208,7 +208,7 @@ func (s *Scheduler) GetRouteConfigs() (out []TaskConfig) {
 	return
 }
 
-func (s *Scheduler) OrderCancel(gid, oid ID) error {
+func (s *Scheduler) TaskCancel(gid, oid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -222,7 +222,7 @@ func (s *Scheduler) OrderCancel(gid, oid ID) error {
 
 	for t := range g.orders {
 		if t.Id == oid {
-			t.worker.Cancel()
+			t.cancel()
 			return nil
 		}
 	}
@@ -267,15 +267,23 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 	return jt.delTask(tid)
 }
 
-func (s *Scheduler) AddTask(t *Task) error {
+func (s *Scheduler) TaskAdd(t *Task) error {
 	t.Name = strings.TrimSpace(t.Name)
+	t.Url = strings.TrimSpace(t.Url)
+	t.Cmd = strings.TrimSpace(t.Cmd)
 
-	if t.Name == "" {
+	if (t.Url == "" && t.Cmd == "") || (t.Url != "" && t.Cmd != "") {
 		return TaskError
 	}
 
-	if t.Http == nil && t.Cli == nil {
-		return TaskError
+	if t.Cmd != "" {
+		if t.Name == "" {
+			t.Name = t.Cmd
+		}
+	} else {
+		if t.Name == "" {
+			t.Name = t.Url
+		}
 	}
 
 	s.l.Lock()
@@ -285,7 +293,7 @@ func (s *Scheduler) AddTask(t *Task) error {
 	t.Id = uint(s.TaskNextId)
 	t.AddTime = uint(s.now.Unix())
 
-	if t.Trigger > uint(s.now.Unix()) {
+	if t.Timer > uint(s.now.Unix()) {
 		return s.timerAddTask(t)
 	}
 

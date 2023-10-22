@@ -74,7 +74,7 @@ export async function sendJson(url, data) {
     let he = new Headers();
     he.append("Content-Type", "application/json; charset=utf-8");
 
-    await fetch(url, {
+    return await fetch(url, {
         method: "POST",
         headers: he,
         body: JSON.stringify(data),
