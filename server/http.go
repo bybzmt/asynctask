@@ -31,6 +31,7 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
+	h.HandleFunc("/api/task/timed", page_error(s.page_task_timed))
 
 	h.HandleFunc("/api/job/delIdle", page_error(s.page_job_delIdle))
 	h.HandleFunc("/api/job/emptyAll", page_error(s.page_job_empty))
@@ -160,6 +161,12 @@ func (s *Server) page_task_cancel(r *http.Request) any {
 	tid, _ := strconv.Atoi(r.FormValue("tid"))
 
 	return s.Scheduler.TaskCancel(scheduler.ID(gid), scheduler.ID(tid))
+}
+
+func (s *Server) page_task_timed(r *http.Request) any {
+	starttime, _ := strconv.Atoi(r.FormValue("starttime"))
+
+	return s.Scheduler.TimerShow(starttime, 100)
 }
 
 func httpReadJson(r *http.Request, out any) error {

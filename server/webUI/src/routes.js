@@ -16,5 +16,8 @@ export default {
         "/cron": {
             page: () => import('./pages/cron.svelte'),
         },
+        "/timed": {
+            page: () => import('./pages/timed.svelte'),
+        },
     }
 }

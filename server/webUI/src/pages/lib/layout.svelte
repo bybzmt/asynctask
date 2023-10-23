@@ -11,6 +11,7 @@
         <a class="{tab == 3 ? 'active' : ''}" href="#/routes">Routes</a>
         <a class="{tab == 4 ? 'active' : ''}" href="#/groups">Groups</a>
         <a class="{tab == 5 ? 'active' : ''}" href="#/cron">Cron</a>
+        <a class="{tab == 6 ? 'active' : ''}" href="#/timed">Timed</a>
     </div>
 
     <slot />

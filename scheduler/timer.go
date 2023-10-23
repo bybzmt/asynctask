@@ -14,7 +14,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 		i := 0
 		nt := make([]Task, 20)
 
-        empty := false
+		empty := false
 
 		// path: /timer/:unix-:id
 		s.Db.Update(func(tx *bolt.Tx) error {
@@ -29,7 +29,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 			for i < 20 {
 				k, v := c.First()
 				if k == nil {
-                    empty = true
+					empty = true
 					return nil
 				}
 
@@ -52,11 +52,11 @@ func (s *Scheduler) timerChecker(now time.Time) {
 			return nil
 		})
 
-        if empty {
-            s.timedNum = 0
-        } else {
-            s.timedNum -= i
-        }
+		if empty {
+			s.timedNum = 0
+		} else {
+			s.timedNum -= i
+		}
 
 		for x := 0; x < i; x++ {
 			if err := s.addTask(&nt[x]); err != nil {
@@ -98,15 +98,15 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 		return bucket.Put([]byte(key), val)
 	})
 
-    if err == nil {
-        s.timedNum++
-    }
+	if err == nil {
+		s.timedNum++
+	}
 
 	return err
 }
 
 func (s *Scheduler) timerTaskNum() int {
-    num := 0
+	num := 0
 
 	// path: /timer
 	s.Db.View(func(tx *bolt.Tx) error {
@@ -117,10 +117,38 @@ func (s *Scheduler) timerTaskNum() int {
 
 		stat := bucket.Stats()
 
-        num = stat.KeyN
+		num = stat.KeyN
 
 		return nil
 	})
 
-    return num
+	return num
+}
+
+func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
+
+	// path: /timer/:unix-:id
+	s.Db.View(func(tx *bolt.Tx) error {
+		bucket := getBucket(tx, "timer")
+		if bucket == nil {
+			return nil
+		}
+
+		c := bucket.Cursor()
+		k, v := c.Seek([]byte(fmtId(starttime)))
+
+		for i := 0; k != nil && i < num; i++ {
+			t := Task{}
+
+            if err := json.Unmarshal(v, &t); err == nil {
+				out = append(out, t)
+			}
+
+			k, v = c.Next()
+		}
+
+		return nil
+	})
+
+    return
 }
