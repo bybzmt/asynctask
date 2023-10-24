@@ -23,8 +23,8 @@ func (w *workerCli) init() error {
 	var cmd string
     args := []string{}
 
-	if w.order.Base.CliBase != "" {
-        cmd = w.order.Base.CliBase
+	if w.order.Base.CmdBase != "" {
+        cmd = w.order.Base.CmdBase
         args = append(args, w.order.Task.Cmd)
 	} else {
 		cmd = w.order.Task.Cmd
@@ -46,14 +46,14 @@ func (w *workerCli) init() error {
     w.cancel = cancel
 
 	c := exec.CommandContext(ctx, cmd, args...)
-	c.Env = make([]string, 0, len(w.order.Base.CliEnv))
+	c.Env = make([]string, 0, len(w.order.Base.CmdEnv))
 
-	for k, v := range w.order.Base.CliEnv {
+	for k, v := range w.order.Base.CmdEnv {
 		c.Env = append(c.Env, k+"="+v)
 	}
 
-	if w.order.Base.CliDir != "" {
-		c.Dir = w.order.Base.CliDir
+	if w.order.Base.CmdDir != "" {
+		c.Dir = w.order.Base.CmdDir
 	} else {
 		c.Dir = os.TempDir()
 	}

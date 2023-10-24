@@ -74,7 +74,7 @@ func copyMap(src map[string]string) map[string]string {
 
 func copyTaskBase(src TaskBase) (dst TaskBase) {
     dst = src
-    dst.CliEnv = copyMap(src.CliEnv)
+    dst.CmdEnv = copyMap(src.CmdEnv)
     dst.HttpHeader = copyMap(src.HttpHeader)
     return
 }

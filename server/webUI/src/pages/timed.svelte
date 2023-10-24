@@ -11,7 +11,7 @@
     let rows = [];
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/task/timed")).then((t) => t.json());
+        let json = await sendJson(mkUrl("api/task/timed"), { starttime: 0 });
 
         rows = json.Data || [];
     }
@@ -28,6 +28,9 @@
         return new Date((t - timezoneOffset) * 1000)
             .toISOString()
             .substring(0, 19);
+    }
+
+    function rowAdd() {
     }
 </script>
 

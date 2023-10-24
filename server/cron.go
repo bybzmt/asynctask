@@ -37,8 +37,8 @@ func (s *Server) initCron() error {
 }
 
 func (s *Server) CronRun(ctx context.Context) {
-	s.Scheduler.Log.Debugln("[Info] Cron init")
-	defer s.Scheduler.Log.Debugln("[Info] Cron close")
+	s.Scheduler.Log.Debugln("Cron init")
+	defer s.Scheduler.Log.Debugln("Cron close")
 
 	for {
 		cfg := s.cron_run_cfg()

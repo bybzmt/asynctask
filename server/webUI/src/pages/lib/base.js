@@ -87,8 +87,7 @@ export function taskCancel(task) {
         "Cancel Task?\r\nId: " + task.Id + " Name: " + task.Name + " " + task.Task
     );
     if (ok) {
-        sendPost(mkUrl("api/task/cancel"), {
-            gid: task.Group,
+        sendJson(mkUrl("api/task/cancel"), {
             tid: task.Id,
         });
     }
@@ -97,8 +96,7 @@ export function taskCancel(task) {
 export function jobEmpty(job) {
     var ok = confirm("Empty Job?\r\nName: " + job.Name);
     if (ok) {
-        sendPost(mkUrl("api/job/empty"), {
-            gid: job.Gid,
+        sendJson(mkUrl("api/job/empty"), {
             name: job.Name,
         });
     }
@@ -107,8 +105,7 @@ export function jobEmpty(job) {
 export function jobDelIdle(job) {
     var ok = confirm("Del Idle Job?\r\nName: " + job.Name);
     if (ok) {
-        sendPost(mkUrl("api/job/delIdle"), {
-            gid: job.Gid,
+        sendJson(mkUrl("api/job/delIdle"), {
             name: job.Name,
         });
     }
@@ -119,12 +116,10 @@ export function jobPriority(job) {
     if (txt != null && txt != "") {
         let Priority = parseInt(txt);
 
-        sendJson(
-            mkUrl("api/job/setConfig", {
-                gid: gid,
-                name: job.Name,
-            }),
+        return sendJson(
+            mkUrl("api/job/setConfig"),
             {
+                name: job.Name,
                 Priority: Priority,
                 Parallel: job.Parallel,
             }
@@ -137,12 +132,10 @@ export function jobParallel(job) {
     if (txt != null && txt != "") {
         let Parallel = parseInt(txt);
 
-        sendJson(
-            mkUrl("api/job/setConfig", {
-                gid: gid,
-                name: job.Name,
-            }),
+        return sendJson(
+            mkUrl("api/job/setConfig"),
             {
+                name: job.Name,
                 Priority: job.Priority,
                 Parallel: Parallel,
             }

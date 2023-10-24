@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -10,11 +11,14 @@ import (
 func (s *Scheduler) timerChecker(now time.Time) {
 	trigger := now.Unix()
 
-	for {
-		i := 0
-		nt := make([]Task, 20)
+	var brk = errors.New("brk")
 
-		empty := false
+	page := 20
+
+	for {
+		nt := make([]Task, 0, page)
+
+		empty := true
 
 		// path: /timer/:unix-:id
 		s.Db.Update(func(tx *bolt.Tx) error {
@@ -24,28 +28,43 @@ func (s *Scheduler) timerChecker(now time.Time) {
 				return nil
 			}
 
-			c := bucket.Cursor()
+			keys := make([][]byte, 0, page)
 
-			for i < 20 {
-				k, v := c.First()
-				if k == nil {
-					empty = true
+			bucket.ForEach(func(k, v []byte) error {
+				empty = false
+
+				t := Task{}
+
+				if err = json.Unmarshal(v, &t); err != nil {
+					s.Log.WithFields(map[string]any{
+						"tag":  "timed",
+						"task": string(v),
+					}).Errorln("Unmarshal err:", err)
+
+					keys = append(keys, k)
 					return nil
 				}
 
-				if err = json.Unmarshal(v, &nt[i]); err != nil {
-					s.Log.Error("[timed] Unmarshal err:", err, "json:", string(v))
-				} else {
-					if int64(nt[i].Timer) > trigger {
-						return nil
-					} else {
-						i++
-					}
+				if int64(t.Timer) > trigger {
+					return brk
 				}
 
+				nt = append(nt, t)
+				keys = append(keys, k)
+
+				if len(nt) >= page {
+					return brk
+				}
+
+				return nil
+			})
+
+			for _, k := range keys {
 				if err := bucket.Delete(k); err != nil {
-					s.Log.Error("[timed] Delete err:", err, "key:", string(k))
-					return nil
+					s.Log.WithFields(map[string]any{
+						"tag": "timed",
+						"key": string(k),
+					}).Errorln("Delete err:", err)
 				}
 			}
 
@@ -54,18 +73,22 @@ func (s *Scheduler) timerChecker(now time.Time) {
 
 		if empty {
 			s.timedNum = 0
-		} else {
-			s.timedNum -= i
 		}
 
-		for x := 0; x < i; x++ {
-			if err := s.addTask(&nt[x]); err != nil {
-				s.Log.Warnln("[timed] AddOrder err:", err)
-			}
-		}
-
-		if i == 0 {
+		if len(nt) == 0 {
 			return
+		}
+
+		s.timedNum -= len(nt)
+
+		for _, t := range nt {
+			if err := s.addTask(&t); err != nil {
+				v, _ := json.Marshal(t)
+				s.Log.WithFields(map[string]any{
+					"tag":  "timed",
+					"task": string(v),
+				}).Infoln("AddOrder err:", err)
+			}
 		}
 	}
 }
@@ -140,7 +163,7 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
 		for i := 0; k != nil && i < num; i++ {
 			t := Task{}
 
-            if err := json.Unmarshal(v, &t); err == nil {
+			if err := json.Unmarshal(v, &t); err == nil {
 				out = append(out, t)
 			}
 
@@ -150,5 +173,5 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
 		return nil
 	})
 
-    return
+	return
 }

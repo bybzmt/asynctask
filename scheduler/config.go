@@ -55,9 +55,9 @@ type Task struct {
 type TaskBase struct {
 	Mode       Mode
 	Timeout    uint //最大超时时间
-	CliBase    string
-	CliEnv     map[string]string
-	CliDir     string //工作目录
+	CmdBase    string
+	CmdEnv     map[string]string
+	CmdDir     string //工作目录
 	HttpBase   string
 	HttpHeader map[string]string
 }
@@ -66,8 +66,8 @@ func (b *TaskBase) init() {
 	if b.HttpHeader == nil {
 		b.HttpHeader = make(map[string]string)
 	}
-	if b.CliEnv == nil {
-		b.CliEnv = make(map[string]string)
+	if b.CmdEnv == nil {
+		b.CmdEnv = make(map[string]string)
 	}
 }
 

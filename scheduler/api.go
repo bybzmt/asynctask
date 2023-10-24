@@ -193,7 +193,7 @@ func (s *Scheduler) GetRouteConfigs() (out []TaskConfig) {
 	return
 }
 
-func (s *Scheduler) TaskCancel(gid, oid ID) error {
+func (s *Scheduler) TaskCancel(oid ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 

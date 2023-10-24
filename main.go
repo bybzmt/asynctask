@@ -56,13 +56,14 @@ func main() {
 
 	ctx, canceler := context.WithCancel(context.Background())
 
-	go Server.Run(ctx)
+    go func() {
+        waitSignal()
+        canceler()
+    }()
 
 	logrus.Info("Scheduler Start")
 
-	waitSignal()
-
-	canceler()
+	Server.Run(ctx)
 
 	logrus.Info("Scheduler Stop")
 }

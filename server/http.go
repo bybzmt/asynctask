@@ -7,8 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"strconv"
-	"strings"
 )
 
 //go:embed dist/*
@@ -72,28 +70,40 @@ func (s *Server) page_task_add(r *http.Request) any {
 }
 
 func (s *Server) page_job_empty(r *http.Request) any {
-	name := r.FormValue("name")
+	var t struct {
+        name string
+    }
 
-	return s.Scheduler.JobEmpty(name)
-}
-
-func (s *Server) page_job_delIdle(r *http.Request) any {
-	jname := strings.TrimSpace(r.FormValue("name"))
-
-	return s.Scheduler.JobDelIdle(jname)
-}
-
-func (s *Server) page_job_config(r *http.Request) any {
-	jname := strings.TrimSpace(r.FormValue("name"))
-	_cfg := r.FormValue("cfg")
-
-	var cfg scheduler.JobConfig
-
-	if err := json.Unmarshal([]byte(_cfg), &cfg); err != nil {
+	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.SetJobConfig(jname, cfg)
+	return s.Scheduler.JobEmpty(t.name)
+}
+
+func (s *Server) page_job_delIdle(r *http.Request) any {
+	var t struct {
+        name string
+    }
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+	return s.Scheduler.JobDelIdle(t.name)
+}
+
+func (s *Server) page_job_config(r *http.Request) any {
+	var cfg struct {
+		scheduler.JobConfig
+		name string
+	}
+
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
+
+	return s.Scheduler.SetJobConfig(cfg.name, cfg.JobConfig)
 }
 
 func (s *Server) page_groups_status(r *http.Request) any {
@@ -101,6 +111,13 @@ func (s *Server) page_groups_status(r *http.Request) any {
 }
 
 func (s *Server) page_group_add(r *http.Request) any {
+
+	var t struct {}
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
 	cfg, err := s.Scheduler.AddGroup()
 	if err != nil {
 		return err
@@ -109,10 +126,15 @@ func (s *Server) page_group_add(r *http.Request) any {
 }
 
 func (s *Server) page_group_del(r *http.Request) any {
+	var cfg struct {
+		gid scheduler.ID
+	}
 
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	return s.Scheduler.DelGroup(scheduler.ID(gid))
+	return s.Scheduler.DelGroup(cfg.gid)
 }
 
 func (s *Server) page_group_config(r *http.Request) any {
@@ -139,10 +161,15 @@ func (s *Server) page_route_add(r *http.Request) any {
 }
 
 func (s *Server) page_route_del(r *http.Request) any {
+	var cfg struct {
+		rid scheduler.ID
+	}
 
-	rid, _ := strconv.Atoi(r.FormValue("rid"))
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
 
-	return s.Scheduler.DelRoute(scheduler.ID(rid))
+	return s.Scheduler.DelRoute(cfg.rid)
 }
 
 func (s *Server) page_route_config(r *http.Request) any {
@@ -157,16 +184,27 @@ func (s *Server) page_route_config(r *http.Request) any {
 }
 
 func (s *Server) page_task_cancel(r *http.Request) any {
-	gid, _ := strconv.Atoi(r.FormValue("gid"))
-	tid, _ := strconv.Atoi(r.FormValue("tid"))
+	var cfg struct {
+		tid scheduler.ID
+	}
 
-	return s.Scheduler.TaskCancel(scheduler.ID(gid), scheduler.ID(tid))
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
+
+	return s.Scheduler.TaskCancel(cfg.tid)
 }
 
 func (s *Server) page_task_timed(r *http.Request) any {
-	starttime, _ := strconv.Atoi(r.FormValue("starttime"))
+	var t struct {
+		starttime int
+	}
 
-	return s.Scheduler.TimerShow(starttime, 100)
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+	return s.Scheduler.TimerShow(t.starttime, 100)
 }
 
 func httpReadJson(r *http.Request, out any) error {

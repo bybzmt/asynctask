@@ -3,7 +3,7 @@
     import Dialog from "./lib/dialog.svelte";
     import InputKV from "./lib/inputkv.svelte";
     import { onMount } from "svelte";
-    import { sendPost, sendJson, mkUrl } from "./lib/base";
+    import { sendJson, mkUrl } from "./lib/base";
 
     onMount(() => {
         showStatus();
@@ -37,7 +37,7 @@
     function routeDel(row) {
         var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
         if (ok) {
-            sendPost(mkUrl("api/route/del"), {
+            sendJson(mkUrl("api/route/del"), {
                 rid: row.Id,
             });
 
@@ -48,7 +48,7 @@
     function routeAdd() {
         var ok = confirm(`Add Route?`);
         if (ok) {
-            sendPost(mkUrl("api/route/add"));
+            sendJson(mkUrl("api/route/add"));
 
             showStatus();
         }
@@ -91,7 +91,7 @@
     }
 </script>
 
-<Layout tab=3>
+<Layout tab="3">
     <div id="tasks">
         <table>
             <thead>
@@ -251,9 +251,6 @@
     .center2 {
         text-align: center;
     }
-    #tab {
-        margin: 0 0.5em;
-    }
 
     .box {
         padding: 10px;
@@ -280,10 +277,5 @@
     }
     .center button {
         margin: 10px;
-    }
-
-    .editGroups {
-        display: grid;
-        grid-template-columns: auto auto;
     }
 </style>

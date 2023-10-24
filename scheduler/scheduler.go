@@ -130,6 +130,9 @@ func (s *Scheduler) init() error {
 }
 
 func (s *Scheduler) Run() {
+    s.Log.Debugln("run start")
+	defer s.Log.Debugln("run stop")
+
 	s.l.Lock()
 
 	if s.running {
@@ -171,7 +174,6 @@ func (s *Scheduler) Run() {
 			s.l.Unlock()
 
 			if !s.running && l == 0 {
-				s.Log.Debugln("all close")
 				s.closed <- 1
 				return
 			}
@@ -189,6 +191,7 @@ func (s *Scheduler) Run() {
 			} else {
 				if len(s.orders) == 0 {
 					s.closed <- 1
+                    return
 				}
 			}
 
@@ -516,7 +519,7 @@ func (s *Scheduler) routeChanged() {
 		for _, r := range s.routes {
 			if r.match(j.name) {
 				if j.group.Id != r.GroupId {
-					jobRemove(j)
+                    jobRemove(j)
 
 					g, ok := s.groups[r.GroupId]
 
@@ -526,12 +529,18 @@ func (s *Scheduler) routeChanged() {
 						continue
 					}
 
-					j.group = g
-					j.JobConfig = r.JobConfig
-					j.TaskBase = copyTaskBase(r.TaskBase)
+                    n := new(job)
+                    *n = *j
 
-					j.group.jobs.addJob(j)
+					n.group = g
+					g.jobs.addJob(n)
+
+                    s.jobs[n.name] = n
+                    j = n
 				}
+
+                j.JobConfig = r.JobConfig
+                j.TaskBase = copyTaskBase(r.TaskBase)
 			}
 		}
 	}

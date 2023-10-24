@@ -121,10 +121,16 @@ func (s *Server) Run(ctx context.Context) {
 		go func() {
 			if s.HttpEnable {
 				s.Http.BaseContext = func(net.Listener) context.Context {
+
+					go func() {
+						<-ctx.Done()
+						s.Http.Close()
+					}()
+
 					return ctx
 				}
 
-				s.Scheduler.Log.Fatalln(s.Http.ListenAndServe())
+				s.Scheduler.Log.Warnln(s.Http.ListenAndServe())
 			}
 
 			exit <- 1
@@ -142,8 +148,6 @@ func (s *Server) Run(ctx context.Context) {
 			s.CronRun(ctx)
 			exit <- 1
 		}()
-
-		<-ctx.Done()
 
 		<-exit
 		<-exit

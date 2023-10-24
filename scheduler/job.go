@@ -114,9 +114,8 @@ func (j *job) delTask(tid ID) error {
 	if has {
 		j.waitNum -= 1
 		j.group.waitNum -= 1
+        j.group.jobs.modeCheck(j)
 	}
-
-	j.group.jobs.modeCheck(j)
 
 	return nil
 }
@@ -220,6 +219,7 @@ func (j *job) delAllTask() error {
 		return err
 	}
 
+	j.group.waitNum -= int(j.waitNum)
 	j.waitNum = 0
 
 	return nil

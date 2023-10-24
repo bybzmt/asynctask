@@ -2,7 +2,7 @@
     import Layout from "./lib/layout.svelte";
     import Dialog from "./lib/dialog.svelte";
     import { onMount } from "svelte";
-    import { mkUrl, sendJson, sendPost } from "./lib/base";
+    import { mkUrl, sendJson } from "./lib/base";
 
     onMount(() => {
         showStatus();
@@ -21,7 +21,7 @@
     function groupDel(row) {
         var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
         if (ok) {
-            sendPost(mkUrl("api/group/del"), {
+            sendJson(mkUrl("api/group/del"), {
                 gid: row.Id,
             });
 
@@ -32,7 +32,7 @@
     function groupAdd() {
         var ok = confirm(`Add Group?`);
         if (ok) {
-            sendPost(mkUrl("api/group/add"));
+            sendJson(mkUrl("api/group/add"), {});
 
             showStatus();
         }
@@ -52,7 +52,7 @@
     }
 </script>
 
-<Layout tab=4>
+<Layout tab="4">
     <div id="tasks">
         <table>
             <thead>
@@ -124,9 +124,6 @@
     }
     .center2 {
         text-align: center;
-    }
-    #tab {
-        margin: 0 0.5em;
     }
     .box {
         padding: 10px;
