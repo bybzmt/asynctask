@@ -122,8 +122,6 @@ func (s *group) getGroupStat() GroupStat {
 }
 
 func (s *Scheduler) getRunTaskStat() []RunTaskStat {
-	s.l.Lock()
-	defer s.l.Unlock()
 
 	now := time.Now()
 

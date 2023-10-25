@@ -130,7 +130,11 @@ func (s *Server) Run(ctx context.Context) {
 					return ctx
 				}
 
-				s.Scheduler.Log.Warnln(s.Http.ListenAndServe())
+                err := s.Http.ListenAndServe()
+
+                if err != http.ErrServerClosed {
+                    s.Scheduler.Log.Fatalln(err)
+                }
 			}
 
 			exit <- 1

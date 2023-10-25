@@ -303,3 +303,10 @@ func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
 
     return s.getRunTaskStat()
 }
+
+func (s *Scheduler) Running() bool {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	return s.running
+}

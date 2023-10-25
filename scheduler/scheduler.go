@@ -92,13 +92,6 @@ func (s *Scheduler) Init() error {
 	return nil
 }
 
-func (s *Scheduler) Running() bool {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	return s.running
-}
-
 func (s *Scheduler) init() error {
 	s.loadScheduler()
 
@@ -254,9 +247,6 @@ func (s *Scheduler) checkJobs() {
 
 func (s *Scheduler) allTaskCancel() {
 	s.Log.Debugln("allTaskCancel")
-
-	s.l.Lock()
-	defer s.l.Unlock()
 
 	for _, g := range s.groups {
 		g.cancel()
@@ -675,9 +665,6 @@ func (s *Scheduler) loadJobs() error {
 }
 
 func (s *Scheduler) addDefaultGroup() error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
 	g, err := s.addGroup()
 	if err != nil {
 		return err
@@ -689,9 +676,6 @@ func (s *Scheduler) addDefaultGroup() error {
 }
 
 func (s *Scheduler) addDefaultRouter() error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
 	r, err := s.addRoute()
 	if err != nil {
 		return err
