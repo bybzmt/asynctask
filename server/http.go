@@ -30,9 +30,10 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
 	h.HandleFunc("/api/task/timed", page_error(s.page_task_timed))
+	h.HandleFunc("/api/task/timeddel", page_error(s.page_task_timed_del))
 
 	h.HandleFunc("/api/job/delIdle", page_error(s.page_job_delIdle))
-	h.HandleFunc("/api/job/emptyAll", page_error(s.page_job_empty))
+	h.HandleFunc("/api/job/empty", page_error(s.page_job_empty))
 	h.HandleFunc("/api/job/setConfig", page_error(s.page_job_config))
 
 	h.HandleFunc("/api/routes", page_error(s.page_routes))
@@ -71,39 +72,39 @@ func (s *Server) page_task_add(r *http.Request) any {
 
 func (s *Server) page_job_empty(r *http.Request) any {
 	var t struct {
-        name string
-    }
+		Name string
+	}
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.JobEmpty(t.name)
+	return s.Scheduler.JobEmpty(t.Name)
 }
 
 func (s *Server) page_job_delIdle(r *http.Request) any {
 	var t struct {
-        name string
-    }
+		Name string
+	}
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.JobDelIdle(t.name)
+	return s.Scheduler.JobDelIdle(t.Name)
 }
 
 func (s *Server) page_job_config(r *http.Request) any {
 	var cfg struct {
 		scheduler.JobConfig
-		name string
+		Name string
 	}
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err
 	}
 
-	return s.Scheduler.SetJobConfig(cfg.name, cfg.JobConfig)
+	return s.Scheduler.SetJobConfig(cfg.Name, cfg.JobConfig)
 }
 
 func (s *Server) page_groups_status(r *http.Request) any {
@@ -112,7 +113,7 @@ func (s *Server) page_groups_status(r *http.Request) any {
 
 func (s *Server) page_group_add(r *http.Request) any {
 
-	var t struct {}
+	var t struct{}
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
@@ -205,6 +206,18 @@ func (s *Server) page_task_timed(r *http.Request) any {
 	}
 
 	return s.Scheduler.TimerShow(t.starttime, 100)
+}
+
+func (s *Server) page_task_timed_del(r *http.Request) any {
+	var t struct {
+		TimedID string
+	}
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+	return s.Scheduler.TimerDel(t.TimedID)
 }
 
 func httpReadJson(r *http.Request, out any) error {

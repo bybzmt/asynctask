@@ -1,13 +1,14 @@
 <script>
     import Layout from "./lib/layout.svelte";
-    import Dialog from "./lib/dialog.svelte";
+    import Taskadd from "./lib/taskadd.svelte";
     import { onMount } from "svelte";
-    import { sendJson, mkUrl } from "./lib/base";
+    import { sendJson, mkUrl, timeStr } from "./lib/base";
 
     onMount(() => {
         showStatus();
     });
 
+    let addTask;
     let rows = [];
 
     async function showStatus() {
@@ -17,70 +18,60 @@
     }
 
     async function rowDel(row) {
-        var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
+        var ok = confirm(`Del timer?\r\nId:${row.Id} name: ${row.name}`);
         if (ok) {
+            let json = await sendJson(mkUrl("api/task/timeddel"), {
+                TimedID: row.TimedID,
+            });
+            if (json.Code != 0) {
+                alert(json.Data);
+                return;
+            }
+            showStatus();
         }
     }
 
-    let timezoneOffset = new Date().getTimezoneOffset() * 60;
-
-    function timeStr(t) {
-        return new Date((t - timezoneOffset) * 1000)
-            .toISOString()
-            .substring(0, 19);
-    }
-
-    function rowAdd() {
+    async function showAddTask() {
+        await addTask()
+        showStatus();
     }
 </script>
 
 <Layout tab="6">
     <div id="tasks">
-        <table>
+        <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th>运行时间</th>
-                    <th>任务</th>
-                    <th />
+                    <th class="px-2 py-1 border">运行时间</th>
+                    <th class="px-2 py-1 border">任务</th>
+                    <th class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
                 {#each rows as row}
                     <tr>
-                        <td>{timeStr(row.timer)}</td>
-                        <td>{JSON.stringify(row)}</td>
-                        <td
+                        <td class="px-2 py-1 border">{timeStr(row.timer)}</td>
+                        <td class="px-2 py-1 border">{JSON.stringify(row)}</td>
+                        <td class="px-2 py-1 border"
                             ><button on:click={() => rowDel(row)}>删除</button
                             ></td
                         >
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="3" class="center2">empty</td>
+                        <td colspan="3"  class="px-2 py-1 border text-center">empty</td>
                     </tr>
                 {/each}
 
                 <tr>
+                    <td  class="px-2 py-1 border text-center"
+                        ><button on:click={() => showAddTask()}>添加</button></td
+                    >
                     <td colspan="2" />
-                    <td><button on:click={() => rowAdd()}>添加</button></td>
                 </tr>
             </tbody>
         </table>
     </div>
 </Layout>
 
-<style>
-    table {
-        margin: 1em;
-        border-collapse: collapse;
-        border: 1px solid #777;
-    }
-    table td,
-    table th {
-        border: 1px solid #777;
-        padding: 0px 1em;
-    }
-    .center2 {
-        text-align: center;
-    }
-</style>
+<Taskadd bind:addTask />

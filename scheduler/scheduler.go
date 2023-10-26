@@ -123,7 +123,7 @@ func (s *Scheduler) init() error {
 }
 
 func (s *Scheduler) Run() {
-    s.Log.Debugln("run start")
+	s.Log.Debugln("run start")
 	defer s.Log.Debugln("run stop")
 
 	s.l.Lock()
@@ -177,14 +177,14 @@ func (s *Scheduler) Run() {
 			o.g.end(o)
 
 			if s.running {
-                s.now = time.Now()
+				s.now = time.Now()
 
 				for o.g.dispatch() {
 				}
 			} else {
 				if len(s.orders) == 0 {
 					s.closed <- 1
-                    return
+					return
 				}
 			}
 
@@ -230,21 +230,6 @@ func (s *Scheduler) Close() error {
 	}
 }
 
-func (s *Scheduler) checkJobs() {
-	for _, j := range s.jobs {
-		if j.mode == job_mode_idle {
-			j.loadWaitNum()
-			if j.waitNum > 0 {
-				j.group.jobs.addJob(j)
-			}
-
-			if j.next == nil {
-				delete(s.jobs, j.name)
-			}
-		}
-	}
-}
-
 func (s *Scheduler) allTaskCancel() {
 	s.Log.Debugln("allTaskCancel")
 
@@ -267,7 +252,7 @@ func (s *Scheduler) delIdleJob(name string) error {
 
 	delete(s.jobs, name)
 
-	return nil
+	return j.removeBucket()
 }
 
 func (s *Scheduler) dayCheck() {
@@ -509,7 +494,7 @@ func (s *Scheduler) routeChanged() {
 		for _, r := range s.routes {
 			if r.match(j.name) {
 				if j.group.Id != r.GroupId {
-                    jobRemove(j)
+					jobRemove(j)
 
 					g, ok := s.groups[r.GroupId]
 
@@ -519,18 +504,18 @@ func (s *Scheduler) routeChanged() {
 						continue
 					}
 
-                    n := new(job)
-                    *n = *j
+					n := new(job)
+					*n = *j
 
 					n.group = g
 					g.jobs.addJob(n)
 
-                    s.jobs[n.name] = n
-                    j = n
+					s.jobs[n.name] = n
+					j = n
 				}
 
-                j.JobConfig = r.JobConfig
-                j.TaskBase = copyTaskBase(r.TaskBase)
+				j.JobConfig = r.JobConfig
+				j.TaskBase = copyTaskBase(r.TaskBase)
 			}
 		}
 	}

@@ -57,32 +57,14 @@
     }
 </script>
 
-<div class="table">
-    <div>Key</div>
-    <div>Value</div>
-    <div />
-
+<div class="grid grid-cols-[auto_auto_auto] gap-2">
     {#each params as param}
         <div>{param.key}</div>
         <div>{param.val}</div>
-        <div><button on:click={() => del(param)}>删除</button></div>
+        <div class="text-sm"><button on:click={() => del(param)}>删除</button></div>
     {/each}
 
-    <div><input bind:value={key} /></div>
-    <div><input bind:value={val} /></div>
-    <div><button on:click={() => set()}>添加</button></div>
+    <div><input class="border" bind:value={key} placeholder="key" /></div>
+    <div><input class="border" bind:value={val} placeholder="value" /></div>
+    <div><button class="text-sm" on:click={() => set()}>添加</button></div>
 </div>
-
-<style>
-    .table {
-        display: grid;
-        grid-template-columns: auto auto auto;
-    }
-    .table input {
-        border-bottom: 1px solid #777;
-    }
-    button {
-        font-size: 12px;
-        padding: 3px 5px;
-    }
-</style>

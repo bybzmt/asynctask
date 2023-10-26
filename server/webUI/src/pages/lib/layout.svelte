@@ -4,30 +4,16 @@
     export let tab = 1;
 </script>
 
-<div>
-    <div class="tab">
-        <a class="{tab == 1 ? 'active' : ''}" href="#/runing">Runing</a>
-        <a class="{tab == 2 ? 'active' : ''}" href="#/">Tasks</a>
-        <a class="{tab == 3 ? 'active' : ''}" href="#/routes">Routes</a>
-        <a class="{tab == 4 ? 'active' : ''}" href="#/groups">Groups</a>
-        <a class="{tab == 5 ? 'active' : ''}" href="#/cron">Cron</a>
-        <a class="{tab == 6 ? 'active' : ''}" href="#/timed">Timed</a>
+<div class="text-gray-800">
+    <div class="m-4 text-gray-500 flex gap-4">
+        <a class:text-gray-900={tab == 1} href="#/runing">Runing</a>
+        <a class:text-gray-900={tab == 2} href="#/">Tasks</a>
+        <a class:text-gray-900={tab == 7} href="#/jobs">Jobs</a>
+        <a class:text-gray-900={tab == 3} href="#/routes">Routes</a>
+        <a class:text-gray-900={tab == 4} href="#/groups">Groups</a>
+        <a class:text-gray-900={tab == 5} href="#/cron">Cron</a>
+        <a class:text-gray-900={tab == 6} href="#/timed">Timed</a>
     </div>
 
     <slot />
 </div>
-
-<style>
-    .tab {
-        margin: 0 0.5em;
-    }
-    .tab a {
-        margin: auto 0.5em;
-        color: #777;
-    }
-    .tab a.active {
-        color: black;
-        font-weight: bold;
-    }
-</style>
-

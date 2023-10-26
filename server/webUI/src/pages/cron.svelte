@@ -1,8 +1,9 @@
 <script>
     import Layout from "./lib/layout.svelte";
     import Dialog from "./lib/dialog.svelte";
+    import Task from "./lib/task.svelte";
     import { onMount } from "svelte";
-    import { sendJson, mkUrl } from "./lib/base";
+    import { sendJson, mkUrl, timeStr } from "./lib/base";
 
     onMount(() => {
         showStatus();
@@ -13,11 +14,19 @@
     let isShow = false;
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/cron/getConfig")).then((t) =>
-            t.json()
-        );
+        let json = await sendJson(mkUrl("api/cron/getConfig"));
 
         cron = json.Data;
+    }
+
+    async function reload() {
+        let json = await sendJson(mkUrl("api/cron/reload"));
+        if (json.Code != 0) {
+            alert(json.Data);
+            return;
+        }
+        alert("success");
+        showStatus();
     }
 
     async function rowDel(row) {
@@ -132,30 +141,40 @@
 </script>
 
 <Layout tab="5">
+    <div class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm">
+        <span>Edit:</span>
+        <span>{timeStr(cron.EditAt)}</span>
+        <span class="col-start-1">Run :</span>
+        <span>{timeStr(cron.RunAt)}</span>
+        <button class="whitespace-nowrap" on:click={reload}>reload</button>
+    </div>
+
     <div id="tasks">
-        <table>
+        <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th>规则</th>
-                    <th>备注</th>
-                    <th>任务</th>
-                    <th />
-                    <th />
+                    <th class="px-2 py-1 border">规则</th>
+                    <th class="px-2 py-1 border">备注</th>
+                    <th class="px-2 py-1 border">任务</th>
+                    <th class="px-2 py-1 border" />
+                    <th class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
                 {#if cron.Tasks}
                     {#each cron.Tasks as row}
                         <tr>
-                            <td>{row.Cfg}</td>
-                            <td>{row.Note}</td>
-                            <td>{JSON.stringify(row.Task)}</td>
-                            <td
+                            <td class="px-2 py-1 border">{row.Cfg}</td>
+                            <td class="px-2 py-1 border">{row.Note}</td>
+                            <td class="px-2 py-1 border"
+                                >{JSON.stringify(row.Task)}</td
+                            >
+                            <td class="px-2 py-1 border"
                                 ><button on:click={() => rowEdit(row)}
                                     >编辑</button
                                 ></td
                             >
-                            <td
+                            <td class="px-2 py-1 border"
                                 ><button on:click={() => rowDel(row)}
                                     >删除</button
                                 ></td
@@ -164,12 +183,14 @@
                     {/each}
                 {:else}
                     <tr>
-                        <td colspan="5" class="center2">empty</td>
+                        <td colspan="5" class="text-center">empty</td>
                     </tr>
                 {/if}
                 <tr>
+                    <td class="text-center"
+                        ><button on:click={() => rowAdd()}>添加</button></td
+                    >
                     <td colspan="4" />
-                    <td><button on:click={() => rowAdd()}>添加</button></td>
                 </tr>
             </tbody>
         </table>
@@ -177,9 +198,9 @@
 </Layout>
 
 <Dialog bind:isShow>
-    <div class="box">
+    <div class="bg-white rounded-lg p-4 w-[500px]">
         <div>
-            <pre>
+            <pre class=" text-gray-400 text-sm">
 *: 匹配该字段所有值
 /: 表示范围增量
 ,: 用来分隔同一组中的项目
@@ -187,14 +208,17 @@
 例: */5 10-12 * 1,3  表示每周1周3十点到十二点每五分钟执行一次
 </pre>
         </div>
-        <div class="grid">
+        <div class="grid grid-cols-[auto_auto] gap-4 mt-4">
             <label for="row_cfg">Cfg: </label>
-            <div id="row_cfg">
-                <input bind:value={editRow.Minute} />
-                <input bind:value={editRow.Hour} />
-                <input bind:value={editRow.Day} />
-                <input bind:value={editRow.Month} />
-                <input bind:value={editRow.Week} />
+            <div
+                id="row_cfg"
+                class="grid grid-cols-5 gap-y-2 gap-x-4 text-center"
+            >
+                <input class="border text-center" bind:value={editRow.Minute} />
+                <input class="border text-center" bind:value={editRow.Hour} />
+                <input class="border text-center" bind:value={editRow.Day} />
+                <input class="border text-center" bind:value={editRow.Month} />
+                <input class="border text-center" bind:value={editRow.Week} />
                 <span>分</span>
                 <span>时</span>
                 <span>天</span>
@@ -203,12 +227,12 @@
             </div>
 
             <label for="row_note">Note: </label>
-            <input id="row_note" bind:value={editRow.Note} />
+            <input class="border" id="row_note" bind:value={editRow.Note} />
 
             <label for="row_task">Task: </label>
-            <textarea id="row_task" bind:value={editRow.Task} />
+            <Task bind:value={editRow.Task} />
         </div>
-        <div class="center">
+        <div class="text-center mt-2">
             <button type="button" on:click={save}>确定</button>
             <button type="button" on:click={() => (isShow = !isShow)}
                 >取消</button
@@ -216,65 +240,3 @@
         </div>
     </div>
 </Dialog>
-
-<style>
-    table {
-        margin: 1em;
-        border-collapse: collapse;
-        border: 1px solid #777;
-    }
-    table td,
-    table th {
-        border: 1px solid #777;
-        padding: 0px 1em;
-    }
-    .center2 {
-        text-align: center;
-    }
-    pre {
-        font-size: 12px;
-        color: #aaa;
-        margin: 10px;
-    }
-
-    .box {
-        padding: 10px;
-        background: #fff;
-        border-radius: 10px;
-        width: 500px;
-    }
-    .grid {
-        display: grid;
-        gap: 10px;
-        grid-template-columns: auto auto;
-    }
-
-    .box input {
-        border: 1px solid #777;
-    }
-    .center {
-        display: flex;
-        justify-content: center;
-    }
-    .center button {
-        margin: 10px;
-    }
-    #row_cfg {
-        display: grid;
-        gap: 2px 2px;
-        grid-template-columns: repeat(5, 1fr);
-        text-align: center;
-    }
-    #row_cfg input {
-        width: 100%;
-        text-align: center;
-    }
-    #row_cfg span {
-        font-size: 12px;
-        color: #aaa;
-    }
-    textarea {
-        border: 1px solid #777;
-        min-height:200px;
-    }
-</style>

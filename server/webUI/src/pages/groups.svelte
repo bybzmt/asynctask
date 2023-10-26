@@ -53,28 +53,28 @@
 </script>
 
 <Layout tab="4">
-    <div id="tasks">
-        <table>
+    <div>
+        <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>备注</th>
-                    <th>并行数</th>
-                    <th />
-                    <th />
+                    <th class="px-2 py-1 border">ID</th>
+                    <th class="px-2 py-1 border">备注</th>
+                    <th class="px-2 py-1 border">并行数</th>
+                    <th class="px-2 py-1 border" />
+                    <th class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
                 {#each Groups as group}
                     <tr>
-                        <td>{group.Id}</td>
-                        <td>{group.Note}</td>
-                        <td>{group.WorkerNum}</td>
-                        <td
+                        <td class="px-2 py-1 border text-center">{group.Id}</td>
+                        <td class="px-2 py-1 border">{group.Note}</td>
+                        <td class="px-2 py-1 border">{group.WorkerNum}</td>
+                        <td class="px-2 py-1 border"
                             ><button on:click={() => edit(group)}>编辑</button
                             ></td
                         >
-                        <td
+                        <td class="px-2 py-1 border"
                             ><button on:click={() => groupDel(group)}
                                 >删除</button
                             ></td
@@ -82,12 +82,14 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="5" class="center2">empty</td>
+                        <td colspan="5" class="text-center p-4 border">empty</td>
                     </tr>
                 {/each}
                 <tr>
+                    <td class="px-2 py-1 text-center"
+                        ><button on:click={() => groupAdd()}>添加</button></td
+                    >
                     <td colspan="4" />
-                    <td><button on:click={() => groupAdd()}>添加</button></td>
                 </tr>
             </tbody>
         </table>
@@ -95,53 +97,18 @@
 </Layout>
 
 <Dialog bind:isShow>
-    <div class="box">
-        <div class="grid">
+    <div class="bg-white rounded-lg p-4">
+        <div class="grid gap-2">
             <label for="note">Note: </label>
-            <input id="note" bind:value={editGroup.Note} />
+            <input class="border" id="note" bind:value={editGroup.Note} />
             <label for="workerNum">WorkerNum: </label>
-            <input id="workerNum" bind:value={editGroup.WorkerNum} />
+            <input class="border" id="workerNum" bind:value={editGroup.WorkerNum} />
         </div>
-        <div class="center">
-            <button type="button" on:click={save}>确定</button>
-            <button type="button" on:click={() => (isShow = !isShow)}
+        <div class="flex justify-center mt-2">
+            <button class="mx-4" type="button" on:click={save}>确定</button>
+            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}
                 >取消</button
             >
         </div>
     </div>
 </Dialog>
-
-<style>
-    table {
-        margin: 1em;
-        border-collapse: collapse;
-        border: 1px solid #777;
-    }
-    table td,
-    table th {
-        border: 1px solid #777;
-        padding: 0px 1em;
-    }
-    .center2 {
-        text-align: center;
-    }
-    .box {
-        padding: 10px;
-        background: #fff;
-        border-radius: 10px;
-    }
-    .grid {
-        display: grid;
-        gap: 10px;
-    }
-    .box input {
-        border: 1px solid #777;
-    }
-    .center {
-        display: flex;
-        justify-content: center;
-    }
-    .center button {
-        margin: 10px;
-    }
-</style>

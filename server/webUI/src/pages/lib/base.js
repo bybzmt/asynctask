@@ -93,53 +93,34 @@ export function taskCancel(task) {
     }
 }
 
-export function jobEmpty(job) {
-    var ok = confirm("Empty Job?\r\nName: " + job.Name);
-    if (ok) {
-        sendJson(mkUrl("api/job/empty"), {
-            name: job.Name,
-        });
+let timezoneOffset = new Date().getTimezoneOffset() * 60;
+
+export function timeStr(t) {
+    if (!t) {
+        return "N/A"
     }
+
+    return (new Date((t - timezoneOffset) * 1000))
+        .toISOString()
+        .substring(0, 19);
 }
 
-export function jobDelIdle(job) {
-    var ok = confirm("Del Idle Job?\r\nName: " + job.Name);
-    if (ok) {
-        sendJson(mkUrl("api/job/delIdle"), {
-            name: job.Name,
-        });
+export function beforSecond(t) {
+    if (t > 60*60*24*3) {
+        return Math.floor(t/60/60/24/3) + "d"
     }
-}
 
-export function jobPriority(job) {
-    var txt = prompt("Job: " + job.Name + " Priority: ", job.Priority);
-    if (txt != null && txt != "") {
-        let Priority = parseInt(txt);
-
-        return sendJson(
-            mkUrl("api/job/setConfig"),
-            {
-                name: job.Name,
-                Priority: Priority,
-                Parallel: job.Parallel,
-            }
-        );
+    if (t > 60*60*3) {
+        return Math.floor(t/60/60/3) + "h"
     }
-}
 
-export function jobParallel(job) {
-    var txt = prompt("Job: " + job.Name + " Parallel: ", job.Parallel);
-    if (txt != null && txt != "") {
-        let Parallel = parseInt(txt);
-
-        return sendJson(
-            mkUrl("api/job/setConfig"),
-            {
-                name: job.Name,
-                Priority: job.Priority,
-                Parallel: Parallel,
-            }
-        );
+    if (t > 60*3) {
+        return Math.floor(t/60/3) + "h"
     }
-}
 
+    if (t == 0) {
+        return 'N/A'
+    }
+    
+    return t + "s"
+}

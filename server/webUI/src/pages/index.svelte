@@ -1,16 +1,8 @@
 <script>
     import Layout from "./lib/layout.svelte";
-    import Dialog from "./lib/dialog.svelte";
+    import Taskadd from "./lib/taskadd.svelte";
     import { onMount, onDestroy } from "svelte";
-    import {
-        jobSort,
-        mkUrl,
-        sendJson,
-        jobEmpty,
-        jobDelIdle,
-        jobPriority,
-        jobParallel,
-    } from "./lib/base";
+    import { jobSort, mkUrl, sendJson, beforSecond } from "./lib/base";
 
     let timer;
     onMount(() => {
@@ -25,6 +17,7 @@
         clearInterval(timer);
     });
 
+    let addTask;
     let AllData = {};
     let Tasks = [];
     let Groups = [];
@@ -62,7 +55,7 @@
     }
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/task/status")).then((t) => t.json());
+        let json = await sendJson(mkUrl("api/task/status"));
 
         let res = json.Data;
 
@@ -107,212 +100,135 @@
         AllData = res;
     }
 
-    function fmtPriority(val) {
-        if (val == 0) {
-            return "";
+    function fmtPriority(j) {
+        if (j.Priority == 0) {
+            return j.Score;
         }
 
-        return val > 0 ? "(+" + val + ")" : "(" + val + ")";
-    }
-
-    let showAddTask = false;
-    let addTaskTxt = "";
-
-    function addTask() {
-        addTaskTxt = `{
-    "url": "http://g.com",
-    "form": {"k":"v"}
-
-    "cmd": "echo",
-    "args": ["hellworld"]
-}`;
-        showAddTask = !showAddTask;
-    }
-
-    async function doAddTask() {
-        let task = {};
-
-        try {
-            task = JSON.parse(addTaskTxt);
-        } catch (e) {
-            alert("Task JSON.parse " + e.message);
-            return;
-        }
-
-        let resp = await sendJson(mkUrl("api/task/add"), task);
-
-        if (resp.Code != 0) {
-            alert(resp.Data);
-            return;
-        }
-
-        showAddTask = !showAddTask;
+        return (
+            j.Score +
+            (j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")
+        );
     }
 </script>
 
 <Layout tab="2">
     <div id="All">
-        <table>
+        <table class="m-4 border text-base">
             <thead>
                 <tr>
-                    <th class="name">工作组</th>
-                    <th class="load">负载</th>
-                    <th class="now">执行中</th>
-                    <th class="run">己执行</th>
-                    <th class="old">昨天</th>
-                    <th class="old">昨出错</th>
-                    <th class="wait">队列</th>
-                    <th>定时</th>
+                    <th class="px-2 py-1 border">工作组</th>
+                    <th class="px-2 py-1 border">负载</th>
+                    <th class="px-2 py-1 border">执行中</th>
+                    <th class="px-2 py-1 border">己执行</th>
+                    <th class="px-2 py-1 border">昨天</th>
+                    <th class="px-2 py-1 border">昨出错</th>
+                    <th class="px-2 py-1 border">队列</th>
+                    <th class="px-2 py-1 border">定时</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td>总体</td>
-                    <td
+                    <td class="px-2 py-1 border">总体</td>
+                    <td class="px-2 py-1 border"
                         >{Math.round(
                             (AllData.Load / AllData.Capacity) * 100
                         )}%</td
                     >
-                    <td>{AllData.NowNum} / {AllData.WorkerNum}</td>
-                    <td>{AllData.RunNum}</td>
-                    <td>{AllData.OldRun}</td>
-                    <td>{AllData.OldErr}</td>
-                    <td>{AllData.WaitNum}</td>
-                    <td>{AllData.Timed}</td>
+                    <td class="px-2 py-1 border"
+                        >{AllData.NowNum} / {AllData.WorkerNum}</td
+                    >
+                    <td class="px-2 py-1 border">{AllData.RunNum}</td>
+                    <td class="px-2 py-1 border">{AllData.OldRun}</td>
+                    <td class="px-2 py-1 border">{AllData.OldErr}</td>
+                    <td class="px-2 py-1 border">{AllData.WaitNum}</td>
+                    <td class="px-2 py-1 border">{AllData.Timed}</td>
                 </tr>
                 {#each Groups as g}
                     <tr>
-                        <td>{g.Id} ({g.Note})</td>
-                        <td>{Math.round((g.Load / g.Capacity) * 100)}%</td>
-                        <td>{g.NowNum} / {g.WorkerNum}</td>
-                        <td>{g.RunNum}</td>
-                        <td>{g.OldRun}</td>
-                        <td>{g.OldErr}</td>
-                        <td>{g.WaitNum}</td>
-                        <td />
+                        <td class="px-2 py-1 border">{g.Id} ({g.Note})</td>
+                        <td class="px-2 py-1 border"
+                            >{Math.round((g.Load / g.Capacity) * 100)}%</td
+                        >
+                        <td class="px-2 py-1 border"
+                            >{g.NowNum} / {g.WorkerNum}</td
+                        >
+                        <td class="px-2 py-1 border">{g.RunNum}</td>
+                        <td class="px-2 py-1 border">{g.OldRun}</td>
+                        <td class="px-2 py-1 border">{g.OldErr}</td>
+                        <td class="px-2 py-1 border">{g.WaitNum}</td>
+                        <td class="px-2 py-1 border" />
                     </tr>
                 {/each}
             </tbody>
         </table>
     </div>
 
-    <div id="tab">
-        <button
-            class="wait {tab == 2 ? 'active' : ''}"
-            on:click={() => setTab(2)}>waiting</button
+    <div class="mx-4 text-gray-500">
+        <button class:text-gray-900={tab == 2} on:click={() => setTab(2)}
+            >waiting</button
         >
-        <button
-            class="idle {tab == 3 ? 'active' : ''}"
-            on:click={() => setTab(3)}>idle</button
+        <button class:text-gray-900={tab == 3} on:click={() => setTab(3)}
+            >idle</button
         >
-        <button
-            class="all {tab == 4 ? 'active' : ''}"
-            on:click={() => setTab(4)}>all</button
+        <button class:text-gray-900={tab == 4} on:click={() => setTab(4)}
+            >all</button
         >
         <button on:click={() => addTask()}>add</button>
     </div>
 
     <div id="jobs">
-        <table>
+        <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
                     {#each sortName as d}
-                        <th on:click={() => setSort(d.k)}
+                        <th
+                            class="px-2 py-1 border"
+                            on:click={() => setSort(d.k)}
                             >{d.n}
                             {#if Math.abs(sortby) == d.k}
                                 {sortby < 0 ? " ↑" : " ↓"}
                             {/if}
                         </th>
                     {/each}
-                    <th>上次</th>
-                    <th>报错</th>
+                    <th class="px-2 py-1 border">上次</th>
+                    <th class="px-2 py-1 border">报错</th>
                 </tr>
             </thead>
             <tbody>
                 {#each Tasks as j}
                     <tr>
-                        <td on:dblclick={() => jobDelIdle(j)}>{j.Name}</td>
-
-                        <td>{j.GroupId}</td>
-
-                        <td
+                        <td class="px-2 py-1 border">{j.Name}</td>
+                        <td class="px-2 py-1 border">{j.GroupId}</td>
+                        <td class="px-2 py-1 border"
                             >{Math.round(
                                 (j.Load / getCapacity(j.GroupId)) * 100
                             )}%</td
                         >
-
-                        <td on:dblclick={() => jobParallel(j)}
+                        <td class="px-2 py-1 border"
                             >{j.NowNum + "/" + j.Parallel}</td
                         >
-
-                        <td>{j.RunNum}</td>
-                        <td>{j.OldRun}</td>
-                        <td>{j.OldErr}</td>
-                        <td on:dblclick={() => jobEmpty(j)}>{j.WaitNum}</td>
-                        <td>{j.UseTime / 1000}s</td>
-
-                        <td on:dblclick={() => jobPriority(j)}>
-                            {j.Score + fmtPriority(j.Priority)}
-                        </td>
-
-                        <td>{j.LastTime}s</td>
-                        <td>{j.ErrNum}</td>
+                        <td class="px-2 py-1 border">{j.RunNum}</td>
+                        <td class="px-2 py-1 border">{j.OldRun}</td>
+                        <td class="px-2 py-1 border">{j.OldErr}</td>
+                        <td class="px-2 py-1 border">{j.WaitNum}</td>
+                        <td class="px-2 py-1 border">{j.UseTime / 1000}s</td>
+                        <td class="px-2 py-1 border">{fmtPriority(j)}</td>
+                        <td class="px-2 py-1 border"
+                            >{beforSecond(j.LastTime)}</td
+                        >
+                        <td class="px-2 py-1 border">{j.ErrNum}</td>
                     </tr>
                 {:else}
-                    <tr><td colspan="12" class="center">empty</td> </tr>
+                    <tr
+                        ><td colspan="12" class="px-2 py-1 border text-center"
+                            >empty</td
+                        >
+                    </tr>
                 {/each}
             </tbody>
         </table>
     </div>
 </Layout>
 
-<Dialog bind:isShow={showAddTask}>
-    <div class="box">
-        <div>
-            <textarea id="row_task" bind:value={addTaskTxt} />
-        </div>
-        <div class="center">
-            <button type="button" on:click={doAddTask}>添加</button>
-            <button type="button" on:click={() => (showAddTask = !showAddTask)}
-                >取消</button
-            >
-        </div>
-    </div>
-</Dialog>
-
-<style>
-    table {
-        margin: 1em;
-        border-collapse: collapse;
-    }
-    table td,
-    table th {
-        border: 1px solid #777;
-        padding: 0px 1em;
-    }
-    .center {
-        text-align: center;
-    }
-    #tab {
-        margin: 0 0.5em;
-    }
-    #tab button {
-        margin: auto 0.5em;
-        color: #777;
-    }
-    #tab .active {
-        color: black;
-        font-weight: bold;
-    }
-    .box {
-        padding: 10px;
-        background: #fff;
-        border-radius: 10px;
-        width: 500px;
-    }
-    textarea {
-        width: 100%;
-        border: 1px solid #777;
-        min-height: 200px;
-    }
-</style>
+<Taskadd bind:addTask />

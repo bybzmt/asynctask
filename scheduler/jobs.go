@@ -63,9 +63,9 @@ func (js *jobs) GetOrder() (*order, error) {
 
 	if err != nil {
 		if err == Empty {
-            j.s.Log.Warnln("Job PopOrder Empty")
+			j.s.Log.Warnln("Job PopOrder Empty")
 
-            j.waitNum = 0
+			j.waitNum = 0
 			js.modeCheck(j)
 		}
 		return nil, err
@@ -84,7 +84,7 @@ func (js *jobs) popOrder(j *job) (*order, error) {
 
 	o := new(order)
 	o.Id = ID(t.Id)
-    o.g = j.group
+	o.g = j.group
 	o.Task = t
 	o.Base = copyTaskBase(j.TaskBase)
 	o.AddTime = time.Unix(int64(t.AddTime), 0)
@@ -127,7 +127,7 @@ func (js *jobs) priority(j *job) {
 		x = x.prev
 	}
 
-    jobMoveBefore(j, x)
+	jobMoveBefore(j, x)
 }
 
 func (s *Scheduler) idleFront() *job {
@@ -148,10 +148,9 @@ func (s *Scheduler) idleAdd(j *job) {
 	for s.idleLen > s.idleMax {
 		j := s.idleFront()
 		if j != nil {
-			jobRemove(j)
 			s.idleLen--
+			jobRemove(j)
+			j.removeBucket()
 		}
 	}
 }
-
-

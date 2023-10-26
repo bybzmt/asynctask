@@ -44,9 +44,9 @@
 </script>
 
 {#if isShow}
-  <div class="alert-mask" transition:fade={{ delay: 10, duration: 100 }}>
+  <div class="fixed w-screen h-screen bg-slate-100 inset-0 bg-[#00000022]" transition:fade={{ delay: 10, duration: 100 }}>
     <div
-      class="alert"
+      class="fixed"
       use:initPosition
       style:top
       style:left
@@ -57,20 +57,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  .alert-mask {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background: rgba(0, 0, 0, 0.1);
-    width: 100vw;
-    height: 100vh;
-  }
-  .alert {
-    display: block;
-    position: fixed;
-    margin: 0;
-  }
-</style>

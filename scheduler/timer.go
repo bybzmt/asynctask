@@ -148,7 +148,12 @@ func (s *Scheduler) timerTaskNum() int {
 	return num
 }
 
-func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
+type timedTask struct {
+	Task
+	TimedID string
+}
+
+func (s *Scheduler) TimerShow(starttime, num int) (out []timedTask) {
 
 	// path: /timer/:unix-:id
 	s.Db.View(func(tx *bolt.Tx) error {
@@ -161,9 +166,11 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
 		k, v := c.Seek([]byte(fmtId(starttime)))
 
 		for i := 0; k != nil && i < num; i++ {
-			t := Task{}
+			t := timedTask{}
 
 			if err := json.Unmarshal(v, &t); err == nil {
+				t.TimedID = string(k)
+
 				out = append(out, t)
 			}
 
@@ -174,4 +181,18 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []Task) {
 	})
 
 	return
+}
+
+func (s *Scheduler) TimerDel(TimedID string) error {
+	// path: /timer/:unix-:id
+	err := s.Db.Update(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "timer")
+		if err != nil {
+			return err
+		}
+
+		return bucket.Delete([]byte(TimedID))
+	})
+
+	return err
 }

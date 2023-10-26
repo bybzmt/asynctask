@@ -1,0 +1,119 @@
+<script>
+    import { timeStr } from "./base";
+
+    export let value;
+    export let type = 1;
+
+    let task_type = 1;
+    let isTimed = false;
+    let strtime = "";
+    let resolve;
+
+    $: {
+        if (task_type == 1) {
+            value = JSON.stringify(
+                {
+                    url: "http://g.com",
+                    form: { k: "v" },
+                },
+                null,
+                2
+            );
+        } else {
+            value = JSON.stringify(
+                {
+                    cmd: "echo",
+                    args: ["hello", "world"],
+                },
+                null,
+                2
+            );
+        }
+    }
+
+    $: {
+        if (isTimed) {
+            strtime = timeStr(Date.now() / 1000);
+        } else {
+            strtime = "";
+        }
+    }
+
+    $: {
+        try {
+            let task = JSON.parse(value);
+
+            if (strtime) {
+                let d = Date.parse(strtime);
+                if (!isNaN(d)) {
+                    task.timer = d / 1000;
+                }
+            } else {
+                delete task.timer;
+            }
+
+            value = JSON.stringify(task, null, 2);
+        } catch (e) {}
+    }
+</script>
+
+<div>
+    <div class="flex gap-4">
+        <label
+            ><input
+                class="mr-2"
+                type="radio"
+                value={1}
+                bind:group={task_type}
+            />HTTP</label
+        >
+        <label
+            ><input
+                class="mr-2"
+                type="radio"
+                value={2}
+                bind:group={task_type}
+            />CLI</label
+        >
+        {#if type == 1}
+            <label
+                ><input
+                    class="mr-2"
+                    type="checkbox"
+                    bind:checked={isTimed}
+                />Timed</label
+            >
+            {#if isTimed}
+                <input class="border" bind:value={strtime} />
+            {/if}
+        {/if}
+    </div>
+    <div class="mt-4 relative">
+        <textarea class="border w-full min-h-[200px]" bind:value />
+        <pre class="text-xs text-gray-400 absolute top-0 right-0 p-4 pointer-events-none">
+name     string
+
+{#if task_type == 1}
+url      string
+method   string
+header   map[string]string
+form     map[string]string
+body     json
+
+retry    uint
+retrySec uint
+{:else}
+cmd      string
+args     []string
+
+timeout  uint
+hold     string
+code     uint
+retry    uint
+retrySec uint
+{/if}
+
+
+            </pre>
+    </div>
+</div>

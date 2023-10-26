@@ -45,30 +45,29 @@
 
 <Layout tab=1>
     <div id="tasks">
-        <table>
+        <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>工作组</th>
-                    <th class="name">任务组</th>
-                    <th>模式</th>
-                    <th class="params">任务</th>
-                    <th class="time">用时</th>
+                    <th class="px-2 py-1 border">ID</th>
+                    <th class="px-2 py-1 border">工作组</th>
+                    <th class="px-2 py-1 border">任务组</th>
+                    <th class="px-2 py-1 border">模式</th>
+                    <th class="px-2 py-1 border">任务</th>
+                    <th class="px-2 py-1 border">用时</th>
                     <th />
                 </tr>
             </thead>
             <tbody>
                 {#each Runs as task}
                     <tr>
-                        <td>{task.Id}</td>
-                        <td>{task.Group} ({getGroup(task.Group).Note})</td>
-                        <td>{task.Name}</td>
-                        <td>{task.Mode}</td>
-                        <td class="params">{task.Task}</td>
-                        <td>{task.UseTime / 1000}s</td>
-                        <td>
+                        <td class="px-2 py-1 border">{task.Id}</td>
+                        <td class="px-2 py-1 border">{task.Group} ({getGroup(task.Group).Note})</td>
+                        <td class="px-2 py-1 border">{task.Name}</td>
+                        <td class="px-2 py-1 border">{task.Mode}</td>
+                        <td class="px-2 py-1 border">{task.Task}</td>
+                        <td class="px-2 py-1 border">{task.UseTime / 1000}s</td>
+                        <td class="px-2 py-1 border">
                             <button
-                                class="cancel"
                                 on:dblclick={() => taskCancel(task)}
                                 >中止任务</button
                             >
@@ -76,7 +75,7 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="7" class="center">empty</td>
+                        <td colspan="7"  class="px-2 py-1 border text-center">empty</td>
                     </tr>
                 {/each}
             </tbody>
@@ -84,25 +83,3 @@
     </div>
 </Layout>
 
-<style>
-    table {
-        margin: 1em;
-        border-collapse: collapse;
-    }
-    table td,
-    table th {
-        border: 1px solid #777;
-        padding: 0px 1em;
-    }
-    .center {
-        text-align: center;
-    }
-    .params {
-        max-width: 500px;
-        overflow: hidden;
-    }
-
-    .cancel {
-        font-size: 12px;
-    }
-</style>
