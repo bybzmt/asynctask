@@ -146,7 +146,7 @@
                 </tr>
                 {#each Groups as g}
                     <tr>
-                        <td class="px-2 py-1 border">{g.Id} ({g.Note})</td>
+                        <td class="px-2 py-1 border">{g.Id}: {g.Note}</td>
                         <td class="px-2 py-1 border"
                             >{Math.round((g.Load / g.Capacity) * 100)}%</td
                         >

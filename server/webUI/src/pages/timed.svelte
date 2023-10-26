@@ -64,7 +64,7 @@
                 {/each}
 
                 <tr>
-                    <td  class="px-2 py-1 border text-center"
+                    <td  class="px-2 py-1 text-center"
                         ><button on:click={() => showAddTask()}>添加</button></td
                     >
                     <td colspan="2" />

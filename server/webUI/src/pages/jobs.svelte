@@ -95,9 +95,8 @@
                         <td class="px-2 py-1 border">{j.Name}</td>
                         <td class="px-2 py-1 border"
                             >{j.GroupId +
-                                " (" +
-                                getGroup(j.GroupId).Note +
-                                ")"}</td
+                                ": " +
+                                getGroup(j.GroupId).Note }</td
                         >
                         <td class="px-2 py-1 border">{j.WaitNum}</td>
                         <td class="px-2 py-1 border">{j.Parallel}</td>

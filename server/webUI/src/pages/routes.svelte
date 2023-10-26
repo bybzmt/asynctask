@@ -99,8 +99,7 @@
                     <th class="px-2 py-1 border">ID</th>
                     <th class="px-2 py-1 border">备注</th>
                     <th class="px-2 py-1 border">正则</th>
-                    <th class="px-2 py-1 border">组ID</th>
-                    <th class="px-2 py-1 border">组Note</th>
+                    <th class="px-2 py-1 border">组</th>
                     <th class="px-2 py-1 border">排序</th>
                     <th class="px-2 py-1 border">并发</th>
                     <th class="px-2 py-1 border">模式</th>
@@ -113,15 +112,14 @@
             <tbody>
                 {#each Routes as row}
                     <tr>
-                        <td class="text-center">{row.Id}</td>
+                        <td class="px-2 py-1 border text-center">{row.Id}</td>
                         <td class="px-2 py-1 border">{row.Note}</td>
                         <td class="px-2 py-1 border">{row.Match}</td>
-                        <td class="px-2 py-1 border">{row.GroupId}</td>
-                        <td class="px-2 py-1 border">{get(row.GroupId).Note}</td>
-                        <td class="px-2 py-1 border">{row.Sort}</td>
-                        <td class="px-2 py-1 border">{row.Parallel}</td>
-                        <td class="px-2 py-1 border">{row.Mode}</td>
-                        <td class="px-2 py-1 border">{row.Timeout}</td>
+                        <td class="px-2 py-1 border">{row.GroupId}: {get(row.GroupId).Note}</td>
+                        <td class="px-2 py-1 border text-center">{row.Sort}</td>
+                        <td class="px-2 py-1 border text-center">{row.Parallel}</td>
+                        <td class="px-2 py-1 border">{row.Mode ? "HTTP" : "CLI"}</td>
+                        <td class="px-2 py-1 border text-center">{row.Timeout}</td>
                         <td class="px-2 py-1 border">{row.Used ? "Enable" : "Disable"}</td>
                         <td class="px-2 py-1 border"
                             ><button on:click={() => routeEdit(row)}
@@ -135,14 +133,14 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="13" class="px-2 py-1 border text-center">empty</td>
+                        <td colspan="11" class="px-2 py-1 border text-center">empty</td>
                     </tr>
                 {/each}
                 <tr>
-                    <td class="px-2 py-1 border text-center"
+                    <td class="px-2 py-1 text-center"
                         ><button on:click={() => routeAdd()}>添加</button></td
                     >
-                    <td colspan="11" />
+                    <td colspan="10" />
                 </tr>
             </tbody>
         </table>
