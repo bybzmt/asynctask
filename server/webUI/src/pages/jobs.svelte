@@ -84,9 +84,7 @@
                     <th class="px-2 py-1 border">WaitNum</th>
                     <th class="px-2 py-1 border">Parallel</th>
                     <th class="px-2 py-1 border">Priority</th>
-                    <th class="px-2 py-1 border" />
-                    <th class="px-2 py-1 border" />
-                    <th class="px-2 py-1 border" />
+                    <th class="px-2 py-1 border" colspan="3" />
                 </tr>
             </thead>
             <tbody>

@@ -1,7 +1,7 @@
 <script>
     import Layout from "./lib/layout.svelte";
     import { onMount, onDestroy } from "svelte";
-    import { mkUrl, taskCancel } from "./lib/base";
+    import { mkUrl, sendJson } from "./lib/base";
 
     let timer;
     onMount(() => {
@@ -9,9 +9,8 @@
         showStatus();
 
         timer = setInterval(function () {
-            getGroups();
             showStatus();
-        }, 1000);
+        }, 2000);
     });
 
     onDestroy(() => {
@@ -22,7 +21,7 @@
     let Runs = [];
 
     async function getGroups() {
-        let json = await fetch(mkUrl("api/group/status")).then((t) => t.json());
+        let json = await sendJson(mkUrl("api/group/status"));
 
         Groups = json.Data;
     }
@@ -37,13 +36,35 @@
     }
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/task/runing")).then((t) => t.json());
+        let json = await sendJson(mkUrl("api/task/runing"));
 
-        Runs = json.Data.sort((a, b) => a.Id > b.Id);
+        json.Data.sort((a, b) => (a.StartTime < b.StartTime ? -1 : 1));
+
+        Runs = json.Data;
+    }
+
+    function taskCancel(task) {
+        var ok = confirm(
+            "Cancel Task?\r\nId: " +
+                task.Id +
+                " Name: " +
+                task.Name +
+                " " +
+                task.Task
+        );
+        if (ok) {
+            sendJson(mkUrl("api/task/cancel"), {
+                tid: task.Id,
+            });
+        }
+    }
+
+    function useTime(t) {
+        return (Date.now() - t.StartTime * 1000) / 1000;
     }
 </script>
 
-<Layout tab=1>
+<Layout tab="1">
     <div id="tasks">
         <table class="m-4 border text-base text-gray-800">
             <thead>
@@ -54,32 +75,36 @@
                     <th class="px-2 py-1 border">模式</th>
                     <th class="px-2 py-1 border">任务</th>
                     <th class="px-2 py-1 border">用时</th>
-                    <th />
+                    <th class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
                 {#each Runs as task}
                     <tr>
                         <td class="px-2 py-1 border">{task.Id}</td>
-                        <td class="px-2 py-1 border">{task.Group} ({getGroup(task.Group).Note})</td>
+                        <td class="px-2 py-1 border"
+                            >{task.Group} ({getGroup(task.Group).Note})</td
+                        >
                         <td class="px-2 py-1 border">{task.Name}</td>
                         <td class="px-2 py-1 border">{task.Mode}</td>
                         <td class="px-2 py-1 border">{task.Task}</td>
-                        <td class="px-2 py-1 border">{task.UseTime / 1000}s</td>
+                        <td class="px-2 py-1 border">{useTime(task)}s</td>
                         <td class="px-2 py-1 border">
-                            <button
-                                on:dblclick={() => taskCancel(task)}
-                                >中止任务</button
-                            >
+                            {#if useTime(task) > 1}
+                                <button on:dblclick={() => taskCancel(task)}
+                                    >中止任务</button
+                                >
+                            {/if}
                         </td>
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="7"  class="px-2 py-1 border text-center">empty</td>
+                        <td colspan="7" class="px-2 py-1 border text-center"
+                            >empty</td
+                        >
                     </tr>
                 {/each}
             </tbody>
         </table>
     </div>
 </Layout>
-

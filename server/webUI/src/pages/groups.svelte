@@ -60,8 +60,7 @@
                     <th class="px-2 py-1 border">ID</th>
                     <th class="px-2 py-1 border">备注</th>
                     <th class="px-2 py-1 border">并行数</th>
-                    <th class="px-2 py-1 border" />
-                    <th class="px-2 py-1 border" />
+                    <th class="px-2 py-1 border" colspan="2" />
                 </tr>
             </thead>
             <tbody>

@@ -111,7 +111,10 @@ func (s *Server) Init() error {
 	return nil
 }
 
-func (s *Server) Run(ctx context.Context) {
+func (s *Server) Run(pctx context.Context) {
+
+	ctx, canceler := context.WithCancel(pctx)
+	defer canceler()
 
 	go func() {
 		time.Sleep(time.Millisecond * 10)
@@ -130,11 +133,13 @@ func (s *Server) Run(ctx context.Context) {
 					return ctx
 				}
 
-                err := s.Http.ListenAndServe()
+				err := s.Http.ListenAndServe()
 
-                if err != http.ErrServerClosed {
-                    s.Scheduler.Log.Fatalln(err)
-                }
+				if err != http.ErrServerClosed {
+					s.Scheduler.Log.Warnln(err)
+
+					canceler()
+				}
 			}
 
 			exit <- 1

@@ -105,8 +105,7 @@
                     <th class="px-2 py-1 border">模式</th>
                     <th class="px-2 py-1 border">超时</th>
                     <th class="px-2 py-1 border">状态</th>
-                    <th class="px-2 py-1 border" />
-                    <th class="px-2 py-1 border" />
+                    <th class="px-2 py-1 border" colspan="2" />
                 </tr>
             </thead>
             <tbody>

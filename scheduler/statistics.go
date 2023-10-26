@@ -31,12 +31,12 @@ func (s *statRow) getAll() int64 {
 }
 
 type RunTaskStat struct {
-	Id      ID
-	Group   ID
-	Name    string
-	Mode    string
-	Task    string
-	UseTime int
+	Id        ID
+	Group     ID
+	Name      string
+	Mode      string
+	Task      string
+	StartTime int64
 }
 
 type JobStat struct {
@@ -123,8 +123,6 @@ func (s *group) getGroupStat() GroupStat {
 
 func (s *Scheduler) getRunTaskStat() []RunTaskStat {
 
-	now := time.Now()
-
 	runs := make([]RunTaskStat, 0, s.WorkerNum)
 
 	for t2 := range s.orders {
@@ -136,12 +134,12 @@ func (s *Scheduler) getRunTaskStat() []RunTaskStat {
 		}
 
 		st := RunTaskStat{
-			Id:      t2.Id,
-			Group:   t2.g.Id,
-			Mode:    mode,
-			Name:    t2.Task.Name,
-			Task:    t2.taskTxt,
-			UseTime: int(now.Sub(t2.StartTime) / time.Millisecond),
+			Id:        t2.Id,
+			Group:     t2.g.Id,
+			Mode:      mode,
+			Name:      t2.Task.Name,
+			Task:      t2.taskTxt,
+			StartTime: t2.StartTime.Unix(),
 		}
 		runs = append(runs, st)
 	}

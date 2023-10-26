@@ -1,11 +1,21 @@
 <script>
     import Layout from "./lib/layout.svelte";
     import Taskadd from "./lib/taskadd.svelte";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     import { sendJson, mkUrl, timeStr } from "./lib/base";
+
+    let timer;
 
     onMount(() => {
         showStatus();
+
+        timer = setInterval(function () {
+            showStatus();
+        }, 2000);
+    });
+
+    onDestroy(() => {
+        clearInterval(timer);
     });
 
     let addTask;
@@ -32,7 +42,7 @@
     }
 
     async function showAddTask() {
-        await addTask()
+        await addTask();
         showStatus();
     }
 </script>
@@ -59,13 +69,16 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="3"  class="px-2 py-1 border text-center">empty</td>
+                        <td colspan="3" class="px-2 py-1 border text-center"
+                            >empty</td
+                        >
                     </tr>
                 {/each}
 
                 <tr>
-                    <td  class="px-2 py-1 text-center"
-                        ><button on:click={() => showAddTask()}>添加</button></td
+                    <td class="px-2 py-1 text-center"
+                        ><button on:click={() => showAddTask()}>添加</button
+                        ></td
                     >
                     <td colspan="2" />
                 </tr>

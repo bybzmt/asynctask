@@ -156,8 +156,7 @@
                     <th class="px-2 py-1 border">规则</th>
                     <th class="px-2 py-1 border">备注</th>
                     <th class="px-2 py-1 border">任务</th>
-                    <th class="px-2 py-1 border" />
-                    <th class="px-2 py-1 border" />
+                    <th colspan="2" class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
@@ -183,7 +182,7 @@
                     {/each}
                 {:else}
                     <tr>
-                        <td colspan="5" class="text-center">empty</td>
+                        <td colspan="5" class="border text-center">empty</td>
                     </tr>
                 {/if}
                 <tr>
