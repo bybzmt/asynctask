@@ -3,9 +3,7 @@ package scheduler
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -30,8 +28,9 @@ type Scheduler struct {
 
 	jobs map[string]*job
 
-	groups map[ID]*group
-	routes []*router
+	groups     map[ID]*group
+	router     router
+	rules []Rule
 
 	orders   map[*order]struct{}
 	complete chan *order
@@ -95,22 +94,21 @@ func (s *Scheduler) Init() error {
 func (s *Scheduler) init() error {
 	s.loadScheduler()
 
+    s.router.routes = s.db_router_load()
+	s.router.init()
+
 	if err := s.loadGroups(); err != nil {
 		return err
 	}
 
-	if err := s.loadRouters(); err != nil {
-		return err
-	}
-
-	if len(s.groups) < 1 && len(s.routes) < 1 {
+	if len(s.groups) < 1 {
 		if err := s.addDefaultGroup(); err != nil {
 			return err
 		}
+	}
 
-		if err := s.addDefaultRouter(); err != nil {
-			return err
-		}
+	if err := s.load_rules(); err != nil {
+		return err
 	}
 
 	if err := s.loadJobs(); err != nil {
@@ -362,29 +360,6 @@ func (s *Scheduler) addGroup() (*group, error) {
 	return g, nil
 }
 
-func (s *Scheduler) saveGroup(g *group) error {
-	//key: config/group/:id
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "group")
-		if err != nil {
-			return err
-		}
-
-		val, err := json.Marshal(&g.GroupConfig)
-		if err != nil {
-			return err
-		}
-
-		if err = bucket.Put([]byte(fmtId(g.Id)), val); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return err
-}
-
 func (s *Scheduler) loadGroups() error {
 
 	//key: config/group/:id
@@ -415,160 +390,9 @@ func (s *Scheduler) loadGroups() error {
 	})
 }
 
-func (s *Scheduler) addRoute() (*router, error) {
-	r := new(router)
-	var cfg TaskConfig
-	cfg.Parallel = s.Parallel
-	cfg.Mode = MODE_HTTP
-	cfg.Timeout = 60
+func (s *Scheduler) addTask(t *order) error {
 
-	//key: config/router/:id
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "router")
-		if err != nil {
-			return err
-		}
-
-		id, err := bucket.NextSequence()
-		if err != nil {
-			return err
-		}
-
-		cfg.Id = ID(id)
-
-		key := []byte(fmt.Sprintf("%d", id))
-		val, err := json.Marshal(&cfg)
-
-		if err != nil {
-			return err
-		}
-
-		err = bucket.Put(key, val)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	r.TaskConfig = cfg
-	r.init()
-
-	s.routes = append(s.routes, r)
-
-	return r, nil
-}
-
-func (s *Scheduler) saveRouter(r *router) error {
-	//key: config/router/:id
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "router")
-		if err != nil {
-			return err
-		}
-
-		key := []byte(fmt.Sprintf("%d", r.Id))
-		val, err := json.Marshal(&r.TaskConfig)
-
-		if err != nil {
-			return err
-		}
-
-		err = bucket.Put(key, val)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return err
-}
-
-func (s *Scheduler) routeChanged() {
-	for _, j := range s.jobs {
-		for _, r := range s.routes {
-			if r.match(j.name) {
-				if j.group.Id != r.GroupId {
-					jobRemove(j)
-
-					g, ok := s.groups[r.GroupId]
-
-					if !ok {
-						delete(s.jobs, j.name)
-						s.Log.Errorf("routeChanged Miss Group route:%d job:%s\n", r.Id, j.name)
-						continue
-					}
-
-					n := new(job)
-					*n = *j
-
-					n.group = g
-					g.jobs.addJob(n)
-
-					s.jobs[n.name] = n
-					j = n
-				}
-
-				j.JobConfig = r.JobConfig
-				j.TaskBase = copyTaskBase(r.TaskBase)
-			}
-		}
-	}
-}
-
-func (s *Scheduler) loadRouters() error {
-
-	//key: config/router/:id
-	err := s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "config", "router")
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.ForEach(func(key, val []byte) error {
-			var cfg TaskConfig
-			err := json.Unmarshal(val, &cfg)
-			if err != nil {
-				s.Log.Warnln("[store] key=config/router/"+string(key), "json.Unmarshal:", err)
-				return nil
-			}
-
-			r := new(router)
-			r.TaskConfig = cfg
-			r.Id = atoiId(key)
-			err = r.init()
-			if err != nil {
-				return err
-			}
-
-			s.routes = append(s.routes, r)
-			return nil
-		})
-	})
-
-	if err != nil {
-		return err
-	}
-
-	s.routersSort()
-
-	return nil
-}
-
-func (s *Scheduler) routersSort() {
-	sort.Slice(s.routes, func(i, j int) bool {
-		return s.routes[i].Sort > s.routes[j].Sort
-	})
-}
-
-func (s *Scheduler) addTask(t *Task) error {
-
-	j, err := s.getJob(t.Name)
+	j, err := s.getJob(t)
 	if err != nil {
 		return err
 	}
@@ -576,77 +400,28 @@ func (s *Scheduler) addTask(t *Task) error {
 	return j.addTask(t)
 }
 
-func (s *Scheduler) getJob(name string) (*job, error) {
-	jt, ok := s.jobs[name]
-
-	if !ok {
-		var err error
-
-		jt, err = s.addJob(name)
-		if err != nil {
-			return nil, err
-		}
-
-		s.jobs[name] = jt
+func (s *Scheduler) getGroup(id ID) *group {
+	g, ok := s.groups[id]
+	if ok {
+		return g
 	}
 
-	return jt, nil
-}
+    s.Log.Warnf("group id:%d not found\n", id)
 
-func (s *Scheduler) addJob(name string) (*job, error) {
-	for _, r := range s.routes {
-		if r.match(name) {
-			j := new(job)
-			j.s = s
-			j.TaskBase = r.TaskBase
-			j.JobConfig = r.JobConfig
-			j.name = name
-
-			g, ok := s.groups[r.GroupId]
-			if !ok {
-				err := errors.New(fmt.Sprintf("router id:%d GroupId:%d not Found", r.Id, r.GroupId))
-
-				s.Log.Warning(err)
-
-				return nil, err
-			}
-
-			j.group = g
-			j.init()
-
-			return j, nil
-		}
+	g, ok = s.groups[1]
+	if ok {
+		return g
 	}
 
-	return nil, errors.New("Task Not Allow")
-}
+	g = new(group)
+	g.Id = 1
+	g.init()
 
-func (s *Scheduler) loadJobs() error {
-	//key: task/:jname
-	err := s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task")
-		if bucket == nil {
-			return nil
-		}
+	s.db_group_save(g)
 
-		return bucket.ForEachBucket(func(k []byte) error {
-			name := string(k)
+	s.groups[1] = g
 
-			_, ok := s.jobs[name]
-			if !ok {
-				jt, err := s.addJob(name)
-				if err != nil {
-					return err
-				}
-
-				s.jobs[name] = jt
-			}
-
-			return nil
-		})
-	})
-
-	return err
+	return g
 }
 
 func (s *Scheduler) addDefaultGroup() error {
@@ -657,22 +432,5 @@ func (s *Scheduler) addDefaultGroup() error {
 
 	g.Note = "Default"
 
-	return s.saveGroup(g)
-}
-
-func (s *Scheduler) addDefaultRouter() error {
-	r, err := s.addRoute()
-	if err != nil {
-		return err
-	}
-
-	r.Used = true
-	r.Note = "Default"
-	r.Mode = MODE_HTTP
-
-	for _, g := range s.groups {
-		r.GroupId = g.Id
-	}
-
-	return s.saveRouter(r)
+	return s.db_group_save(g)
 }

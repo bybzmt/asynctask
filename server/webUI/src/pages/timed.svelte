@@ -37,13 +37,13 @@
                 alert(json.Data);
                 return;
             }
-            showStatus();
+            await showStatus();
         }
     }
 
     async function showAddTask() {
         await addTask();
-        showStatus();
+        await showStatus();
     }
 </script>
 

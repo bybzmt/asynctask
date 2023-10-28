@@ -44,7 +44,7 @@
 </script>
 
 {#if isShow}
-  <div class="fixed w-screen h-screen bg-slate-100 inset-0 bg-[#00000022]" transition:fade={{ delay: 10, duration: 100 }}>
+  <div class="fixed w-screen h-screen inset-0 bg-[#00000022]" transition:fade={{ delay: 10, duration: 100 }}>
     <div
       class="fixed"
       use:initPosition

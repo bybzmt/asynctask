@@ -26,16 +26,16 @@
             return;
         }
         alert("success");
-        showStatus();
+        await showStatus();
     }
 
     async function rowDel(row) {
         var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
         if (ok) {
             let cfgs = [];
-            for (let i = 0; i < cron.length; i++) {
-                if (row.Id != cron[i].Id) {
-                    cfgs.push(cron[i]);
+            for (let i = 0; i < cron.Tasks.length; i++) {
+                if (row.Id != cron.Tasks[i].Id) {
+                    cfgs.push(cron.Tasks[i]);
                 }
             }
 
@@ -46,7 +46,7 @@
                 return;
             }
 
-            showStatus();
+            await showStatus();
         }
     }
 
@@ -88,8 +88,8 @@
 
     async function save() {
         let row = {};
-        row.Id = row.Id;
-        row.Node = editRow.Note;
+        row.Id = editRow.Id || 0;
+        row.Note = editRow.Note;
 
         let cfg = [
             editRow.Minute,
@@ -114,12 +114,12 @@
 
         let maxId = 0;
         let cfgs = [];
-        for (let i = 0; i < cron.length; i++) {
-            if (cfg.Id != cron[i].Id) {
-                cfgs.push(cron[i]);
+        for (let i = 0; i < cron.Tasks.length; i++) {
+            if (row.Id != cron.Tasks[i].Id) {
+                cfgs.push(cron.Tasks[i]);
             }
-            if (cron[i].Id > maxId) {
-                maxId = cron[i].Id || 0;
+            if (cron.Tasks[i].Id > maxId) {
+                maxId = cron.Tasks[i].Id || 0;
             }
         }
         if (!(row.Id > 0)) {
@@ -136,7 +136,7 @@
 
         isShow = !isShow;
 
-        showStatus();
+        await showStatus();
     }
 </script>
 
@@ -232,8 +232,8 @@
             <Task bind:value={editRow.Task} />
         </div>
         <div class="text-center mt-2">
-            <button type="button" on:click={save}>确定</button>
-            <button type="button" on:click={() => (isShow = !isShow)}
+            <button class="mx-4" type="button" on:click={save}>确定</button>
+            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}
                 >取消</button
             >
         </div>

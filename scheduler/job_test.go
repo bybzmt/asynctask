@@ -10,8 +10,9 @@ import (
 func TestPriority(t *testing.T) {
 
 	var scores []int
-	js := new(jobs)
-	js.init()
+	g := new(group)
+    g.s = new(Scheduler)
+	g.init()
 
 	for i := 0; i < 20; i++ {
 		scores = append(scores, ts_getRand()%100)
@@ -21,15 +22,15 @@ func TestPriority(t *testing.T) {
 		j := new(job)
 		j.score = score
 
-		js.runAdd(j)
-		js.priority(j)
+		g.runAdd(j)
+		g.priority(j)
 
-		log.Printf("tmp %v", ts_getJobsScore(js))
+		log.Printf("tmp %v", ts_getJobsScore(g))
 	}
 
 	sort.Ints(scores)
 
-	jscores := ts_getJobsScore(js)
+	jscores := ts_getJobsScore(g)
 
 	if len(scores) != len(jscores) {
 		t.Error("scores len error")
@@ -54,10 +55,10 @@ func ts_getRand() int {
 	return num
 }
 
-func ts_getJobsScore(js *jobs) []int {
+func ts_getJobsScore(g *group) []int {
 	var jscores []int
 
-	for j := js.run.next; j != js.run; j = j.next {
+	for j := g.run.next; j != g.run; j = j.next {
 		jscores = append(jscores, j.score)
 	}
 

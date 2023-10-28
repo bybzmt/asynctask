@@ -25,8 +25,9 @@ type cronConfig struct {
 }
 
 type cronTask struct {
+	Id   int
 	Cfg  string
-    Note string
+	Note string
 	Task scheduler.Task
 }
 
@@ -83,9 +84,9 @@ func (s *Server) cron_run_cfg() cronConfig {
 		}
 
 		val := bucket.Get([]byte(corn_cfg_key))
-        if val == nil {
-            return nil
-        }
+		if val == nil {
+			return nil
+		}
 
 		err = json.Unmarshal(val, &cfg)
 		if err != nil {
@@ -121,9 +122,9 @@ func (s *Server) page_cron_getConfig(r *http.Request) any {
 
 		val := bucket.Get([]byte(corn_cfg_key))
 
-        if val == nil {
-            return nil
-        }
+		if val == nil {
+			return nil
+		}
 
 		return json.Unmarshal(val, &cfg)
 	})
@@ -149,9 +150,9 @@ func (s *Server) page_cron_setConfig(r *http.Request) any {
 			return err
 		}
 
-        if j.Task.Url == "" && j.Task.Cmd == "" {
-            return scheduler.TaskError
-        }
+		if j.Task.Url == "" && j.Task.Cmd == "" {
+			return scheduler.TaskError
+		}
 	}
 
 	var cfg cronConfig
@@ -176,8 +177,6 @@ func (s *Server) page_cron_setConfig(r *http.Request) any {
 	if err != nil {
 		return err
 	}
-
-	s.cronCmd <- cron_cmd_reload
 
 	return nil
 }

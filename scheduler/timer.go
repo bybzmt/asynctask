@@ -16,7 +16,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 	page := 20
 
 	for {
-		nt := make([]Task, 0, page)
+		nt := make([]*order, 0, page)
 
 		empty := true
 
@@ -33,7 +33,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 			bucket.ForEach(func(k, v []byte) error {
 				empty = false
 
-				t := Task{}
+				t := new(order)
 
 				if err = json.Unmarshal(v, &t); err != nil {
 					s.Log.WithFields(map[string]any{
@@ -45,7 +45,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 					return nil
 				}
 
-				if int64(t.Timer) > trigger {
+				if int64(t.Task.Timer) > trigger {
 					return brk
 				}
 
@@ -82,8 +82,9 @@ func (s *Scheduler) timerChecker(now time.Time) {
 		s.timedNum -= len(nt)
 
 		for _, t := range nt {
-			if err := s.addTask(&t); err != nil {
+            if err := s.addTask(t); err != nil {
 				v, _ := json.Marshal(t)
+
 				s.Log.WithFields(map[string]any{
 					"tag":  "timed",
 					"task": string(v),
@@ -93,11 +94,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 	}
 }
 
-func (s *Scheduler) timerAddTask(t *Task) error {
-
-	if _, err := s.getJob(t.Name); err != nil {
-		return err
-	}
+func (s *Scheduler) timerAddTask(t *order) error {
 
 	// path: /timer/:unix-:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -116,7 +113,7 @@ func (s *Scheduler) timerAddTask(t *Task) error {
 			return err
 		}
 
-		key := fmtId(t.Timer) + "-" + fmtId(id)
+		key := fmtId(t.Task.Timer) + "-" + fmtId(id)
 
 		return bucket.Put([]byte(key), val)
 	})
@@ -165,13 +162,14 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []timedTask) {
 		c := bucket.Cursor()
 		k, v := c.Seek([]byte(fmtId(starttime)))
 
+		o := new(order)
+
 		for i := 0; k != nil && i < num; i++ {
-			t := timedTask{}
-
-			if err := json.Unmarshal(v, &t); err == nil {
-				t.TimedID = string(k)
-
-				out = append(out, t)
+			if err := json.Unmarshal(v, &o); err == nil {
+				out = append(out, timedTask{
+                    Task : o.Task,
+                    TimedID: string(k),
+                })
 			}
 
 			k, v = c.Next()

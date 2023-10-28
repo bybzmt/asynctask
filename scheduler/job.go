@@ -17,9 +17,8 @@ const (
 
 type job struct {
 	JobConfig
-	TaskBase
 
-	name string
+	cfgMode int
 
 	s     *Scheduler
 	group *group
@@ -50,27 +49,14 @@ func (j *job) init() error {
 	return j.loadWaitNum()
 }
 
-func (j *job) addTask(t *Task) error {
+func (j *job) addTask(t *order) error {
 	val, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
 
 	//key: task/:jname
-	err = j.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", j.name)
-		if err != nil {
-			return err
-		}
-
-		id, err := bucket.NextSequence()
-		if err != nil {
-			return err
-		}
-
-		return bucket.Put([]byte(fmtId(id)), val)
-	})
-
+	err = db_push(j.s.Db, val, "task", j.Name)
 	if err != nil {
 		return err
 	}
@@ -79,10 +65,10 @@ func (j *job) addTask(t *Task) error {
 	j.group.waitNum += 1
 
 	if j.next == nil || j.prev == nil {
-		j.group.jobs.runAdd(j)
+		j.group.runAdd(j)
 	}
 
-	j.group.jobs.modeCheck(j)
+	j.group.modeCheck(j)
 
 	return nil
 }
@@ -92,7 +78,7 @@ func (j *job) delTask(tid ID) error {
 
 	//key: task/:jname
 	err := j.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", j.name)
+		bucket, err := getBucketMust(tx, "task", j.Name)
 		if err != nil {
 			return err
 		}
@@ -114,56 +100,49 @@ func (j *job) delTask(tid ID) error {
 	if has {
 		j.waitNum -= 1
 		j.group.waitNum -= 1
-        j.group.jobs.modeCheck(j)
+		j.group.modeCheck(j)
 	}
 
 	return nil
 }
 
-func (j *job) popTask() (*Task, error) {
-	t := Task{}
+func (j *job) popTask() (*order, error) {
+	t := new(order)
 
-	//key: task/:jname
-	err := j.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", j.name)
+	for {
+		//key: task/:jname
+		key, val := db_first(j.s.Db, "task", j.Name)
+
+		if key == nil {
+			return nil, Empty
+		}
+
+		err := db_del(j.s.Db, "task", j.Name, string(key))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		c := bucket.Cursor()
+        if val != nil {
+            err = json.Unmarshal(val, &t)
+            if err != nil {
+                j.s.Log.Warnln("task", j.Name, string(key), "Unmarshal error")
 
-		for {
-			key, val := c.First()
+                continue
+            }
+        }
 
-			if key == nil {
-				return Empty
-			}
-
-			err = bucket.Delete(key)
-			if err != nil {
-				return err
-			}
-
-			err = json.Unmarshal(val, &t)
-			if err != nil {
-				j.s.Log.Debugln("task", j.name, string(key), "Unmarshal error")
-
-				continue
-			}
-
-			return nil
-		}
-	})
-
-	if err != nil {
-		return nil, err
+		break
 	}
+
+	t.base = j.TaskBase
+	t.base.CmdEnv = copyMap(j.CmdEnv)
+	t.base.HttpHeader = copyMap(j.HttpHeader)
 
 	j.nowNum++
 	j.waitNum--
 	j.group.waitNum -= 1
 
-	return &t, nil
+	return t, nil
 }
 
 func (j *job) end(now time.Time, loadTime, useTime time.Duration) {
@@ -174,42 +153,9 @@ func (j *job) end(now time.Time, loadTime, useTime time.Duration) {
 	j.useTimeStat.push(int64(useTime))
 }
 
-func (j *job) hasTask() bool {
-	has := false
-
-	//key: task/:jname
-	j.s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task", j.name)
-		if bucket == nil {
-			return nil
-		}
-
-		key, _ := bucket.Cursor().First()
-
-		if key != nil {
-			has = true
-		}
-
-		return nil
-	})
-
-	return has
-}
-
 func (j *job) removeBucket() error {
 	//key: task/:jname
-	err := j.s.Db.Update(func(tx *bolt.Tx) error {
-
-		bucket := getBucket(tx, "task")
-
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.DeleteBucket([]byte(j.name))
-	})
-
-	return err
+	return db_bucket_del(j.s.Db, "task", j.Name)
 }
 
 func (j *job) delAllTask() error {
@@ -228,7 +174,7 @@ func (j *job) delAllTask() error {
 func (j *job) loadWaitNum() error {
 	//key: task/:jname
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task", j.name)
+		bucket := getBucket(tx, "task", j.Name)
 		if bucket == nil {
 			j.waitNum = 0
 			return nil

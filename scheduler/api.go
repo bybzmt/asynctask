@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"errors"
+	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -17,16 +19,21 @@ func (s *Scheduler) GetJobConfig(jname string) (c JobConfig, err error) {
 	return jt.JobConfig, nil
 }
 
-func (s *Scheduler) SetJobConfig(jname string, cfg JobConfig) error {
+func (s *Scheduler) SetJobConfig(c *JobConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	jt, ok := s.jobs[jname]
+	j, ok := s.jobs[c.Name]
 	if !ok {
 		return NotFound
 	}
 
-	jt.JobConfig = cfg
+	j.JobConfig = *c
+
+	j.CmdEnv = copyMap(c.CmdEnv)
+	j.HttpHeader = copyMap(c.HttpHeader)
+
+	s.db_Job_save(c)
 
 	return nil
 }
@@ -49,6 +56,17 @@ func (s *Scheduler) GetGroupStat() (out []GroupStat) {
 
 	for _, g := range s.groups {
 		out = append(out, g.getGroupStat())
+	}
+
+	return
+}
+
+func (s *Scheduler) Groups() (out []GroupConfig) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	for _, g := range s.groups {
+		out = append(out, g.GroupConfig)
 	}
 
 	return
@@ -77,7 +95,7 @@ func (s *Scheduler) SetGroupConfig(cfg GroupConfig) error {
 
 	g.GroupConfig = cfg
 
-	return s.saveGroup(g)
+	return s.db_group_save(g)
 }
 
 func (s *Scheduler) DelGroup(gid ID) error {
@@ -89,14 +107,8 @@ func (s *Scheduler) DelGroup(gid ID) error {
 		return NotFound
 	}
 
-	for _, r := range s.routes {
-		if gid == r.GroupId {
-			return errors.New("Group Use In Route")
-		}
-	}
-
-	if len(s.groups) == 1 {
-		return errors.New("Last Group Can not Del")
+	if g.Id == 1 {
+		return errors.New("Group Id:1 Can not Del")
 	}
 
 	g.cancel()
@@ -105,92 +117,40 @@ func (s *Scheduler) DelGroup(gid ID) error {
 	return nil
 }
 
-func (s *Scheduler) AddRoute() (TaskConfig, error) {
-	s.l.Lock()
-	defer s.l.Unlock()
+func (s *Scheduler) SetRoutes(pattern []string) error {
+	s.router.l.Lock()
+	defer s.router.l.Unlock()
 
-	r, err := s.addRoute()
-	if err != nil {
-		return TaskConfig{}, err
-	}
-	return r.TaskConfig, err
-}
-
-func (s *Scheduler) DelRoute(rid ID) error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	if len(s.routes) == 1 {
-		return errors.New("Last Route Can not Del")
+	if len(pattern) == 0 {
+		return errors.New("pattern empty")
 	}
 
-	rs := make([]*router, 0, len(s.routes))
+	var exps []*regexp.Regexp
 
-	for _, r := range s.routes {
-		if r.Id != rid {
-			rs = append(rs, r)
+	for _, p := range pattern {
+		if p == "" {
+			return errors.New("pattern empty")
 		}
+
+		exp, err := regexp.Compile(p)
+		if err != nil {
+			return err
+		}
+
+		exps = append(exps, exp)
 	}
 
-	if len(rs) == len(s.routes) {
-		return NotFound
-	}
-
-	s.routes = rs
+	s.router.routes = pattern
+	s.router.exps = exps
 
 	return nil
 }
 
-func (s *Scheduler) SetRouteConfig(cfg TaskConfig) error {
-	s.l.Lock()
-	defer s.l.Unlock()
+func (s *Scheduler) Routes() []string {
+	s.router.l.Lock()
+	defer s.router.l.Unlock()
 
-	_, ok := s.groups[cfg.GroupId]
-	if !ok {
-		return errors.New("Group Not Found")
-	}
-
-	for _, r := range s.routes {
-		if r.Id == cfg.Id {
-			r.TaskConfig = cfg
-			r.TaskBase = copyTaskBase(cfg.TaskBase)
-
-			if err := r.init(); err != nil {
-				return err
-			}
-
-			s.routersSort()
-			s.routeChanged()
-
-			return nil
-		}
-	}
-
-	return Empty
-}
-
-func (s *Scheduler) GetRouteConfig(id ID) (TaskConfig, error) {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	for _, r := range s.routes {
-		if r.Id == id {
-			return r.TaskConfig, nil
-		}
-	}
-
-	return TaskConfig{}, NotFound
-}
-
-func (s *Scheduler) GetRouteConfigs() (out []TaskConfig) {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	for _, r := range s.routes {
-		out = append(out, r.TaskConfig)
-	}
-
-	return
+	return s.router.routes
 }
 
 func (s *Scheduler) TaskCancel(oid ID) error {
@@ -239,36 +199,60 @@ func (s *Scheduler) DelTask(jname string, tid ID) error {
 }
 
 func (s *Scheduler) TaskAdd(t *Task) error {
-	t.Name = strings.TrimSpace(t.Name)
-	t.Url = strings.TrimSpace(t.Url)
-	t.Cmd = strings.TrimSpace(t.Cmd)
+	o := new(order)
+	o.Task = *t
 
-	if (t.Url == "" && t.Cmd == "") || (t.Url != "" && t.Cmd != "") {
+	if (o.Task.Url == "" && o.Task.Cmd == "") || (o.Task.Url != "" && o.Task.Cmd != "") {
 		return TaskError
 	}
 
-	if t.Cmd != "" {
-		if t.Name == "" {
-			t.Name = t.Cmd
-		}
+	var str string
+	var scheme string
+
+	if o.Task.Cmd != "" {
+		str = strings.TrimSpace(o.Task.Cmd)
+		scheme = "http"
 	} else {
-		if t.Name == "" {
-			t.Name = t.Url
-		}
+		str = strings.TrimSpace(o.Task.Url)
+		scheme = "cli"
 	}
+
+	u, err := url.Parse(str)
+	if err != nil {
+		return err
+	}
+
+	if u.Scheme == "" {
+		u.Scheme = scheme
+	}
+
+	u.RawQuery = ""
+	u.Fragment = ""
+
+	path := u.String()
 
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	s.TaskNextId++
-	t.Id = uint(s.TaskNextId)
-	t.AddTime = uint(s.now.Unix())
+	job := s.router.Route(path)
+	job = strings.Trim(job, "/")
 
-	if t.Timer > uint(s.now.Unix()) {
-		return s.timerAddTask(t)
+	if job == "" {
+		return errors.New("Task Not Allow")
 	}
 
-	return s.addTask(t)
+	o.Job = job
+
+	s.TaskNextId++
+
+	o.Id = s.TaskNextId
+	o.AddTime = uint(s.now.Unix())
+
+	if o.Task.Timer > o.AddTime {
+		return s.timerAddTask(o)
+	}
+
+	return s.addTask(o)
 }
 
 func (s *Scheduler) GetStatData() Statistics {
@@ -301,7 +285,7 @@ func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    return s.getRunTaskStat()
+	return s.getRunTaskStat()
 }
 
 func (s *Scheduler) Running() bool {
@@ -309,4 +293,102 @@ func (s *Scheduler) Running() bool {
 	defer s.l.Unlock()
 
 	return s.running
+}
+
+func (s *Scheduler) RuleAdd(r Rule) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	if r.Id == 0 {
+		return errors.New("Id == 0")
+	}
+
+	for _, x := range s.rules {
+		if x.Id == r.Id {
+			return errors.New("Id duplicate")
+		}
+	}
+
+	err := s.db_rule_save(r)
+	if err != nil {
+		return err
+	}
+
+	r.CmdEnv = copyMap(r.CmdEnv)
+	r.HttpHeader = copyMap(r.HttpHeader)
+	r.init()
+
+	s.rules = append(s.rules, r)
+
+	s.rulesSort()
+	s.rulesChanged()
+
+	return nil
+}
+
+func (s *Scheduler) RuleDel(id ID) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	rs := make([]Rule, 0, len(s.rules))
+
+	for _, r := range s.rules {
+		if r.Id != id {
+			rs = append(rs, r)
+		}
+	}
+
+	if len(rs) == len(s.rules) {
+		return NotFound
+	}
+
+	s.rules = rs
+
+	s.rulesSort()
+	s.rulesChanged()
+
+	return nil
+}
+
+func (s *Scheduler) RuleSet(cfg Rule) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	_, ok := s.groups[cfg.GroupId]
+	if !ok {
+		return errors.New("Group Not Found")
+	}
+
+	for _, r := range s.rules {
+		if r.Id == cfg.Id {
+			r = cfg
+			r.CmdEnv = copyMap(cfg.CmdEnv)
+			r.HttpHeader = copyMap(cfg.HttpHeader)
+			r.init()
+
+			s.rulesSort()
+			s.rulesChanged()
+
+			return nil
+		}
+	}
+
+	return Empty
+}
+
+func (s *Scheduler) Rules() (out []Rule) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    out = make([]Rule, 0, len(s.rules))
+
+	for _, r := range s.rules {
+		t := r
+		t.CmdEnv = copyMap(r.CmdEnv)
+		t.HttpHeader = copyMap(r.HttpHeader)
+
+		out = append(out, t)
+	}
+
+	return
 }

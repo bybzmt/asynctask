@@ -15,7 +15,7 @@ import (
 var Server server.Server
 
 func init() {
-	dbfile := os.Getenv("dbfile")
+	dbfile := os.Getenv("DBFILE")
 
 	if dbfile == "" {
 		file, _ := os.Executable()
@@ -28,22 +28,22 @@ func init() {
 		}
 	}
 
-	logLevel := os.Getenv("logLevel")
+	logLevel := os.Getenv("LOGLEVEL")
 	if logLevel == "" {
 		logLevel = "info"
 	}
 
-	flag.StringVar(&Server.Http.Addr, "http.addr", os.Getenv("httpAddr"), "http server addr")
+	flag.StringVar(&Server.Http.Addr, "http.addr", os.Getenv("HTTPADDR"), "http server addr")
 	flag.BoolVar(&Server.HttpEnable, "http.enable", true, "http server enable")
 
-	flag.StringVar(&Server.LogFile, "log.file", os.Getenv("logfile"), "log file")
+	flag.StringVar(&Server.LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&Server.LogLevel, "log.level", logLevel, "log level")
 	flag.StringVar(&Server.DbFile, "db.file", dbfile, "storage file")
 
-	flag.StringVar(&Server.Redis.Addr, "redis.addr", os.Getenv("redisAddr"), "redis addr:port")
-	flag.StringVar(&Server.Redis.Pwd, "redis.pwd", os.Getenv("redisPwd"), "redis password")
-	flag.StringVar(&Server.Redis.Db, "redis.db", os.Getenv("redisDb"), "redis db")
-	flag.StringVar(&Server.Redis.Key, "redis.key", os.Getenv("redisKey"), "redis list key for addTask")
+	flag.StringVar(&Server.Redis.Addr, "redis.addr", os.Getenv("REDISADDR"), "redis addr:port")
+	flag.StringVar(&Server.Redis.Pwd, "redis.pwd", os.Getenv("REDISPWD"), "redis password")
+	flag.StringVar(&Server.Redis.Db, "redis.db", os.Getenv("REDISDB"), "redis db")
+	flag.StringVar(&Server.Redis.Key, "redis.key", os.Getenv("REDISKEY"), "redis list key for addTask")
 }
 
 func main() {

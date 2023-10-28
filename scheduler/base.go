@@ -53,6 +53,161 @@ func getBucket(bk bucketer, keys ...string) *bolt.Bucket {
 	return out.(*bolt.Bucket)
 }
 
+func db_keys(keys []string) (buckets []string, key string) {
+	l := len(keys)
+	buckets = keys[:l-1]
+	key = keys[l-1]
+	return
+}
+
+func db_get(db *bolt.DB, key ...string) (out []byte) {
+	buckets, k := db_keys(key)
+
+	db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, buckets...)
+		if b == nil {
+			return nil
+		}
+
+		out = b.Get([]byte(k))
+
+		return nil
+	})
+
+	return
+}
+
+func db_put(db *bolt.DB, val []byte, key ...string) error {
+	buckets, k := db_keys(key)
+
+	return db.Update(func(tx *bolt.Tx) error {
+		b, err := getBucketMust(tx, buckets...)
+		if err != nil {
+			return err
+		}
+
+		return b.Put([]byte(k), val)
+	})
+}
+
+func db_push(db *bolt.DB, val []byte, bucket ...string) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		b, err := getBucketMust(tx, bucket...)
+		if err != nil {
+			return err
+		}
+
+		id, err := b.NextSequence()
+		if err != nil {
+			return err
+		}
+
+		return b.Put([]byte(fmtId(id)), val)
+	})
+}
+
+func db_del(db *bolt.DB, key ...string) error {
+	buckets, k := db_keys(key)
+
+	return db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, buckets...)
+		if b == nil {
+			return nil
+		}
+
+		return b.Delete([]byte(k))
+	})
+}
+
+func db_first(db *bolt.DB, bucket ...string) (key, val []byte) {
+	db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, bucket...)
+		if b == nil {
+			return nil
+		}
+
+		key, val = b.Cursor().First()
+
+		return nil
+	})
+
+	return
+}
+
+func db_firstn(db *bolt.DB, num int, bucket ...string) (keys, vals [][]byte) {
+	db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, bucket...)
+		if b == nil {
+			return nil
+		}
+
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			keys = append(keys, k)
+			vals = append(vals, v)
+
+			if len(keys) >= num {
+				return nil
+			}
+		}
+
+		return nil
+	})
+
+	return
+}
+
+func db_get_buckets(db *bolt.DB, bucket ...string) (buckets [][]byte) {
+	db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, bucket...)
+		if b == nil {
+			return nil
+		}
+
+		b.ForEachBucket(func(k []byte) error {
+			buckets = append(buckets, k)
+			return nil
+		})
+
+		return nil
+	})
+
+	return
+}
+
+func db_bucket_del(db *bolt.DB, bucket ...string) error {
+	buckets, k := db_keys(bucket)
+
+	return db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, buckets...)
+		if b == nil {
+			return nil
+		}
+
+		return b.DeleteBucket([]byte(k))
+	})
+}
+
+func db_getall(db *bolt.DB, bucket ...string) (keys, vals [][]byte) {
+	db.Update(func(tx *bolt.Tx) error {
+		b := getBucket(tx, bucket...)
+		if b == nil {
+			return nil
+		}
+
+		b.ForEach(func(k, v []byte) error {
+			keys = append(keys, k)
+			vals = append(vals, v)
+			return nil
+		})
+
+		return nil
+	})
+
+	return
+}
+
 func fmtId(id any) string {
 	return fmt.Sprintf("%015d", id)
 }
@@ -63,20 +218,13 @@ func atoiId(key []byte) ID {
 }
 
 func copyMap(src map[string]string) map[string]string {
-    dst := make(map[string]string, len(src))
+	dst := make(map[string]string, len(src))
 
-    for k, v := range src {
-        dst[k] = v
-    }
+	for k, v := range src {
+		dst[k] = v
+	}
 
-    return dst
-}
-
-func copyTaskBase(src TaskBase) (dst TaskBase) {
-    dst = src
-    dst.CmdEnv = copyMap(src.CmdEnv)
-    dst.HttpHeader = copyMap(src.HttpHeader)
-    return
+	return dst
 }
 
 func jobAppend(j, at *job) {

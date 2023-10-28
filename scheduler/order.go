@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -15,24 +16,25 @@ type worker interface {
 
 // 运行的任务
 type order struct {
-	Id  ID
+	Id      ID
+	AddTime uint
+	Job     string
+	Task    Task
+	base    TaskBase
+
 	job *job
 	g   *group
-
-	Task *Task
-	Base TaskBase
 
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	Status int
-	Msg    string
-	Err    error
+	status int
+	msg    string
+	err    error
 
-	AddTime   time.Time
-	StartTime time.Time
-	StatTime  time.Time
-	EndTime   time.Time
+	startTime time.Time
+	statTime  time.Time
+	endTime   time.Time
 
 	taskTxt string
 
@@ -43,16 +45,26 @@ func (o *order) Run() {
 	o.g.s.Log.Debugln("worker run", o.Id)
 
 	o.logFields = map[string]any{
-		"tag":  "task",
-		"id":   o.Task.Id,
-		"name": o.Task.Name,
+		"tag": "task",
+		"id":  o.Id,
+	}
+
+	mode := MODE_HTTP
+
+	{
+		u, err := url.Parse(o.Job)
+		if err == nil {
+			if u.Scheme == "cli" {
+				mode = MODE_CLI
+			}
+		}
 	}
 
 	has := false
 
-	if o.Base.Mode&MODE_HTTP == MODE_HTTP {
+	if mode == MODE_HTTP {
 		if o.Task.Url == "" {
-			o.Err = errors.New("task error")
+			o.err = errors.New("task error")
 			has = true
 		} else {
 			w := workerHttp{
@@ -60,18 +72,18 @@ func (o *order) Run() {
 			}
 
 			if err := w.init(); err != nil {
-				w.order.Err = err
+				w.order.err = err
 				has = true
 			} else {
-				o.Status, o.Msg = w.run()
+				o.status, o.msg = w.run()
 
 				o.logFields["url"] = o.taskTxt
-				o.logFields["status"] = o.Status
+				o.logFields["status"] = o.status
 			}
 		}
-	} else if o.Base.Mode&MODE_CLI == MODE_CLI {
+	} else if mode == MODE_CLI {
 		if o.Task.Cmd == "" {
-			o.Err = errors.New("task error")
+			o.err = errors.New("task error")
 			has = true
 		} else {
 			w := workerCli{
@@ -79,17 +91,18 @@ func (o *order) Run() {
 			}
 
 			if err := w.init(); err != nil {
-				w.order.Err = err
+				w.order.err = err
 				has = true
 			} else {
-				o.Status, o.Msg = w.run()
+				o.status, o.msg = w.run()
 
 				o.logFields["cmd"] = o.taskTxt
-				o.logFields["exitcode"] = o.Status
+				o.logFields["exit"] = o.status
 			}
 		}
 	} else {
-		o.Err = TaskError
+		o.err = TaskError
+		has = true
 	}
 
 	if has {
@@ -98,23 +111,24 @@ func (o *order) Run() {
 		}
 	}
 
-    o.logTask()
+	o.logTask()
 
 	o.g.s.complete <- o
 }
 
 func (o *order) logTask() {
-	o.EndTime = time.Now()
+	o.endTime = time.Now()
 
-	runTime := o.EndTime.Sub(o.StartTime).Seconds()
+	runTime := o.endTime.Sub(o.startTime).Seconds()
 
-	if o.Err != nil {
-		o.logFields["err"] = o.Err
+	if o.err != nil {
+		o.logFields["name"] = o.job.Name
+		o.logFields["err"] = o.err
 	}
 
-	o.logFields["runTime"] = fmt.Sprintf("%.2f", runTime)
+	o.logFields["cost"] = fmt.Sprintf("%.2fs", runTime)
 
-	o.g.s.Log.WithFields(o.logFields).Infoln(o.Msg)
+	o.g.s.Log.WithFields(o.logFields).Infoln(o.msg)
 }
 
 func logSecond() {

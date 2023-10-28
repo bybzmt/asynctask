@@ -10,12 +10,12 @@ type group struct {
 
 	s *Scheduler
 
+	block *job
+	run   *job
+
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	jobs jobs
-
-	running bool
 	tick    chan time.Time
 
 	nowNum  int
@@ -32,7 +32,13 @@ type group struct {
 func (g *group) init() {
 	g.tick = make(chan time.Time)
 
-	g.jobs.init()
+	g.block = &job{}
+	g.block.next = g.block
+	g.block.prev = g.block
+
+	g.run = &job{}
+	g.run.next = g.run
+	g.run.prev = g.run
 
 	g.loadStat.init(g.s.statSize)
 
@@ -44,7 +50,7 @@ func (g *group) dispatch() bool {
 		return false
 	}
 
-	t, err := g.jobs.GetOrder()
+	t, err := g.GetOrder()
 	if err != nil {
 		if err == Empty {
 			if g.nowNum == 0 {
@@ -58,8 +64,8 @@ func (g *group) dispatch() bool {
 		return false
 	}
 
-	t.StartTime = g.s.now
-	t.StatTime = g.s.now
+	t.startTime = g.s.now
+	t.statTime = g.s.now
 
 	t.ctx, t.cancel = context.WithCancel(g.ctx)
 
@@ -74,10 +80,10 @@ func (g *group) dispatch() bool {
 }
 
 func (g *group) end(t *order) {
-	loadTime := t.EndTime.Sub(t.StatTime)
-	useTime := t.EndTime.Sub(t.StartTime)
+	loadTime := t.endTime.Sub(t.statTime)
+	useTime := t.endTime.Sub(t.startTime)
 
-	if t.Err != nil {
+	if t.err != nil {
 		g.errNum += 1
 		t.job.errNum += 1
 	} else {
@@ -92,11 +98,13 @@ func (g *group) end(t *order) {
 
 			t.Task.Timer = uint(g.s.now.Unix()) + sec
 
-			g.s.timerAddTask(t.Task)
+			g.s.timerAddTask(t)
 		}
 	}
 
-	g.jobs.end(t.job, loadTime, useTime)
+	t.job.end(g.s.now, loadTime, useTime)
+
+	g.modeCheck(t.job)
 
 	g.runNum++
 	g.nowNum--
@@ -109,34 +117,34 @@ func (g *group) statMaintain() {
 	g.loadStat.push(int64(g.loadTime))
 	g.loadTime = 0
 
-	for j := g.jobs.run.next; j != g.jobs.run; j = j.next {
+	for j := g.run.next; j != g.run; j = j.next {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
 
-	for j := g.jobs.block.next; j != g.jobs.block; j = j.next {
+	for j := g.block.next; j != g.block; j = j.next {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
 }
 
 func (s *Scheduler) statMaintain(now time.Time) {
-    for t := range s.orders {
-        us := now.Sub(t.StatTime)
-        t.StatTime = now
+	for t := range s.orders {
+		us := now.Sub(t.statTime)
+		t.statTime = now
 
-        t.g.loadTime += us
-        t.job.loadTime += us
-    }
+		t.g.loadTime += us
+		t.job.loadTime += us
+	}
 
-    for j := s.idle.next; j != s.idle; j = j.next {
-        j.loadStat.push(int64(j.loadTime))
-        j.loadTime = 0
-    }
+	for j := s.idle.next; j != s.idle; j = j.next {
+		j.loadStat.push(int64(j.loadTime))
+		j.loadTime = 0
+	}
 
-    for _, g := range s.groups {
-        g.statMaintain()
-    }
+	for _, g := range s.groups {
+		g.statMaintain()
+	}
 }
 
 func (g *group) dayChange() {
@@ -144,4 +152,97 @@ func (g *group) dayChange() {
 	g.oldErr = g.errNum
 	g.runNum = 0
 	g.errNum = 0
+}
+
+
+func (g *group) addJob(j *job) {
+	g.runAdd(j)
+
+	g.modeCheck(j)
+}
+
+
+func (g *group) modeCheck(j *job) {
+	if j.next == nil || j.prev == nil {
+		j.s.Log.Warning("modeCheck nil")
+		return
+	}
+
+	if j.nowNum >= int32(j.Parallel) || (j.waitNum < 1 && j.nowNum > 0) {
+		if j.mode != job_mode_block {
+			jobRemove(j)
+			g.blockAdd(j)
+		}
+	} else if j.waitNum < 1 {
+		if j.mode != job_mode_idle {
+			jobRemove(j)
+			j.s.idleAdd(j)
+		}
+	} else {
+		j.countScore()
+
+		if j.mode != job_mode_runnable {
+			jobRemove(j)
+			g.runAdd(j)
+		}
+
+		g.priority(j)
+	}
+}
+
+func (g *group) GetOrder() (*order, error) {
+	if g.run == g.run.next {
+		return nil, Empty
+	}
+
+    j := g.run.next
+
+	o, err := j.popTask()
+
+    g.modeCheck(j)
+
+	if err != nil {
+		if err == Empty {
+			j.s.Log.Warnln("Job PopOrder Empty")
+
+			j.waitNum = 0
+		}
+		return nil, err
+	}
+
+	o.g = j.group
+	o.job = j
+
+	return o, nil
+}
+
+func (g *group) front() *job {
+	if g.run == g.run.next {
+		return nil
+	}
+	return g.run.next
+}
+
+func (g *group) blockAdd(j *job) {
+	j.mode = job_mode_block
+	jobAppend(j, g.block.prev)
+}
+
+func (g *group) runAdd(j *job) {
+	j.mode = job_mode_runnable
+	jobAppend(j, g.run.prev)
+}
+
+func (g *group) priority(j *job) {
+	x := j
+
+	for x.next != g.run && j.score > x.next.score {
+		x = x.next
+	}
+
+	for x.prev != g.run && j.score < x.prev.score {
+		x = x.prev
+	}
+
+	jobMoveBefore(j, x)
 }

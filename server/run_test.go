@@ -33,29 +33,30 @@ func TestRun(t *testing.T) {
 	taskadd := make(chan int, 10)
 	taskend := make(chan int, 10)
 
-	initServer(&hub)
-
-    hub.HttpEnable = true
-    hub.Http.Addr = "127.0.0.1:8080"
-
-    if err := hub.Init(); err != nil {
-        panic(err)
-    }
-
-	ctx, canceler := context.WithCancel(context.Background())
-
 	go initTestServer(&my, taskend)
 	defer my.Close()
-
-	go hub.Run(ctx)
 
 	time.Sleep(time.Millisecond * 100)
 
 	to := "http://" + my.l.Addr().String()
+
+	initServer(&hub, to)
+
+	hub.HttpEnable = true
+	hub.Http.Addr = "127.0.0.1:8080"
+
+	if err := hub.Init(); err != nil {
+		panic(err)
+	}
+
+	ctx, canceler := context.WithCancel(context.Background())
+
+	go hub.Run(ctx)
+
 	logrus.Println("listen", to)
 	logrus.Println("http", hub.Http.Addr)
 
-	go addTask(&hub, 10000, to, taskadd)
+	go addTask(&hub, 10000, taskadd)
 
 	httpNum := 0
 	allNum := 0
@@ -118,7 +119,7 @@ toend:
 	}
 }
 
-func addTask(hub *Server, num int, to string, taskadd chan int) {
+func addTask(hub *Server, num int, taskadd chan int) {
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
@@ -135,10 +136,8 @@ func addTask(hub *Server, num int, to string, taskadd chan int) {
 		}
 
 		if ts_getRand()%7 == 0 {
-			task.Name = "cli/" + strconv.Itoa(sl)
-
-			task.Cmd = "echo"
-			task.Args = []string{task.Name}
+			task.Cmd = "cli://test/echo"
+			task.Args = []string{"1"}
 
 			taskadd <- 1
 		} else {
@@ -154,17 +153,15 @@ func addTask(hub *Server, num int, to string, taskadd chan int) {
 				p.Add("trigger", strconv.Itoa(int(task.Timer)))
 			}
 
-			l := to + "/?" + p.Encode()
-
 			if task.Timer > 0 {
-				task.Name = "http/trigger"
+				task.Url = "http://trigger"
 			} else if sl > 1000 {
-				task.Name = "slow/" + strconv.Itoa(sl)
+				task.Url = "http://slow/" + strconv.Itoa(sl)
 			} else {
-				task.Name = "http/" + strconv.Itoa(sleep)
+				task.Url = "http://fast/" + strconv.Itoa(sleep)
 			}
 
-			task.Url = l
+			task.Url += "/?" + p.Encode()
 
 			taskadd <- 2
 		}
@@ -220,10 +217,10 @@ func initTestServer(my *myServer, taskend chan int) {
 	my.Serve(my.l)
 }
 
-func initServer(hub *Server) {
+func initServer(hub *Server, to string) {
 
 	logrus.SetLevel(logrus.DebugLevel)
-    logrus.SetFormatter(&logrus.TextFormatter{
+	logrus.SetFormatter(&logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
 	})
@@ -267,41 +264,41 @@ func initServer(hub *Server) {
 
 	//------ 2 groups -----
 
-	rc, err := hub.Scheduler.AddRoute()
+	err = hub.Scheduler.SetRoutes([]string{
+		"^http://",
+		"^cli://",
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	rc.Note = "http_slow_router"
-	rc.Match = `^slow/.+`
-	rc.Parallel = 5
-	rc.Sort = 2
-	rc.GroupId = gc.Id
-	rc.Used = true
+	r := scheduler.Rule{
+		Match: "^http://",
+		Id:    1,
+		Sort:  1,
+		Used:  true,
+	}
+	r.GroupId = 1
+	r.Parallel = 1
+	r.HttpBase = to
 
-	err = hub.Scheduler.SetRouteConfig(rc)
+	err = hub.Scheduler.RuleAdd(r)
 	if err != nil {
 		panic(err)
 	}
 
-	//------ cli -----
+	r = scheduler.Rule{
+		Match: "^http://slow",
+		Id:    2,
+		Used:  true,
+		Sort:  2,
+	}
+	r.GroupId = 1
+	r.Parallel = 5
+	r.HttpBase = to
 
-	rc, err = hub.Scheduler.AddRoute()
+	err = hub.Scheduler.RuleAdd(r)
 	if err != nil {
 		panic(err)
 	}
-
-	rc.Note = "cli_router"
-	rc.Match = `^cli/.+`
-	rc.Parallel = 1
-	rc.Sort = 3
-	rc.GroupId = gc.Id
-	rc.Mode = scheduler.MODE_CLI
-	rc.Used = true
-
-	err = hub.Scheduler.SetRouteConfig(rc)
-	if err != nil {
-		panic(err)
-	}
-
 }

@@ -7,7 +7,6 @@
     let task_type = 1;
     let isTimed = false;
     let strtime = "";
-    let resolve;
 
     $: {
         if (task_type == 1) {
@@ -91,26 +90,27 @@
     <div class="mt-4 relative">
         <textarea class="border w-full min-h-[200px]" bind:value />
         <pre class="text-xs text-gray-400 absolute top-0 right-0 p-4 pointer-events-none">
-name     string
-
 {#if task_type == 1}
 url      string
+
 method   string
 header   map[string]string
 form     map[string]string
 body     json
-
+timer    uint
+timeout  uint
 retry    uint
 retrySec uint
 {:else}
 cmd      string
-args     []string
 
+args     []string
+timer    uint
 timeout  uint
-hold     string
-code     uint
 retry    uint
 retrySec uint
+code     uint
+hold     string
 {/if}
 
 

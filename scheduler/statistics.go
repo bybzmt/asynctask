@@ -89,7 +89,7 @@ func (g *group) getJobStat(jt *job) JobStat {
 
 	tmp := JobStat{
 		JobConfig: jt.JobConfig,
-		Name:      jt.name,
+		Name:      jt.Name,
 		WaitNum:   int(jt.waitNum),
 		NowNum:    int(jt.nowNum),
 		RunNum:    int(jt.runNum),
@@ -126,20 +126,12 @@ func (s *Scheduler) getRunTaskStat() []RunTaskStat {
 	runs := make([]RunTaskStat, 0, s.WorkerNum)
 
 	for t2 := range s.orders {
-		var mode string
-		if t2.Base.Mode&MODE_HTTP == MODE_HTTP {
-			mode = "HTTP"
-		} else {
-			mode = "CLI"
-		}
-
 		st := RunTaskStat{
 			Id:        t2.Id,
 			Group:     t2.g.Id,
-			Mode:      mode,
-			Name:      t2.Task.Name,
+			Name:      t2.job.Name,
 			Task:      t2.taskTxt,
-			StartTime: t2.StartTime.Unix(),
+			StartTime: t2.startTime.Unix(),
 		}
 		runs = append(runs, st)
 	}

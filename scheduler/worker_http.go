@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"time"
 )
 
@@ -21,19 +23,39 @@ type workerHttp struct {
 
 func (w *workerHttp) init() error {
 
-	var uri string
-
-	if w.order.Base.HttpBase != "" {
-		uri = w.order.Base.HttpBase + w.order.Task.Url
-	} else {
-		uri = w.order.Task.Url
-	}
-
-	var err error
-
-	u, err := url.Parse(uri)
+	u, err := url.Parse(w.order.Task.Url)
 	if err != nil {
 		return err
+	}
+
+	if w.order.base.HttpBase != "" {
+		u2, err := url.Parse(w.order.base.HttpBase)
+		if err == nil {
+			if u2.Scheme != "" {
+				u.Scheme = u2.Scheme
+			}
+			if u2.Host != "" {
+				u.Host = u2.Host
+			}
+
+			p := strings.TrimLeft(u2.Path, "/")
+
+			if p != "" {
+				u.Path = path.Join(p, u.Path)
+			}
+
+			if u2.RawQuery != "" {
+				src := u2.Query()
+				dst := u.Query()
+
+				for k, v := range src {
+					dst[k] = v
+				}
+
+				u.RawQuery = dst.Encode()
+			}
+		} else {
+		}
 	}
 
 	if u.Hostname() == "" {
@@ -42,7 +64,11 @@ func (w *workerHttp) init() error {
 
 	header := url.Values{}
 
-	for k, v := range w.order.Base.HttpHeader {
+	for k, v := range w.order.Task.Header {
+		header.Set(k, v)
+	}
+
+	for k, v := range w.order.base.HttpHeader {
 		header.Set(k, v)
 	}
 
@@ -70,13 +96,16 @@ func (w *workerHttp) init() error {
 			body = []byte(t)
 		}
 	} else if w.order.Task.Form != nil {
-
 		if method == "GET" {
-			q := u.Query()
+            q := url.Values{}
 
 			for k, v := range w.order.Task.Form {
-				q.Set(k, v)
+				q.Add(k, v)
 			}
+
+            for k, v := range u.Query() {
+                q[k] = v
+            }
 
 			u.RawQuery = q.Encode()
 		} else {
@@ -100,9 +129,9 @@ func (w *workerHttp) init() error {
 
 	timeout := w.order.Task.Timeout
 
-	if w.order.Base.Timeout > 0 {
-		if timeout < 1 || timeout > w.order.Base.Timeout {
-			timeout = w.order.Base.Timeout
+	if w.order.base.Timeout > 0 {
+		if timeout < 1 || timeout > w.order.base.Timeout {
+			timeout = w.order.base.Timeout
 		}
 	}
 	if timeout < 1 {
@@ -131,18 +160,18 @@ func (w *workerHttp) run() (status int, msg string) {
 
 	if err := w.init(); err != nil {
 		status = -1
-		w.order.Err = err
+		w.order.err = err
 		return
 	}
 
-    w.order.taskTxt = w.req.URL.String()
+	w.order.taskTxt = w.req.URL.String()
 
-    defer w.cancel()
+	defer w.cancel()
 
-    resp, err := w.order.job.s.Client.Do(w.req)
+	resp, err := w.order.job.s.Client.Do(w.req)
 	if err != nil {
 		status = -1
-		w.order.Err = err
+		w.order.err = err
 		return
 	}
 
@@ -155,10 +184,10 @@ func (w *workerHttp) run() (status int, msg string) {
 
 	if w.order.Task.Code == 0 {
 		if !(status >= 200 && status < 300) {
-            w.order.Err = ErrHttpStatus
+			w.order.err = ErrHttpStatus
 		}
 	} else if w.order.Task.Code != status {
-        w.order.Err = ErrHttpStatus
+		w.order.err = ErrHttpStatus
 	}
 
 	return

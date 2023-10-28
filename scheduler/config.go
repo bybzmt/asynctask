@@ -41,19 +41,15 @@ type Task struct {
 	Form   map[string]string `json:"form,omitempty"`
 	Body   json.RawMessage   `json:"body,omitempty"`
 
-	Name     string `json:"name,omitempty"`
 	Timer    uint   `json:"timer,omitempty"`
 	Timeout  uint   `json:"timeout,omitempty"`
 	Hold     string `json:"hold,omitempty"`
 	Code     int    `json:"code,omitempty"`
 	Retry    uint   `json:"retry,omitempty"`
 	RetrySec uint   `json:"retrySec,omitempty"`
-	Id       uint   `json:",omitempty"`
-	AddTime  uint   `json:",omitempty"`
 }
 
 type TaskBase struct {
-	Mode       Mode
 	Timeout    uint //最大超时时间
 	CmdBase    string
 	CmdEnv     map[string]string
@@ -71,17 +67,6 @@ func (b *TaskBase) init() {
 	}
 }
 
-type TaskConfig struct {
-	JobConfig
-	TaskBase
-	Id      ID
-	Match   string
-	Note    string
-	GroupId ID
-	Sort    int
-	Used    bool
-}
-
 type GroupConfig struct {
 	Id        ID
 	WorkerNum uint32
@@ -89,6 +74,10 @@ type GroupConfig struct {
 }
 
 type JobConfig struct {
+	TaskBase
+	Name     string
+	Note     string
+	GroupId  ID
 	Priority int32  //权重系数
 	Parallel uint32 //默认并发数
 }

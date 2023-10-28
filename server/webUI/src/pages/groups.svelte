@@ -13,28 +13,28 @@
     let isShow = false;
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/group/status")).then((t) => t.json());
+        let json = await fetch(mkUrl("api/groups")).then((t) => t.json());
 
         Groups = json.Data;
     }
 
-    function groupDel(row) {
+    async function groupDel(row) {
         var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
         if (ok) {
-            sendJson(mkUrl("api/group/del"), {
+            await sendJson(mkUrl("api/group/del"), {
                 gid: row.Id,
             });
 
-            showStatus();
+            await showStatus();
         }
     }
 
-    function groupAdd() {
+    async function groupAdd() {
         var ok = confirm(`Add Group?`);
         if (ok) {
-            sendJson(mkUrl("api/group/add"), {});
+            await sendJson(mkUrl("api/group/add"), {});
 
-            showStatus();
+            await showStatus();
         }
     }
 
@@ -44,11 +44,22 @@
     }
 
     async function save() {
-        await sendJson(mkUrl("api/group/setConfig"), editGroup);
+        let workerNum = parseInt(editGroup.WorkerNum)
+
+        if (isNaN(workerNum)) {
+            alert("workerNum need integer")
+            return
+        }
+
+        await sendJson(mkUrl("api/group/setConfig"), {
+            Id: editGroup.Id,
+            Note: editGroup.Note,
+            WorkerNum: workerNum,
+        });
 
         isShow = !isShow;
 
-        showStatus();
+        await showStatus();
     }
 </script>
 
@@ -81,7 +92,9 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="5" class="text-center p-4 border">empty</td>
+                        <td colspan="5" class="text-center px-2 py-1 border"
+                            >empty</td
+                        >
                     </tr>
                 {/each}
                 <tr>
@@ -101,12 +114,18 @@
             <label for="note">Note: </label>
             <input class="border" id="note" bind:value={editGroup.Note} />
             <label for="workerNum">WorkerNum: </label>
-            <input class="border" id="workerNum" bind:value={editGroup.WorkerNum} />
+            <input
+                class="border"
+                id="workerNum"
+                bind:value={editGroup.WorkerNum}
+            />
         </div>
         <div class="flex justify-center mt-2">
             <button class="mx-4" type="button" on:click={save}>确定</button>
-            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}
-                >取消</button
+            <button
+                class="mx-4"
+                type="button"
+                on:click={() => (isShow = !isShow)}>取消</button
             >
         </div>
     </div>

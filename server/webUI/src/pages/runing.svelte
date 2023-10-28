@@ -43,7 +43,7 @@
         Runs = json.Data;
     }
 
-    function taskCancel(task) {
+    async function taskCancel(task) {
         var ok = confirm(
             "Cancel Task?\r\nId: " +
                 task.Id +
@@ -53,7 +53,7 @@
                 task.Task
         );
         if (ok) {
-            sendJson(mkUrl("api/task/cancel"), {
+            await sendJson(mkUrl("api/task/cancel"), {
                 tid: task.Id,
             });
         }

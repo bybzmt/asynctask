@@ -3,8 +3,10 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -21,21 +23,28 @@ type workerCli struct {
 func (w *workerCli) init() error {
 
 	var cmd string
-    args := []string{}
+    args := w.order.Task.Args
 
-	if w.order.Base.CmdBase != "" {
-        cmd = w.order.Base.CmdBase
-        args = append(args, w.order.Task.Cmd)
-	} else {
-		cmd = w.order.Task.Cmd
+    str := strings.TrimSpace(w.order.Task.Cmd)
+
+	u, err := url.Parse(str)
+	if err != nil {
+		return err
 	}
 
-    args = append(args, w.order.Task.Args...)
+	path := strings.TrimLeft(u.Path, "/")
+
+	if w.order.base.CmdBase != "" {
+        cmd = w.order.base.CmdBase
+        args = append(args, path)
+	} else {
+		cmd = path
+	}
 
 	timeout := w.order.Task.Timeout
-	if w.order.Base.Timeout > 0 {
-		if timeout < 1 || timeout > w.order.Base.Timeout {
-			timeout = w.order.Base.Timeout
+	if w.order.base.Timeout > 0 {
+		if timeout < 1 || timeout > w.order.base.Timeout {
+			timeout = w.order.base.Timeout
 		}
 	}
 	if timeout < 1 {
@@ -46,14 +55,14 @@ func (w *workerCli) init() error {
     w.cancel = cancel
 
 	c := exec.CommandContext(ctx, cmd, args...)
-	c.Env = make([]string, 0, len(w.order.Base.CmdEnv))
+	c.Env = make([]string, 0, len(w.order.base.CmdEnv))
 
-	for k, v := range w.order.Base.CmdEnv {
+	for k, v := range w.order.base.CmdEnv {
 		c.Env = append(c.Env, k+"="+v)
 	}
 
-	if w.order.Base.CmdDir != "" {
-		c.Dir = w.order.Base.CmdDir
+	if w.order.base.CmdDir != "" {
+		c.Dir = w.order.base.CmdDir
 	} else {
 		c.Dir = os.TempDir()
 	}
@@ -66,7 +75,7 @@ func (w *workerCli) init() error {
 func (w *workerCli) run() (status int, msg string) {
 	if err := w.init(); err != nil {
 		status = -1
-		w.order.Err = err
+		w.order.err = err
 		return
 	}
 
@@ -87,7 +96,7 @@ func (w *workerCli) run() (status int, msg string) {
 		} else {
 			msg = string(out)
 		}
-		w.order.Err = err
+		w.order.err = err
 		return
 	}
 
@@ -95,7 +104,7 @@ func (w *workerCli) run() (status int, msg string) {
 	msg = string(out)
 
 	if status != w.order.Task.Code {
-		w.order.Err = ErrCmdStatus
+		w.order.err = ErrCmdStatus
 	}
 
 	return

@@ -13,8 +13,11 @@ export default {
         "/groups": {
             page: () => import('./pages/groups.svelte'),
         },
-        "/routes": {
+        "/router": {
             page: () => import('./pages/routes.svelte'),
+        },
+        "/rules": {
+            page: () => import('./pages/rules.svelte'),
         },
         "/cron": {
             page: () => import('./pages/cron.svelte'),
