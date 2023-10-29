@@ -79,6 +79,12 @@ func (o *order) Run() {
 
 				o.logFields["url"] = o.taskTxt
 				o.logFields["status"] = o.status
+
+				// if o.err != nil {
+				//     t := bytes.Buffer{}
+				//     w.req.Write(&t)
+				//     o.logFields["req"] = string(t.Bytes())
+				// }
 			}
 		}
 	} else if mode == MODE_CLI {
@@ -122,8 +128,12 @@ func (o *order) logTask() {
 	runTime := o.endTime.Sub(o.startTime).Seconds()
 
 	if o.err != nil {
-		o.logFields["name"] = o.job.Name
+		o.logFields["job"] = o.job.name
 		o.logFields["err"] = o.err
+
+		if o.Task.Retry > 0 {
+			o.logFields["retry"] = o.Task.Retry
+		}
 	}
 
 	o.logFields["cost"] = fmt.Sprintf("%.2fs", runTime)

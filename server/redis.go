@@ -75,7 +75,7 @@ func (s *Server) RedisRun(ctx context.Context) {
 			if err != nil {
 				s.Scheduler.Log.Warnln("redis data Unmarshal error:", err.Error(), data)
 			} else {
-				err := s.Scheduler.TaskAdd(&o)
+				err := s.Scheduler.TaskAdd(o)
 				if err != nil {
 					s.Scheduler.Log.Warnln("redis add Task Fail", data)
 				}

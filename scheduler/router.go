@@ -1,23 +1,18 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"regexp"
 	"sync"
 )
 
 type router struct {
-	routes []string
+	l sync.Mutex
 
-	l    sync.Mutex
-	exps []*regexp.Regexp
+	routes []string
+	exps   []*regexp.Regexp
 }
 
 func (r *router) init() {
-    if r.routes == nil {
-        r.routes = []string{}
-    }
-
 	for _, ex := range r.routes {
 		exp, err := regexp.Compile(ex)
 
@@ -57,23 +52,11 @@ func (r *router) Route(job string) string {
 	return ""
 }
 
-
 func (s *Scheduler) db_router_save(routes []string) error {
-	v, err := json.Marshal(routes)
-	if err != nil {
-		return err
-	}
-
-	return db_put(s.Db, v, "config", "router.cfg")
+	return db_put(s.Db, routes, "config", "router.cfg")
 }
 
-func (s *Scheduler) db_router_load() (out []string) {
-	v := db_get(s.Db, "config", "router.cfg")
-
-	err := json.Unmarshal(v, &out)
-	if err != nil {
-		return nil
-	}
-
+func (s *Scheduler) db_router_load() (out []string, err error) {
+	err = db_fetch(s.Db, &out, "config", "router.cfg")
 	return
 }

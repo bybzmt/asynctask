@@ -10,35 +10,42 @@
     });
 
     let Routes = [];
-    let Groups = {};
-    let GroupsKv = {};
+    let Groups = [];
     let editRoute = {};
     let isShow = false;
-    let addGroupId = 0;
 
     function get(id) {
-        return GroupsKv[id] || {};
+        for (let g of Groups) {
+            if (g.Id == id) {
+                return g;
+            }
+        }
+        return {};
+    }
+
+    async function loadGroups() {
+        let resp = await sendJson(mkUrl("api/group/list"));
+        Groups = resp.Data || [];
     }
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/groups")).then((t) => t.json());
+        await loadGroups();
 
-        let tmp = {};
-        json.Data.forEach((v) => (tmp[v.Id] = v));
-        GroupsKv = tmp;
-        Groups = json.Data;
-        addGroupId = Groups[0].Id;
+        let resp = await sendJson(mkUrl("api/rule/list"));
 
-        json = await fetch(mkUrl("api/rules")).then((t) => t.json());
+        let t = resp.Data || [];
 
-        Routes = json.Data;
+        t.sort((a, b) => (a.Sort < b.Sort ? -1 : 1));
+
+        Routes = t;
     }
 
     async function routeDel(row) {
-        var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
+        var ok = confirm(`Del?\r\nPattern:${row.Pattern} Note: ${row.Note}`);
         if (ok) {
             await sendJson(mkUrl("api/rule/del"), {
-                rid: row.Id,
+                Type: row.Type,
+                Pattern: row.Pattern,
             });
 
             await showStatus();
@@ -56,21 +63,11 @@
     }
 
     async function save() {
-        editRoute.Note = editRoute.Note.trim();
-        editRoute.Match = editRoute.Match.trim();
-        editRoute.CmdBase = editRoute.CmdBase.trim();
-        editRoute.CmdDir = editRoute.CmdDir.trim();
-        editRoute.HttpBase = editRoute.HttpBase.trim();
-
-        if (editRoute.Note == "") {
-            alert("Note不能为空");
-            return;
-        }
-
-        if (editRoute.GroupId == 0) {
-            alert("执行组不能为空");
-            return;
-        }
+        editRoute.Note = (editRoute.Note || "").trim();
+        editRoute.Match = (editRoute.Match || "").trim();
+        editRoute.CmdBase = (editRoute.CmdBase || "").trim();
+        editRoute.CmdDir = (editRoute.CmdDir || "").trim();
+        editRoute.HttpBase = (editRoute.HttpBase || "").trim();
 
         if (editRoute.CmdDir != "") {
             if (editRoute.CmdDir[0] != "/") {
@@ -79,7 +76,12 @@
             }
         }
 
-        await sendJson(mkUrl("api/rule/set"), editRoute);
+        let resp = await sendJson(mkUrl("api/rule/put"), editRoute);
+
+        if (resp.Code != 0) {
+            alert(JSON.stringify(resp));
+            return;
+        }
 
         isShow = !isShow;
 
@@ -92,9 +94,9 @@
         <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th class="px-2 py-1 border">ID</th>
                     <th class="px-2 py-1 border">备注</th>
-                    <th class="px-2 py-1 border">正则</th>
+                    <th class="px-2 py-1 border">类型</th>
+                    <th class="px-2 py-1 border">匹配</th>
                     <th class="px-2 py-1 border">执行组</th>
                     <th class="px-2 py-1 border">排序</th>
                     <th class="px-2 py-1 border">并发</th>
@@ -106,14 +108,24 @@
             <tbody>
                 {#each Routes as row}
                     <tr>
-                        <td class="px-2 py-1 border text-center">{row.Id}</td>
                         <td class="px-2 py-1 border">{row.Note}</td>
-                        <td class="px-2 py-1 border">{row.Match}</td>
-                        <td class="px-2 py-1 border">{row.GroupId}: {get(row.GroupId).Note}</td>
+                        <td class="px-2 py-1 border"
+                            >{row.Type == 1 ? "regexp" : "direct"}</td
+                        >
+                        <td class="px-2 py-1 border">{row.Pattern}</td>
+                        <td class="px-2 py-1 border"
+                            >{row.GroupId}: {get(row.GroupId).Note}</td
+                        >
                         <td class="px-2 py-1 border text-center">{row.Sort}</td>
-                        <td class="px-2 py-1 border text-center">{row.Parallel}</td>
-                        <td class="px-2 py-1 border text-center">{row.Timeout}</td>
-                        <td class="px-2 py-1 border">{row.Used ? "Enable" : "Disable"}</td>
+                        <td class="px-2 py-1 border text-center"
+                            >{row.Parallel}</td
+                        >
+                        <td class="px-2 py-1 border text-center"
+                            >{row.Timeout}</td
+                        >
+                        <td class="px-2 py-1 border"
+                            >{row.Used ? "Enable" : "Disable"}</td
+                        >
                         <td class="px-2 py-1 border"
                             ><button on:click={() => routeEdit(row)}
                                 >编辑</button
@@ -126,7 +138,9 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="11" class="px-2 py-1 border text-center">empty</td>
+                        <td colspan="11" class="px-2 py-1 border text-center"
+                            >empty</td
+                        >
                     </tr>
                 {/each}
                 <tr>
@@ -146,11 +160,30 @@
             <label for="note">Note: </label>
             <input class="border" id="note" bind:value={editRoute.Note} />
 
-            <label for="match">Match: </label>
-            <input class="border" id="match" bind:value={editRoute.Match} />
+            <span>Type: </span>
+            <div>
+                <label>
+                    <input type="radio" value={0} bind:group={editRoute.Type} />
+                    direct</label
+                >
+                <label>
+                    <input type="radio" value={1} bind:group={editRoute.Type} />
+                    regexp</label
+                >
+            </div>
 
-            <label for="sort">Sort: </label>
-            <input class="border" type="number" id="sort" bind:value={editRoute.Sort} />
+            <label for="match">Pattern: </label>
+            <input class="border" id="match" bind:value={editRoute.Pattern} />
+
+            {#if editRoute.Type == 1}
+                <label for="sort">Sort: </label>
+                <input
+                    class="border"
+                    type="number"
+                    id="sort"
+                    bind:value={editRoute.Sort}
+                />
+            {/if}
 
             <label for="groups">执行组: </label>
             <select class="border" bind:value={editRoute.GroupId}>
@@ -160,40 +193,65 @@
             </select>
 
             <label for="Priority">权重系数: </label>
-            <input class="border"
+            <input
+                class="border"
                 type="number"
                 id="Priority"
                 bind:value={editRoute.Priority}
             />
 
             <label for="Parallel">默认并发数: </label>
-            <input class="border"
+            <input
+                class="border"
                 type="number"
                 id="Parallel"
                 bind:value={editRoute.Parallel}
             />
 
             <label for="Timeout">最大执行时间: </label>
-            <input class="border" type="number" id="Timeout" bind:value={editRoute.Timeout} />
+            <input
+                class="border"
+                type="number"
+                id="Timeout"
+                bind:value={editRoute.Timeout}
+            />
 
-            <label for="Mode">模式: </label>
-            <select class="border" id="Mode" bind:value={editRoute.Mode}>
-                <option value={1}>HTTP</option>
-                <option value={2}>Cli</option>
-            </select>
+            <span>模式: </span>
+            <div>
+                <label>
+                    <input type="radio" value={1} bind:group={editRoute.Mode} />
+                    HTTP</label
+                >
+                <label>
+                    <input type="radio" value={2} bind:group={editRoute.Mode} />
+                    CLI</label
+                >
+            </div>
 
             {#if editRoute.Mode == 2}
                 <label for="CmdBase">CmdBase: </label>
-                <input class="border" id="CmdBase" bind:value={editRoute.CmdBase} />
+                <input
+                    class="border"
+                    id="CmdBase"
+                    bind:value={editRoute.CmdBase}
+                />
 
                 <label for="CmdDir">CmdDir: </label>
-                <input class="border" id="CmdDir" bind:value={editRoute.CmdDir} />
+                <input
+                    class="border"
+                    id="CmdDir"
+                    bind:value={editRoute.CmdDir}
+                />
 
                 <label for="CmdEnv">CmdEnv: </label>
                 <InputKV bind:kv={editRoute.CmdEnv} />
             {:else}
                 <label for="HttpBase">HttpBase: </label>
-                <input class="border" id="HttpBase" bind:value={editRoute.HttpBase} />
+                <input
+                    class="border"
+                    id="HttpBase"
+                    bind:value={editRoute.HttpBase}
+                />
 
                 <label for="HttpHeader">Header: </label>
                 <InputKV bind:kv={editRoute.HttpHeader} />
@@ -223,8 +281,10 @@
         </div>
         <div class="text-center mt-2">
             <button class="mx-4" type="button" on:click={save}>确定</button>
-            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}
-                >取消</button
+            <button
+                class="mx-4"
+                type="button"
+                on:click={() => (isShow = !isShow)}>取消</button
             >
         </div>
     </div>

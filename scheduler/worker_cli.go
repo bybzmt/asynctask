@@ -3,43 +3,35 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"net/url"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 )
 
 var ErrCmdStatus = errors.New("Code != 200")
 
 type workerCli struct {
-    order *order
-    cmd *exec.Cmd
+	order *order
+	cmd   *exec.Cmd
 
-    cancel context.CancelFunc
+	cancel context.CancelFunc
 }
-
 
 func (w *workerCli) init() error {
 
 	var cmd string
-    args := w.order.Task.Args
+	args := w.order.base.CmdArgs
 
-    str := strings.TrimSpace(w.order.Task.Cmd)
+	path := w.order.Task.Cmd
 
-	u, err := url.Parse(str)
-	if err != nil {
-		return err
-	}
-
-	path := strings.TrimLeft(u.Path, "/")
-
-	if w.order.base.CmdBase != "" {
-        cmd = w.order.base.CmdBase
-        args = append(args, path)
+	if w.order.base.CmdPath != "" {
+		cmd = w.order.base.CmdPath
+		args = append(args, path)
 	} else {
 		cmd = path
 	}
+
+	args = append(args, w.order.Task.Args...)
 
 	timeout := w.order.Task.Timeout
 	if w.order.base.Timeout > 0 {
@@ -52,7 +44,7 @@ func (w *workerCli) init() error {
 	}
 
 	ctx, cancel := context.WithTimeout(w.order.ctx, time.Duration(timeout)*time.Second)
-    w.cancel = cancel
+	w.cancel = cancel
 
 	c := exec.CommandContext(ctx, cmd, args...)
 	c.Env = make([]string, 0, len(w.order.base.CmdEnv))
@@ -67,9 +59,9 @@ func (w *workerCli) init() error {
 		c.Dir = os.TempDir()
 	}
 
-    w.cmd = c
+	w.cmd = c
 
-    return nil
+	return nil
 }
 
 func (w *workerCli) run() (status int, msg string) {
@@ -79,9 +71,9 @@ func (w *workerCli) run() (status int, msg string) {
 		return
 	}
 
-    w.order.taskTxt = w.cmd.String()
+	w.order.taskTxt = w.cmd.String()
 
-    defer w.cancel()
+	defer w.cancel()
 
 	out, err := w.cmd.CombinedOutput()
 	if err != nil {

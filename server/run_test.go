@@ -136,7 +136,7 @@ func addTask(hub *Server, num int, taskadd chan int) {
 		}
 
 		if ts_getRand()%7 == 0 {
-			task.Cmd = "cli://test/echo"
+			task.Cmd = "echo"
 			task.Args = []string{"1"}
 
 			taskadd <- 1
@@ -166,7 +166,7 @@ func addTask(hub *Server, num int, taskadd chan int) {
 			taskadd <- 2
 		}
 
-		err := hub.Scheduler.TaskAdd(&task)
+		err := hub.Scheduler.TaskAdd(task)
 		if err != nil {
 			panic(err)
 		}
@@ -250,14 +250,10 @@ func initServer(hub *Server, to string) {
 		panic(err)
 	}
 
-	gc, err := hub.Scheduler.AddGroup()
-	if err != nil {
-		panic(err)
-	}
-
-	gc.Note = "test_group2"
-
-	err = hub.Scheduler.SetGroupConfig(gc)
+	err = hub.Scheduler.GroupAdd(scheduler.GroupConfig{
+		Note: "test_group2",
+        WorkerNum: 10,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -273,31 +269,31 @@ func initServer(hub *Server, to string) {
 	}
 
 	r := scheduler.Rule{
-		Match: "^http://",
-		Id:    1,
-		Sort:  1,
-		Used:  true,
+		Pattern: "^http://",
+		Type:    1,
+		Sort:    1,
+		Used:    true,
 	}
 	r.GroupId = 1
 	r.Parallel = 1
 	r.HttpBase = to
 
-	err = hub.Scheduler.RuleAdd(r)
+	err = hub.Scheduler.RulePut(r)
 	if err != nil {
 		panic(err)
 	}
 
 	r = scheduler.Rule{
-		Match: "^http://slow",
-		Id:    2,
-		Used:  true,
-		Sort:  2,
+		Pattern: "^http://slow",
+		Type:    1,
+		Used:    true,
+		Sort:    2,
 	}
 	r.GroupId = 1
 	r.Parallel = 5
 	r.HttpBase = to
 
-	err = hub.Scheduler.RuleAdd(r)
+	err = hub.Scheduler.RulePut(r)
 	if err != nil {
 		panic(err)
 	}

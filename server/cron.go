@@ -49,7 +49,7 @@ func (s *Server) CronRun(ctx context.Context) {
 		for _, j := range cfg.Tasks {
 			c.AddFunc(j.Cfg, func(t scheduler.Task) func() {
 				return func() {
-					err := s.Scheduler.TaskAdd(&t)
+					err := s.Scheduler.TaskAdd(t)
 					if err != nil {
 						s.Scheduler.Log.Errorln("Cron AddTask", err)
 					}

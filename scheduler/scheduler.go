@@ -28,9 +28,9 @@ type Scheduler struct {
 
 	jobs map[string]*job
 
-	groups     map[ID]*group
-	router     router
-	rules []Rule
+	groups map[ID]*group
+	router router
+	rules  []Rule
 
 	orders   map[*order]struct{}
 	complete chan *order
@@ -94,20 +94,19 @@ func (s *Scheduler) Init() error {
 func (s *Scheduler) init() error {
 	s.loadScheduler()
 
-    s.router.routes = s.db_router_load()
+	var err error
+	s.router.routes, err = s.db_router_load()
+	if err != nil {
+		return err
+	}
+
 	s.router.init()
 
 	if err := s.loadGroups(); err != nil {
 		return err
 	}
 
-	if len(s.groups) < 1 {
-		if err := s.addDefaultGroup(); err != nil {
-			return err
-		}
-	}
-
-	if err := s.load_rules(); err != nil {
+	if err := s.rulesReload(); err != nil {
 		return err
 	}
 
@@ -391,10 +390,11 @@ func (s *Scheduler) loadGroups() error {
 }
 
 func (s *Scheduler) addTask(t *order) error {
+	j, ok := s.jobs[t.Job]
 
-	j, err := s.getJob(t)
-	if err != nil {
-		return err
+	if !ok {
+		j = s.newJob(t.Job)
+		s.jobs[t.Job] = j
 	}
 
 	return j.addTask(t)
@@ -406,7 +406,7 @@ func (s *Scheduler) getGroup(id ID) *group {
 		return g
 	}
 
-    s.Log.Warnf("group id:%d not found\n", id)
+	s.Log.Warnf("group id:%d not found\n", id)
 
 	g, ok = s.groups[1]
 	if ok {
@@ -415,6 +415,9 @@ func (s *Scheduler) getGroup(id ID) *group {
 
 	g = new(group)
 	g.Id = 1
+	g.s = s
+	g.Note = "Default"
+    g.WorkerNum = s.WorkerNum
 	g.init()
 
 	s.db_group_save(g)
@@ -422,15 +425,4 @@ func (s *Scheduler) getGroup(id ID) *group {
 	s.groups[1] = g
 
 	return g
-}
-
-func (s *Scheduler) addDefaultGroup() error {
-	g, err := s.addGroup()
-	if err != nil {
-		return err
-	}
-
-	g.Note = "Default"
-
-	return s.db_group_save(g)
 }

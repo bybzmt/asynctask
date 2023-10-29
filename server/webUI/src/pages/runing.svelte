@@ -21,9 +21,9 @@
     let Runs = [];
 
     async function getGroups() {
-        let json = await sendJson(mkUrl("api/group/status"));
+        let json = await sendJson(mkUrl("api/group/list"));
 
-        Groups = json.Data;
+        Groups = json.Data || [];
     }
 
     function getGroup(gid) {
@@ -72,7 +72,6 @@
                     <th class="px-2 py-1 border">ID</th>
                     <th class="px-2 py-1 border">工作组</th>
                     <th class="px-2 py-1 border">任务组</th>
-                    <th class="px-2 py-1 border">模式</th>
                     <th class="px-2 py-1 border">任务</th>
                     <th class="px-2 py-1 border">用时</th>
                     <th class="px-2 py-1 border" />
@@ -86,7 +85,6 @@
                             >{task.Group} ({getGroup(task.Group).Note})</td
                         >
                         <td class="px-2 py-1 border">{task.Name}</td>
-                        <td class="px-2 py-1 border">{task.Mode}</td>
                         <td class="px-2 py-1 border">{task.Task}</td>
                         <td class="px-2 py-1 border">{useTime(task)}s</td>
                         <td class="px-2 py-1 border">

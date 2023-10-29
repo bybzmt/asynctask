@@ -13,9 +13,9 @@
     let isShow = false;
 
     async function showStatus() {
-        let json = await fetch(mkUrl("api/groups")).then((t) => t.json());
+        let json = await fetch(mkUrl("api/group/list")).then((t) => t.json());
 
-        Groups = json.Data;
+        Groups = json.Data || [];
     }
 
     async function groupDel(row) {

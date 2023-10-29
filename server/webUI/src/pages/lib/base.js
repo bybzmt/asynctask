@@ -74,23 +74,13 @@ export async function sendJson(url, data) {
     let he = new Headers();
     he.append("Content-Type", "application/json; charset=utf-8");
 
-    return await fetch(url, {
+    let resp = await fetch(url, {
         method: "POST",
         headers: he,
         body: JSON.stringify(data),
     })
-        .then((t) => t.json());
-}
 
-export function taskCancel(task) {
-    var ok = confirm(
-        "Cancel Task?\r\nId: " + task.Id + " Name: " + task.Name + " " + task.Task
-    );
-    if (ok) {
-        sendJson(mkUrl("api/task/cancel"), {
-            tid: task.Id,
-        });
-    }
+    return resp.json()
 }
 
 let timezoneOffset = new Date().getTimezoneOffset() * 60;

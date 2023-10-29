@@ -3,6 +3,7 @@ package scheduler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
@@ -51,7 +52,8 @@ type Task struct {
 
 type TaskBase struct {
 	Timeout    uint //最大超时时间
-	CmdBase    string
+	CmdPath    string
+	CmdArgs    []string
 	CmdEnv     map[string]string
 	CmdDir     string //工作目录
 	HttpBase   string
@@ -67,6 +69,24 @@ func (b *TaskBase) init() {
 	}
 }
 
+func (b *TaskBase) empty() bool {
+	b.CmdPath = strings.TrimSpace(b.CmdPath)
+	b.CmdDir = strings.TrimSpace(b.CmdDir)
+	b.HttpBase = strings.TrimSpace(b.HttpBase)
+
+	if b.Timeout != 0 ||
+		b.CmdPath == "" ||
+		len(b.CmdArgs) != 0 ||
+		len(b.CmdEnv) != 0 ||
+		b.CmdDir == "" ||
+		b.HttpBase == "" ||
+		len(b.HttpHeader) != 0 {
+		return false
+	}
+
+	return true
+}
+
 type GroupConfig struct {
 	Id        ID
 	WorkerNum uint32
@@ -75,8 +95,6 @@ type GroupConfig struct {
 
 type JobConfig struct {
 	TaskBase
-	Name     string
-	Note     string
 	GroupId  ID
 	Priority int32  //权重系数
 	Parallel uint32 //默认并发数

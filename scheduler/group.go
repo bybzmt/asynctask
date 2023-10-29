@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -245,4 +246,69 @@ func (g *group) priority(j *job) {
 	}
 
 	jobMoveBefore(j, x)
+}
+
+
+func (s *Scheduler) GroupAdd(c GroupConfig) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	g, err := s.addGroup()
+	if err != nil {
+		return err
+	}
+
+    c.Id = g.Id
+    g.GroupConfig = c
+
+	return s.db_group_save(g)
+}
+
+func (s *Scheduler) Groups() (out []GroupConfig) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	for _, g := range s.groups {
+		out = append(out, g.GroupConfig)
+	}
+
+	return
+}
+
+func (s *Scheduler) GroupConfig(cfg GroupConfig) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	g, ok := s.groups[cfg.Id]
+	if !ok {
+		return NotFound
+	}
+
+	g.GroupConfig = cfg
+
+	return s.db_group_save(g)
+}
+
+func (s *Scheduler) GroupDel(gid ID) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	g, ok := s.groups[gid]
+	if !ok {
+		return NotFound
+	}
+
+	if g.Id == 1 {
+		return errors.New("Group Id:1 Can not Del")
+	}
+
+	g.cancel()
+	delete(s.groups, gid)
+
+	return nil
+}
+
+func (s *Scheduler) db_group_save(g *group) error {
+	//key: config/group/:id
+	return db_put(s.Db, &g.GroupConfig, "config", "group", fmtId(g.Id))
 }

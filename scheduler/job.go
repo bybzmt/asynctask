@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -17,6 +16,7 @@ const (
 
 type job struct {
 	JobConfig
+	name string
 
 	cfgMode int
 
@@ -50,13 +50,8 @@ func (j *job) init() error {
 }
 
 func (j *job) addTask(t *order) error {
-	val, err := json.Marshal(t)
-	if err != nil {
-		return err
-	}
-
 	//key: task/:jname
-	err = db_push(j.s.Db, val, "task", j.Name)
+	err := db_push(j.s.Db, t, "task", j.name)
 	if err != nil {
 		return err
 	}
@@ -78,7 +73,7 @@ func (j *job) delTask(tid ID) error {
 
 	//key: task/:jname
 	err := j.s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "task", j.Name)
+		bucket, err := getBucketMust(tx, "task", j.name)
 		if err != nil {
 			return err
 		}
@@ -109,29 +104,9 @@ func (j *job) delTask(tid ID) error {
 func (j *job) popTask() (*order, error) {
 	t := new(order)
 
-	for {
-		//key: task/:jname
-		key, val := db_first(j.s.Db, "task", j.Name)
-
-		if key == nil {
-			return nil, Empty
-		}
-
-		err := db_del(j.s.Db, "task", j.Name, string(key))
-		if err != nil {
-			return nil, err
-		}
-
-        if val != nil {
-            err = json.Unmarshal(val, &t)
-            if err != nil {
-                j.s.Log.Warnln("task", j.Name, string(key), "Unmarshal error")
-
-                continue
-            }
-        }
-
-		break
+	err := db_pop(j.s.Db, &t, "task", j.name)
+	if err != nil {
+		return nil, err
 	}
 
 	t.base = j.TaskBase
@@ -155,7 +130,7 @@ func (j *job) end(now time.Time, loadTime, useTime time.Duration) {
 
 func (j *job) removeBucket() error {
 	//key: task/:jname
-	return db_bucket_del(j.s.Db, "task", j.Name)
+	return db_bucket_del(j.s.Db, "task", j.name)
 }
 
 func (j *job) delAllTask() error {
@@ -174,7 +149,7 @@ func (j *job) delAllTask() error {
 func (j *job) loadWaitNum() error {
 	//key: task/:jname
 	err := j.s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "task", j.Name)
+		bucket := getBucket(tx, "task", j.name)
 		if bucket == nil {
 			j.waitNum = 0
 			return nil

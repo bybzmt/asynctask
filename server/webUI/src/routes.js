@@ -4,9 +4,6 @@ export default {
         "/": {
             page: () => import('./pages/index.svelte'),
         },
-        "/jobs": {
-            page: () => import('./pages/jobs.svelte'),
-        },
         "/runing": {
             page: () => import('./pages/runing.svelte'),
         },
@@ -14,7 +11,7 @@ export default {
             page: () => import('./pages/groups.svelte'),
         },
         "/router": {
-            page: () => import('./pages/routes.svelte'),
+            page: () => import('./pages/router.svelte'),
         },
         "/rules": {
             page: () => import('./pages/rules.svelte'),

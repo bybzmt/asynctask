@@ -23,8 +23,6 @@ func (s *Server) initHttp() {
 	tfs, _ := fs.Sub(uifiles, "dist")
 	h.Handle("/", http.FileServer(http.FS(tfs)))
 
-	h.HandleFunc("/api/group/status", page_error(s.page_groups_status))
-
 	h.HandleFunc("/api/task/status", page_error(s.page_status))
 	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
@@ -37,17 +35,11 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/router/get", page_error(s.page_route_getconfig))
 	h.HandleFunc("/api/router/set", page_error(s.page_route_config))
 
-	h.HandleFunc("/api/jobs", page_error(s.page_job_config))
-	h.HandleFunc("/api/job/add", page_error(s.page_job_config))
-	h.HandleFunc("/api/job/set", page_error(s.page_job_config))
-	h.HandleFunc("/api/job/del", page_error(s.page_job_config))
-
-	h.HandleFunc("/api/rules", page_error(s.page_rules))
-	h.HandleFunc("/api/rule/add", page_error(s.page_rule_add))
-	h.HandleFunc("/api/rule/set", page_error(s.page_rule_set))
+	h.HandleFunc("/api/rule/list", page_error(s.page_rules))
+	h.HandleFunc("/api/rule/put", page_error(s.page_rule_put))
 	h.HandleFunc("/api/rule/del", page_error(s.page_rule_del))
 
-	h.HandleFunc("/api/groups", page_error(s.page_groups))
+	h.HandleFunc("/api/group/list", page_error(s.page_groups))
 	h.HandleFunc("/api/group/add", page_error(s.page_group_add))
 	h.HandleFunc("/api/group/del", page_error(s.page_group_del))
 	h.HandleFunc("/api/group/set", page_error(s.page_group_config))
@@ -74,7 +66,7 @@ func (s *Server) page_task_add(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.TaskAdd(&o)
+	return s.Scheduler.TaskAdd(o)
 }
 
 func (s *Server) page_job_empty(r *http.Request) any {
@@ -101,37 +93,19 @@ func (s *Server) page_job_delIdle(r *http.Request) any {
 	return s.Scheduler.JobDelIdle(t.Name)
 }
 
-func (s *Server) page_job_config(r *http.Request) any {
-	var cfg scheduler.JobConfig
-
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
-
-	return s.Scheduler.SetJobConfig(&cfg)
-}
-
-func (s *Server) page_groups_status(r *http.Request) any {
-	return s.Scheduler.GetGroupStat()
-}
-
 func (s *Server) page_groups(r *http.Request) any {
 	return s.Scheduler.Groups()
 }
 
 func (s *Server) page_group_add(r *http.Request) any {
 
-	var t struct{}
+	var c scheduler.GroupConfig
 
-	if err := httpReadJson(r, &t); err != nil {
+	if err := httpReadJson(r, &c); err != nil {
 		return err
 	}
 
-	cfg, err := s.Scheduler.AddGroup()
-	if err != nil {
-		return err
-	}
-	return cfg
+	return s.Scheduler.GroupAdd(c)
 }
 
 func (s *Server) page_group_del(r *http.Request) any {
@@ -143,7 +117,7 @@ func (s *Server) page_group_del(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.DelGroup(cfg.gid)
+	return s.Scheduler.GroupDel(cfg.gid)
 }
 
 func (s *Server) page_group_config(r *http.Request) any {
@@ -154,7 +128,7 @@ func (s *Server) page_group_config(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.SetGroupConfig(cfg)
+	return s.Scheduler.GroupConfig(cfg)
 }
 
 func (s *Server) page_route_config(r *http.Request) any {
@@ -212,36 +186,27 @@ func (s *Server) page_rules(r *http.Request) any {
 	return s.Scheduler.Rules()
 }
 
-func (s *Server) page_rule_add(r *http.Request) any {
+func (s *Server) page_rule_put(r *http.Request) any {
 	var t scheduler.Rule
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.RuleAdd(t)
-}
-
-func (s *Server) page_rule_set(r *http.Request) any {
-	var t scheduler.Rule
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.RuleSet(t)
+	return s.Scheduler.RulePut(t)
 }
 
 func (s *Server) page_rule_del(r *http.Request) any {
 	var t struct {
-        Id scheduler.ID
-    }
+		Type    scheduler.RuleType
+		Pattern string
+	}
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.RuleDel(t.Id)
+	return s.Scheduler.RuleDel(t.Type, t.Pattern)
 }
 
 func httpReadJson(r *http.Request, out any) error {

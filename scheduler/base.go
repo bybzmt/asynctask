@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -60,24 +61,29 @@ func db_keys(keys []string) (buckets []string, key string) {
 	return
 }
 
-func db_get(db *bolt.DB, key ...string) (out []byte) {
+func db_fetch(db *bolt.DB, v any, key ...string) error {
 	buckets, k := db_keys(key)
 
-	db.Update(func(tx *bolt.Tx) error {
+	return db.Update(func(tx *bolt.Tx) error {
 		b := getBucket(tx, buckets...)
 		if b == nil {
 			return nil
 		}
 
-		out = b.Get([]byte(k))
-
+        out := b.Get([]byte(k))
+        if out != nil {
+            return json.Unmarshal(out, v)
+        }
 		return nil
 	})
-
-	return
 }
 
-func db_put(db *bolt.DB, val []byte, key ...string) error {
+func db_put(db *bolt.DB, val any, key ...string) error {
+	v, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+
 	buckets, k := db_keys(key)
 
 	return db.Update(func(tx *bolt.Tx) error {
@@ -86,11 +92,16 @@ func db_put(db *bolt.DB, val []byte, key ...string) error {
 			return err
 		}
 
-		return b.Put([]byte(k), val)
+		return b.Put([]byte(k), v)
 	})
 }
 
-func db_push(db *bolt.DB, val []byte, bucket ...string) error {
+func db_push(db *bolt.DB, t any, bucket ...string) error {
+	val, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+
 	return db.Update(func(tx *bolt.Tx) error {
 		b, err := getBucketMust(tx, bucket...)
 		if err != nil {
@@ -119,46 +130,24 @@ func db_del(db *bolt.DB, key ...string) error {
 	})
 }
 
-func db_first(db *bolt.DB, bucket ...string) (key, val []byte) {
-	db.Update(func(tx *bolt.Tx) error {
+func db_pop(db *bolt.DB, out any, bucket ...string) error {
+	return db.Update(func(tx *bolt.Tx) error {
 		b := getBucket(tx, bucket...)
 		if b == nil {
 			return nil
 		}
 
-		key, val = b.Cursor().First()
+		key, val := b.Cursor().First()
 
-		return nil
-	})
-
-	return
-}
-
-func db_firstn(db *bolt.DB, num int, bucket ...string) (keys, vals [][]byte) {
-	db.Update(func(tx *bolt.Tx) error {
-		b := getBucket(tx, bucket...)
-		if b == nil {
-			return nil
+		if key == nil {
+			return Empty
 		}
 
-		c := b.Cursor()
-
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			keys = append(keys, k)
-			vals = append(vals, v)
-
-			if len(keys) >= num {
-				return nil
-			}
-		}
-
-		return nil
+		return json.Unmarshal(val, &out)
 	})
-
-	return
 }
 
-func db_get_buckets(db *bolt.DB, bucket ...string) (buckets [][]byte) {
+func db_get_buckets(db *bolt.DB, bucket ...string) (buckets []string) {
 	db.Update(func(tx *bolt.Tx) error {
 		b := getBucket(tx, bucket...)
 		if b == nil {
@@ -166,7 +155,7 @@ func db_get_buckets(db *bolt.DB, bucket ...string) (buckets [][]byte) {
 		}
 
 		b.ForEachBucket(func(k []byte) error {
-			buckets = append(buckets, k)
+			buckets = append(buckets, string(k))
 			return nil
 		})
 
@@ -189,23 +178,17 @@ func db_bucket_del(db *bolt.DB, bucket ...string) error {
 	})
 }
 
-func db_getall(db *bolt.DB, bucket ...string) (keys, vals [][]byte) {
-	db.Update(func(tx *bolt.Tx) error {
+func db_getall(db *bolt.DB, fn func(k, v []byte) error, bucket ...string) error {
+	return db.Update(func(tx *bolt.Tx) error {
 		b := getBucket(tx, bucket...)
 		if b == nil {
 			return nil
 		}
 
-		b.ForEach(func(k, v []byte) error {
-			keys = append(keys, k)
-			vals = append(vals, v)
-			return nil
-		})
+		b.ForEach(fn)
 
 		return nil
 	})
-
-	return
 }
 
 func fmtId(id any) string {

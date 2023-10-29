@@ -1,7 +1,5 @@
 <script>
     import Layout from "./lib/layout.svelte";
-    import Dialog from "./lib/dialog.svelte";
-    import InputKV from "./lib/inputkv.svelte";
     import { onMount } from "svelte";
     import { sendJson, mkUrl } from "./lib/base";
 
@@ -14,7 +12,7 @@
     async function showStatus() {
         let json = await sendJson(mkUrl("api/router/get"));
 
-        router = json.Data.join("\n");
+        router = (json.Data || []).join("\n");
     }
 
     async function save() {
@@ -41,7 +39,7 @@
         alert(JSON.stringify(resp));
 
         if (resp.Code == 0) {
-            await showStatus()
+            await showStatus();
         }
     }
 </script>

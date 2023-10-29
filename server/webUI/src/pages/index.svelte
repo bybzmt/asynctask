@@ -110,6 +110,26 @@
             (j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")
         );
     }
+
+    async function jobEmpty(job) {
+        var ok = confirm("Empty Job?\r\nName: " + job.Name);
+        if (ok) {
+            await sendJson(mkUrl("api/task/empty"), {
+                name: job.Name,
+            });
+            await showStatus();
+        }
+    }
+
+    async function jobDelIdle(job) {
+        var ok = confirm("Del Idle Job?\r\nName: " + job.Name);
+        if (ok) {
+            await sendJson(mkUrl("api/task/delIdle"), {
+                name: job.Name,
+            });
+            await showStatus();
+        }
+    }
 </script>
 
 <Layout tab="2">
@@ -193,6 +213,8 @@
                     {/each}
                     <th class="px-2 py-1 border">上次</th>
                     <th class="px-2 py-1 border">报错</th>
+
+                    <th colspan="2" class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
@@ -218,10 +240,25 @@
                             >{beforSecond(j.LastTime)}</td
                         >
                         <td class="px-2 py-1 border">{j.ErrNum}</td>
+
+                        {#if tab == 4}
+                            <td class="px-2 py-1 border"
+                                ><button on:click={() => jobEmpty(j)}
+                                    >Empty</button
+                                ></td
+                            >
+                            <td class="px-2 py-1 border"
+                                ><button on:click={() => jobDelIdle(j)}
+                                    >Del Stat</button
+                                ></td
+                            >
+                        {:else}
+                            <td colspan="2" class="px-2 py-1 border" />
+                        {/if}
                     </tr>
                 {:else}
                     <tr
-                        ><td colspan="12" class="px-2 py-1 border text-center"
+                        ><td colspan="13" class="px-2 py-1 border text-center"
                             >empty</td
                         >
                     </tr>

@@ -17,6 +17,7 @@
         let json = await sendJson(mkUrl("api/cron/getConfig"));
 
         cron = json.Data;
+        cron.Tasks = cron.Tasks || [];
     }
 
     async function reload() {
@@ -141,7 +142,9 @@
 </script>
 
 <Layout tab="5">
-    <div class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm">
+    <div
+        class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm"
+    >
         <span>Edit:</span>
         <span>{timeStr(cron.EditAt)}</span>
         <span class="col-start-1">Run :</span>
@@ -233,8 +236,10 @@
         </div>
         <div class="text-center mt-2">
             <button class="mx-4" type="button" on:click={save}>确定</button>
-            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}
-                >取消</button
+            <button
+                class="mx-4"
+                type="button"
+                on:click={() => (isShow = !isShow)}>取消</button
             >
         </div>
     </div>
