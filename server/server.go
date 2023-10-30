@@ -3,13 +3,9 @@ package server
 import (
 	"asynctask/scheduler"
 	"context"
-	"errors"
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 	_ "time/tzdata"
 )
@@ -18,58 +14,9 @@ type Server struct {
 	Scheduler  scheduler.Scheduler
 	Http       http.Server
 	Redis      RedisConfig
-	LogFile    string
-	LogLevel   string
 	DbFile     string
 	HttpEnable bool
 	cronCmd    chan cron_cmd
-}
-
-func (s *Server) initLog() error {
-	if s.Scheduler.Log == nil {
-
-		var l *logrus.Logger
-
-		if s.LogFile == "" {
-			l = logrus.StandardLogger()
-		} else {
-			l = logrus.New()
-
-			writer, err := rotatelogs.New(
-				s.LogFile,
-				rotatelogs.WithRotationTime(24*time.Hour),
-				rotatelogs.WithMaxAge(45*24*time.Hour),
-			)
-			if err != nil {
-				return err
-			}
-			l.SetOutput(writer)
-		}
-
-		switch strings.ToLower(s.LogLevel) {
-		case "error":
-			l.SetLevel(logrus.ErrorLevel)
-		case "warn":
-			l.SetLevel(logrus.WarnLevel)
-		case "":
-			fallthrough
-		case "info":
-			l.SetLevel(logrus.InfoLevel)
-		case "debug":
-			l.SetLevel(logrus.DebugLevel)
-		default:
-			return errors.New("Unkown LogLevel")
-		}
-
-		l.SetFormatter(&logrus.TextFormatter{
-			DisableColors: true,
-			FullTimestamp: true,
-		})
-
-		s.Scheduler.Log = l
-	}
-
-	return nil
 }
 
 func (s *Server) initDb() error {
@@ -85,10 +32,6 @@ func (s *Server) initDb() error {
 }
 
 func (s *Server) Init() error {
-
-	if err := s.initLog(); err != nil {
-		return err
-	}
 
 	if err := s.initDb(); err != nil {
 		return err

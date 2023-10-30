@@ -54,7 +54,7 @@
         );
         if (ok) {
             await sendJson(mkUrl("api/task/cancel"), {
-                tid: task.Id,
+                Id: task.Id,
             });
         }
     }

@@ -1,13 +1,15 @@
 
 .PHONY: go js-init ui all
 
+
+
 all: js-init go
 
 go: ui
-	go build
+	CGO_ENABLED=0 go build
 
 js-init:
-	cd ./tool/webUI && npm i
+	cd ./server/webUI && npm i
 
 ui:
-	cd ./tool/webUI && npm run build
+	cd ./server/webUI && npm run build

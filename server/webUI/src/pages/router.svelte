@@ -52,6 +52,14 @@
                 bind:value={router}
             />
         </div>
-        <div><button on:click={() => save()}>Save</button></div>
+        <div class="my-2"><button on:click={() => save()}>Save</button></div>
+
+        <div class="my-4 text-gray-500">
+            router决定什么任务能运行<br />
+
+            example:<br />
+            ^https?://xxx<br />
+            ^cli://xxx
+        </div>
     </div>
 </Layout>

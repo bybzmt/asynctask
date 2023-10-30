@@ -22,7 +22,7 @@
     let rows = [];
 
     async function showStatus() {
-        let json = await sendJson(mkUrl("api/task/timed"), { starttime: 0 });
+        let json = await sendJson(mkUrl("api/task/timed"), { Starttime: 0 });
 
         rows = json.Data || [];
     }

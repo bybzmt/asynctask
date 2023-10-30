@@ -3,8 +3,12 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
+	"strings"
 	"time"
 )
 
@@ -22,13 +26,22 @@ func (w *workerCli) init() error {
 	var cmd string
 	args := w.order.base.CmdArgs
 
-	path := w.order.Task.Cmd
-
 	if w.order.base.CmdPath != "" {
+        u, err := url.Parse(w.order.Task.Cmd)
+        if err != nil {
+            return err
+        }
+
+        path := strings.TrimLeft(u.Path, "/")
+        if path == "" {
+            return fmt.Errorf("Error Task: %s", w.order.Task.Cmd)
+        }
+
 		cmd = w.order.base.CmdPath
 		args = append(args, path)
 	} else {
-		cmd = path
+		cmd = path.Clean(w.order.Task.Cmd)
+        cmd = strings.TrimLeft(cmd, ".")
 	}
 
 	args = append(args, w.order.Task.Args...)

@@ -22,7 +22,7 @@
         var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
         if (ok) {
             await sendJson(mkUrl("api/group/del"), {
-                gid: row.Id,
+                Id: row.Id,
             });
 
             await showStatus();
@@ -32,7 +32,10 @@
     async function groupAdd() {
         var ok = confirm(`Add Group?`);
         if (ok) {
-            await sendJson(mkUrl("api/group/add"), {});
+            await sendJson(mkUrl("api/group/add"), {
+                WorkerNum: 10,
+                Note: "new group",
+            });
 
             await showStatus();
         }
@@ -51,7 +54,7 @@
             return
         }
 
-        await sendJson(mkUrl("api/group/setConfig"), {
+        await sendJson(mkUrl("api/group/set"), {
             Id: editGroup.Id,
             Note: editGroup.Note,
             WorkerNum: workerNum,

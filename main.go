@@ -4,15 +4,21 @@ import (
 	"asynctask/server"
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"path"
+	"strings"
 	"syscall"
+	"time"
 
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
 )
 
 var Server server.Server
+var LogFile string
+var LogLevel string
 
 func init() {
 	dbfile := os.Getenv("DBFILE")
@@ -36,8 +42,8 @@ func init() {
 	flag.StringVar(&Server.Http.Addr, "http.addr", os.Getenv("HTTPADDR"), "http server addr")
 	flag.BoolVar(&Server.HttpEnable, "http.enable", true, "http server enable")
 
-	flag.StringVar(&Server.LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
-	flag.StringVar(&Server.LogLevel, "log.level", logLevel, "log level")
+	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
+	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
 	flag.StringVar(&Server.DbFile, "db.file", dbfile, "storage file")
 
 	flag.StringVar(&Server.Redis.Addr, "redis.addr", os.Getenv("REDISADDR"), "redis addr:port")
@@ -49,6 +55,10 @@ func init() {
 func main() {
 	flag.Parse()
 
+	if err := initLog(); err != nil {
+		logrus.Fatalln(err)
+	}
+
 	err := Server.Init()
 	if err != nil {
 		logrus.Fatalln(err)
@@ -56,10 +66,10 @@ func main() {
 
 	ctx, canceler := context.WithCancel(context.Background())
 
-    go func() {
-        waitSignal()
-        canceler()
-    }()
+	go func() {
+		waitSignal()
+		canceler()
+	}()
 
 	logrus.Info("Scheduler Start")
 
@@ -72,4 +82,48 @@ func waitSignal() {
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 	<-s
+}
+
+func initLog() error {
+	var l *logrus.Logger
+
+	if LogFile == "" {
+		l = logrus.StandardLogger()
+	} else {
+		l = logrus.New()
+
+		writer, err := rotatelogs.New(
+			LogFile,
+			rotatelogs.WithRotationTime(24*time.Hour),
+			rotatelogs.WithMaxAge(45*24*time.Hour),
+		)
+		if err != nil {
+			return err
+		}
+		l.SetOutput(writer)
+	}
+
+	switch strings.ToLower(LogLevel) {
+	case "error":
+		l.SetLevel(logrus.ErrorLevel)
+	case "warn":
+		l.SetLevel(logrus.WarnLevel)
+	case "":
+		fallthrough
+	case "info":
+		l.SetLevel(logrus.InfoLevel)
+	case "debug":
+		l.SetLevel(logrus.DebugLevel)
+	default:
+		return fmt.Errorf("Unkown LogLevel: %s", LogLevel)
+	}
+
+	l.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+
+	Server.Scheduler.Log = l
+
+	return nil
 }

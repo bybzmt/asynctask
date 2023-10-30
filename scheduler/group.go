@@ -17,7 +17,7 @@ type group struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	tick    chan time.Time
+	tick chan time.Time
 
 	nowNum  int
 	runNum  int
@@ -155,13 +155,11 @@ func (g *group) dayChange() {
 	g.errNum = 0
 }
 
-
 func (g *group) addJob(j *job) {
 	g.runAdd(j)
 
 	g.modeCheck(j)
 }
-
 
 func (g *group) modeCheck(j *job) {
 	if j.next == nil || j.prev == nil {
@@ -196,11 +194,11 @@ func (g *group) GetOrder() (*order, error) {
 		return nil, Empty
 	}
 
-    j := g.run.next
+	j := g.run.next
 
 	o, err := j.popTask()
 
-    g.modeCheck(j)
+	g.modeCheck(j)
 
 	if err != nil {
 		if err == Empty {
@@ -248,7 +246,6 @@ func (g *group) priority(j *job) {
 	jobMoveBefore(j, x)
 }
 
-
 func (s *Scheduler) GroupAdd(c GroupConfig) error {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -258,8 +255,8 @@ func (s *Scheduler) GroupAdd(c GroupConfig) error {
 		return err
 	}
 
-    c.Id = g.Id
-    g.GroupConfig = c
+	c.Id = g.Id
+	g.GroupConfig = c
 
 	return s.db_group_save(g)
 }
@@ -305,7 +302,7 @@ func (s *Scheduler) GroupDel(gid ID) error {
 	g.cancel()
 	delete(s.groups, gid)
 
-	return nil
+	return db_del(s.Db, "config", "group", fmtId(g.Id))
 }
 
 func (s *Scheduler) db_group_save(g *group) error {

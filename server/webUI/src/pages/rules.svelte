@@ -2,6 +2,7 @@
     import Layout from "./lib/layout.svelte";
     import Dialog from "./lib/dialog.svelte";
     import InputKV from "./lib/inputkv.svelte";
+    import InputLine from "./lib/inputline.svelte";
     import { onMount } from "svelte";
     import { sendJson, mkUrl } from "./lib/base";
 
@@ -54,20 +55,30 @@
 
     async function routeAdd() {
         editRoute = {};
+        editRoute.Priority = editRoute.Priority || 0;
+        editRoute.Sort = editRoute.Sort || 0;
+        editRoute.Parallel = editRoute.Parallel || 0;
+        editRoute.Timeout = editRoute.Timeout || 0;
+        editRoute.CmdArgs = editRoute.CmdArgs || [];
         isShow = !isShow;
     }
 
     function routeEdit(row) {
         editRoute = row;
+        editRoute.Priority = editRoute.Priority || 0;
+        editRoute.Sort = editRoute.Sort || 0;
+        editRoute.Parallel = editRoute.Parallel || 0;
+        editRoute.Timeout = editRoute.Timeout || 0;
+        editRoute.CmdArgs = editRoute.CmdArgs || [];
         isShow = !isShow;
     }
 
     async function save() {
-        editRoute.Note = (editRoute.Note || "").trim();
-        editRoute.Match = (editRoute.Match || "").trim();
-        editRoute.CmdBase = (editRoute.CmdBase || "").trim();
-        editRoute.CmdDir = (editRoute.CmdDir || "").trim();
-        editRoute.HttpBase = (editRoute.HttpBase || "").trim();
+        editRoute.Note = (editRoute.Note + "").trim();
+        editRoute.Pattern = (editRoute.Pattern + "").trim();
+        editRoute.CmdPath = (editRoute.CmdPath + "").trim();
+        editRoute.CmdDir = (editRoute.CmdDir + "").trim();
+        editRoute.HttpBase = (editRoute.HttpBase + "").trim();
 
         if (editRoute.CmdDir != "") {
             if (editRoute.CmdDir[0] != "/") {
@@ -94,9 +105,9 @@
         <table class="m-4 border text-base text-gray-800">
             <thead>
                 <tr>
-                    <th class="px-2 py-1 border">备注</th>
                     <th class="px-2 py-1 border">类型</th>
                     <th class="px-2 py-1 border">匹配</th>
+                    <th class="px-2 py-1 border">备注</th>
                     <th class="px-2 py-1 border">执行组</th>
                     <th class="px-2 py-1 border">排序</th>
                     <th class="px-2 py-1 border">并发</th>
@@ -108,11 +119,11 @@
             <tbody>
                 {#each Routes as row}
                     <tr>
-                        <td class="px-2 py-1 border">{row.Note}</td>
                         <td class="px-2 py-1 border"
                             >{row.Type == 1 ? "regexp" : "direct"}</td
                         >
                         <td class="px-2 py-1 border">{row.Pattern}</td>
+                        <td class="px-2 py-1 border">{row.Note}</td>
                         <td class="px-2 py-1 border"
                             >{row.GroupId}: {get(row.GroupId).Note}</td
                         >
@@ -171,9 +182,27 @@
                     regexp</label
                 >
             </div>
+            <span>模式: </span>
+            <div>
+                <label>
+                    <input type="radio" value={1} bind:group={editRoute.Mode} />
+                    HTTP</label
+                >
+                <label>
+                    <input type="radio" value={2} bind:group={editRoute.Mode} />
+                    CLI</label
+                >
+            </div>
 
             <label for="match">Pattern: </label>
-            <input class="border" id="match" bind:value={editRoute.Pattern} />
+            <input
+                class="border"
+                id="match"
+                bind:value={editRoute.Pattern}
+                placeholder={editRoute.Mode == 2
+                    ? "^cli://xxx"
+                    : "^https?://xxx"}
+            />
 
             {#if editRoute.Type == 1}
                 <label for="sort">Sort: </label>
@@ -216,25 +245,20 @@
                 bind:value={editRoute.Timeout}
             />
 
-            <span>模式: </span>
-            <div>
-                <label>
-                    <input type="radio" value={1} bind:group={editRoute.Mode} />
-                    HTTP</label
-                >
-                <label>
-                    <input type="radio" value={2} bind:group={editRoute.Mode} />
-                    CLI</label
-                >
-            </div>
-
             {#if editRoute.Mode == 2}
-                <label for="CmdBase">CmdBase: </label>
+                <label for="CmdPath">CmdPath: </label>
                 <input
                     class="border"
-                    id="CmdBase"
-                    bind:value={editRoute.CmdBase}
+                    id="CmdPath"
+                    bind:value={editRoute.CmdPath}
                 />
+
+                <label for="CmdArgs">CmdArgs: </label>
+                <div>
+                    <InputLine bind:args={editRoute.CmdArgs} />
+                    <div class="text-gray-400">Next Arg: Original Cmd</div>
+                    <div class="text-gray-400">Next Args: Original Args</div>
+                </div>
 
                 <label for="CmdDir">CmdDir: </label>
                 <input

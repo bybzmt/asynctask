@@ -8,25 +8,31 @@
     let isTimed = false;
     let strtime = "";
 
+    const cli_val = JSON.stringify(
+        {
+            url: "http://g.com",
+            form: { k: "v" },
+        },
+        null,
+        2
+    );
+
+    const http_val = JSON.stringify(
+        {
+            cmd: "echo",
+            args: ["hello", "world"],
+        },
+        null,
+        2
+    );
+
     $: {
-        if (task_type == 1) {
-            value = JSON.stringify(
-                {
-                    url: "http://g.com",
-                    form: { k: "v" },
-                },
-                null,
-                2
-            );
-        } else {
-            value = JSON.stringify(
-                {
-                    cmd: "echo",
-                    args: ["hello", "world"],
-                },
-                null,
-                2
-            );
+        if (value == http_val || value == cli_val) {
+            if (task_type == 1) {
+                value = cli_val;
+            } else {
+                value = http_val;
+            }
         }
     }
 
@@ -89,9 +95,10 @@
     </div>
     <div class="mt-4 relative">
         <textarea class="border w-full min-h-[200px]" bind:value />
-        <pre class="text-xs text-gray-400 absolute top-0 right-0 p-4 pointer-events-none">
+        <pre
+            class="text-xs text-gray-400 absolute top-0 right-0 p-4 pointer-events-none">
 {#if task_type == 1}
-url      string
+                url      string
 
 method   string
 header   map[string]string
@@ -101,8 +108,8 @@ timer    uint
 timeout  uint
 retry    uint
 retrySec uint
-{:else}
-cmd      string
+            {:else}
+                cmd      string
 
 args     []string
 timer    uint
@@ -111,7 +118,7 @@ retry    uint
 retrySec uint
 code     uint
 hold     string
-{/if}
+            {/if}
 
 
             </pre>

@@ -29,11 +29,11 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
 	h.HandleFunc("/api/task/timed", page_error(s.page_task_timed))
 	h.HandleFunc("/api/task/timeddel", page_error(s.page_task_timed_del))
-	h.HandleFunc("/api/task/empty", page_error(s.page_job_empty))
+	h.HandleFunc("/api/task/empty", page_error(s.page_task_empty))
 	h.HandleFunc("/api/task/delIdle", page_error(s.page_job_delIdle))
 
-	h.HandleFunc("/api/router/get", page_error(s.page_route_getconfig))
-	h.HandleFunc("/api/router/set", page_error(s.page_route_config))
+	h.HandleFunc("/api/router/get", page_error(s.page_router_get))
+	h.HandleFunc("/api/router/set", page_error(s.page_router_set))
 
 	h.HandleFunc("/api/rule/list", page_error(s.page_rules))
 	h.HandleFunc("/api/rule/put", page_error(s.page_rule_put))
@@ -69,7 +69,7 @@ func (s *Server) page_task_add(r *http.Request) any {
 	return s.Scheduler.TaskAdd(o)
 }
 
-func (s *Server) page_job_empty(r *http.Request) any {
+func (s *Server) page_task_empty(r *http.Request) any {
 	var t struct {
 		Name string
 	}
@@ -78,7 +78,7 @@ func (s *Server) page_job_empty(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.JobEmpty(t.Name)
+	return s.Scheduler.TaskEmpty(t.Name)
 }
 
 func (s *Server) page_job_delIdle(r *http.Request) any {
@@ -90,7 +90,7 @@ func (s *Server) page_job_delIdle(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.JobDelIdle(t.Name)
+	return s.Scheduler.TaskDelIdle(t.Name)
 }
 
 func (s *Server) page_groups(r *http.Request) any {
@@ -110,14 +110,14 @@ func (s *Server) page_group_add(r *http.Request) any {
 
 func (s *Server) page_group_del(r *http.Request) any {
 	var cfg struct {
-		gid scheduler.ID
+		Id scheduler.ID
 	}
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err
 	}
 
-	return s.Scheduler.GroupDel(cfg.gid)
+	return s.Scheduler.GroupDel(cfg.Id)
 }
 
 func (s *Server) page_group_config(r *http.Request) any {
@@ -131,7 +131,7 @@ func (s *Server) page_group_config(r *http.Request) any {
 	return s.Scheduler.GroupConfig(cfg)
 }
 
-func (s *Server) page_route_config(r *http.Request) any {
+func (s *Server) page_router_set(r *http.Request) any {
 
 	var cfg []string
 
@@ -142,32 +142,32 @@ func (s *Server) page_route_config(r *http.Request) any {
 	return s.Scheduler.SetRoutes(cfg)
 }
 
-func (s *Server) page_route_getconfig(r *http.Request) any {
+func (s *Server) page_router_get(r *http.Request) any {
 	return s.Scheduler.Routes()
 }
 
 func (s *Server) page_task_cancel(r *http.Request) any {
 	var cfg struct {
-		tid scheduler.ID
+		Id scheduler.ID
 	}
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err
 	}
 
-	return s.Scheduler.TaskCancel(cfg.tid)
+	return s.Scheduler.TaskCancel(cfg.Id)
 }
 
 func (s *Server) page_task_timed(r *http.Request) any {
 	var t struct {
-		starttime int
+		Starttime int
 	}
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.TimerShow(t.starttime, 100)
+	return s.Scheduler.TimerShow(t.Starttime, 100)
 }
 
 func (s *Server) page_task_timed_del(r *http.Request) any {

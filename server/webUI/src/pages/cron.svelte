@@ -73,7 +73,7 @@
     function rowEdit(row) {
         let t = {};
         t.Id = row.Id || 0;
-        t.Node = row.Note;
+        t.Note = row.Note;
         t.Task = JSON.stringify(row.Task);
 
         let p = row.Cfg.trim().split(" ");
@@ -232,7 +232,7 @@
             <input class="border" id="row_note" bind:value={editRow.Note} />
 
             <label for="row_task">Task: </label>
-            <Task bind:value={editRow.Task} />
+            <Task bind:value={editRow.Task} type={2} />
         </div>
         <div class="text-center mt-2">
             <button class="mx-4" type="button" on:click={save}>确定</button>
