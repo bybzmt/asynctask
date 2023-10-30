@@ -54,7 +54,7 @@
         </div>
         <div class="my-2"><button on:click={() => save()}>Save</button></div>
 
-        <div class="my-4 text-gray-500">
+        <div class="my-4 text-gray-500 text-sm">
             router决定什么任务能运行<br />
 
             example:<br />

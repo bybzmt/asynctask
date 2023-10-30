@@ -59,13 +59,7 @@
             Month: "*",
             Week: "*",
             Note: "",
-            Task: `{
-    "url": "http://g.com",
-    "form": {"k":"v"}
-
-    "cmd": "echo",
-    "args": ["hellworld"]
-}`,
+            Task: "",
         };
         isShow = true;
     }

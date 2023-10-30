@@ -7,7 +7,7 @@
     let val = "";
 
     if (kv) {
-        for (k in kv) {
+        for (let k in kv) {
             params.push({ key: k, val: kv[k] });
         }
     }

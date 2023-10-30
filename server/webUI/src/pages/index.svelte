@@ -31,7 +31,7 @@
         { k: 3, n: "执行中" },
         { k: 4, n: "己执行" },
         { k: 5, n: "昨天" },
-        { k: 10, n: "昨出错" },
+        { k: 10, n: "昨错" },
         { k: 6, n: "队列" },
         { k: 7, n: "平均时间" },
         { k: 8, n: "优先级" },
@@ -134,22 +134,23 @@
 
 <Layout tab="2">
     <div id="All">
-        <table class="m-4 border text-base">
+        <table class="m-4 border text-base text-center">
             <thead>
                 <tr>
                     <th class="px-2 py-1 border">工作组</th>
                     <th class="px-2 py-1 border">负载</th>
                     <th class="px-2 py-1 border">执行中</th>
                     <th class="px-2 py-1 border">己执行</th>
+                    <th class="px-2 py-1 border">出错</th>
                     <th class="px-2 py-1 border">昨天</th>
-                    <th class="px-2 py-1 border">昨出错</th>
+                    <th class="px-2 py-1 border">昨错</th>
                     <th class="px-2 py-1 border">队列</th>
                     <th class="px-2 py-1 border">定时</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td class="px-2 py-1 border">总体</td>
+                    <td class="px-2 py-1 border text-left">总体</td>
                     <td class="px-2 py-1 border"
                         >{Math.round(
                             (AllData.Load / AllData.Capacity) * 100
@@ -159,6 +160,7 @@
                         >{AllData.NowNum} / {AllData.WorkerNum}</td
                     >
                     <td class="px-2 py-1 border">{AllData.RunNum}</td>
+                    <td class="px-2 py-1 border">{AllData.ErrNum}</td>
                     <td class="px-2 py-1 border">{AllData.OldRun}</td>
                     <td class="px-2 py-1 border">{AllData.OldErr}</td>
                     <td class="px-2 py-1 border">{AllData.WaitNum}</td>
@@ -166,7 +168,7 @@
                 </tr>
                 {#each Groups as g}
                     <tr>
-                        <td class="px-2 py-1 border">{g.Id}: {g.Note}</td>
+                        <td class="px-2 py-1 border text-left">{g.Id}: {g.Note}</td>
                         <td class="px-2 py-1 border"
                             >{Math.round((g.Load / g.Capacity) * 100)}%</td
                         >
