@@ -97,15 +97,15 @@ export function timeStr(t) {
 
 export function beforSecond(t) {
     if (t > 60*60*24*3) {
-        return Math.floor(t/60/60/24/3) + "d"
+        return Math.floor(t/60/60/24) + "d"
     }
 
     if (t > 60*60*3) {
-        return Math.floor(t/60/60/3) + "h"
+        return Math.floor(t/60/60) + "h"
     }
 
     if (t > 60*3) {
-        return Math.floor(t/60/3) + "h"
+        return Math.floor(t/60) + "m"
     }
 
     if (t == 0) {
