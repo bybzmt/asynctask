@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -17,6 +16,7 @@ type Scheduler struct {
 	schedulerConfig
 
 	l sync.Mutex
+	tl sync.Mutex
 
 	now    time.Time
 	closed chan int
@@ -28,12 +28,12 @@ type Scheduler struct {
 
 	jobs map[string]*job
 
-	groups map[ID]*group
-	router router
-	rules  []Rule
+	groups    map[ID]*group
+	taskrules []TaskRule
+	jobrules  []JobRule
 
-	orders   map[*order]struct{}
-	complete chan *order
+	orders   map[*Order]struct{}
+	complete chan *Order
 
 	//统计周期
 	statTick time.Duration
@@ -75,8 +75,8 @@ func (s *Scheduler) Init() error {
 
 	s.groups = make(map[ID]*group)
 	s.jobs = make(map[string]*job)
-	s.complete = make(chan *order)
-	s.orders = make(map[*order]struct{})
+	s.complete = make(chan *Order)
+	s.orders = make(map[*Order]struct{})
 	s.closed = make(chan int)
 
 	s.idleMax = 200
@@ -94,19 +94,15 @@ func (s *Scheduler) Init() error {
 func (s *Scheduler) init() error {
 	s.loadScheduler()
 
-	var err error
-	s.router.routes, err = s.db_router_load()
-	if err != nil {
-		return err
-	}
-
-	s.router.init()
-
 	if err := s.loadGroups(); err != nil {
 		return err
 	}
 
-	if err := s.rulesReload(); err != nil {
+	if err := s.taskRulesReload(); err != nil {
+		return err
+	}
+
+	if err := s.jobRulesReload(); err != nil {
 		return err
 	}
 
@@ -315,81 +311,7 @@ func (s *Scheduler) loadScheduler() {
 	}
 }
 
-func (s *Scheduler) addGroup() (*group, error) {
-	g := new(group)
-	var cfg GroupConfig
-	cfg.WorkerNum = s.WorkerNum
-
-	//key: config/group/:id
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "group")
-		if err != nil {
-			return err
-		}
-
-		id, err := bucket.NextSequence()
-		if err != nil {
-			return err
-		}
-
-		val, err := json.Marshal(&cfg)
-		if err != nil {
-			return err
-		}
-
-		if err = bucket.Put([]byte(fmtId(id)), val); err != nil {
-			return err
-		}
-
-		cfg.Id = ID(id)
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	g.GroupConfig = cfg
-	g.s = s
-	g.init()
-
-	s.groups[g.Id] = g
-
-	return g, nil
-}
-
-func (s *Scheduler) loadGroups() error {
-
-	//key: config/group/:id
-	return s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "config", "group")
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.ForEach(func(key, val []byte) error {
-			var cfg GroupConfig
-			err := json.Unmarshal(val, &cfg)
-			if err != nil {
-				s.Log.Warnln("[store] key=config/group/"+string(key), "json.Unmarshal:", err)
-				return nil
-			}
-
-			g := new(group)
-			g.GroupConfig = cfg
-			g.Id = atoiId(key)
-			g.s = s
-			g.init()
-
-			s.groups[g.Id] = g
-
-			return nil
-		})
-	})
-}
-
-func (s *Scheduler) addTask(t *order) error {
+func (s *Scheduler) addTask(t *Order) error {
 	j, ok := s.jobs[t.Job]
 
 	if !ok {
@@ -417,7 +339,7 @@ func (s *Scheduler) getGroup(id ID) *group {
 	g.Id = 1
 	g.s = s
 	g.Note = "Default"
-    g.WorkerNum = s.WorkerNum
+	g.WorkerNum = s.WorkerNum
 	g.init()
 
 	s.db_group_save(g)
@@ -425,4 +347,11 @@ func (s *Scheduler) getGroup(id ID) *group {
 	s.groups[1] = g
 
 	return g
+}
+
+func (s *Scheduler) Running() bool {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	return s.running
 }

@@ -2,8 +2,11 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 type group struct {
@@ -68,7 +71,11 @@ func (g *group) dispatch() bool {
 	t.startTime = g.s.now
 	t.statTime = g.s.now
 
-	t.ctx, t.cancel = context.WithCancel(g.ctx)
+	if t.Task.Timeout == 0 {
+		t.Task.Timeout = 60
+	}
+
+	t.ctx, t.cancel = context.WithTimeout(g.ctx, time.Duration(t.Task.Timeout)*time.Second)
 
 	g.s.orders[t] = struct{}{}
 
@@ -80,7 +87,7 @@ func (g *group) dispatch() bool {
 	return g.nowNum+1 < int(g.WorkerNum)
 }
 
-func (g *group) end(t *order) {
+func (g *group) end(t *Order) {
 	loadTime := t.endTime.Sub(t.statTime)
 	useTime := t.endTime.Sub(t.startTime)
 
@@ -112,6 +119,8 @@ func (g *group) end(t *order) {
 	g.loadTime += loadTime
 
 	delete(g.s.orders, t)
+
+	t.cancel()
 }
 
 func (g *group) statMaintain() {
@@ -189,7 +198,7 @@ func (g *group) modeCheck(j *job) {
 	}
 }
 
-func (g *group) GetOrder() (*order, error) {
+func (g *group) GetOrder() (*Order, error) {
 	if g.run == g.run.next {
 		return nil, Empty
 	}
@@ -308,4 +317,78 @@ func (s *Scheduler) GroupDel(gid ID) error {
 func (s *Scheduler) db_group_save(g *group) error {
 	//key: config/group/:id
 	return db_put(s.Db, &g.GroupConfig, "config", "group", fmtId(g.Id))
+}
+
+func (s *Scheduler) addGroup() (*group, error) {
+	g := new(group)
+	var cfg GroupConfig
+	cfg.WorkerNum = s.WorkerNum
+
+	//key: config/group/:id
+	err := s.Db.Update(func(tx *bolt.Tx) error {
+		bucket, err := getBucketMust(tx, "config", "group")
+		if err != nil {
+			return err
+		}
+
+		id, err := bucket.NextSequence()
+		if err != nil {
+			return err
+		}
+
+		val, err := json.Marshal(&cfg)
+		if err != nil {
+			return err
+		}
+
+		if err = bucket.Put([]byte(fmtId(id)), val); err != nil {
+			return err
+		}
+
+		cfg.Id = ID(id)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	g.GroupConfig = cfg
+	g.s = s
+	g.init()
+
+	s.groups[g.Id] = g
+
+	return g, nil
+}
+
+func (s *Scheduler) loadGroups() error {
+
+	//key: config/group/:id
+	return s.Db.View(func(tx *bolt.Tx) error {
+		bucket := getBucket(tx, "config", "group")
+		if bucket == nil {
+			return nil
+		}
+
+		return bucket.ForEach(func(key, val []byte) error {
+			var cfg GroupConfig
+			err := json.Unmarshal(val, &cfg)
+			if err != nil {
+				s.Log.Warnln("[store] key=config/group/"+string(key), "json.Unmarshal:", err)
+				return nil
+			}
+
+			g := new(group)
+			g.GroupConfig = cfg
+			g.Id = atoiId(key)
+			g.s = s
+			g.init()
+
+			s.groups[g.Id] = g
+
+			return nil
+		})
+	})
 }

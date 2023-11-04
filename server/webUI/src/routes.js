@@ -4,17 +4,23 @@ export default {
         "/": {
             page: () => import('./pages/index.svelte'),
         },
-        "/runing": {
-            page: () => import('./pages/runing.svelte'),
+        "/task/running": {
+            page: () => import('./pages/running.svelte'),
         },
-        "/groups": {
+        "/task/history": {
+            page: () => import('./pages/history.svelte'),
+        },
+        "/task/add": {
+            page: () => import('./pages/taskadd.svelte'),
+        },
+        "/config/groups": {
             page: () => import('./pages/groups.svelte'),
         },
-        "/router": {
-            page: () => import('./pages/router.svelte'),
+        "/config/taskrules": {
+            page: () => import('./pages/taskrules.svelte'),
         },
-        "/rules": {
-            page: () => import('./pages/rules.svelte'),
+        "/config/jobrules": {
+            page: () => import('./pages/jobrules.svelte'),
         },
         "/cron": {
             page: () => import('./pages/cron.svelte'),

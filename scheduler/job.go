@@ -49,7 +49,7 @@ func (j *job) init() error {
 	return j.loadWaitNum()
 }
 
-func (j *job) addTask(t *order) error {
+func (j *job) addTask(t *Order) error {
 	//key: task/:jname
 	err := db_push(j.s.Db, t, "task", j.name)
 	if err != nil {
@@ -101,17 +101,13 @@ func (j *job) delTask(tid ID) error {
 	return nil
 }
 
-func (j *job) popTask() (*order, error) {
-	t := new(order)
+func (j *job) popTask() (*Order, error) {
+	t := new(Order)
 
 	err := db_pop(j.s.Db, &t, "task", j.name)
 	if err != nil {
 		return nil, err
 	}
-
-	t.base = j.TaskBase
-	t.base.CmdEnv = copyMap(j.CmdEnv)
-	t.base.HttpHeader = copyMap(j.HttpHeader)
 
 	j.nowNum++
 	j.waitNum--

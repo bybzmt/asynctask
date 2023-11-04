@@ -4,15 +4,18 @@ import (
 	"asynctask/scheduler"
 	"context"
 	"crypto/rand"
-	"github.com/sirupsen/logrus"
-	bolt "go.etcd.io/bbolt"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 )
 
 var ts_actions = []int{
@@ -39,6 +42,7 @@ func TestRun(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	to := "http://" + my.l.Addr().String()
+	to = strings.ReplaceAll(to, "[::]", "127.0.0.1")
 
 	initServer(&hub, to)
 
@@ -136,8 +140,8 @@ func addTask(hub *Server, num int, taskadd chan int) {
 		}
 
 		if ts_getRand()%7 == 0 {
-			task.Cmd = "echo"
-			task.Args = []string{"1"}
+			task.Name = "cli://test/echo"
+			task.Args, _ = json.Marshal([]string{"1"})
 
 			taskadd <- 1
 		} else {
@@ -154,19 +158,19 @@ func addTask(hub *Server, num int, taskadd chan int) {
 			}
 
 			if task.Timer > 0 {
-				task.Url = "http://trigger"
+				task.Name = "http://trigger/" + strconv.Itoa(sl)
 			} else if sl > 1000 {
-				task.Url = "http://slow/" + strconv.Itoa(sl)
+				task.Name = "http://slow/" + strconv.Itoa(sl)
 			} else {
-				task.Url = "http://fast/" + strconv.Itoa(sleep)
+				task.Name = "http://fast/" + strconv.Itoa(sleep)
 			}
 
-			task.Url += "/?" + p.Encode()
+			task.Name += "/?" + p.Encode()
 
 			taskadd <- 2
 		}
 
-		err := hub.Scheduler.TaskAdd(task)
+		err := hub.Scheduler.TaskAdd(&task)
 		if err != nil {
 			panic(err)
 		}
@@ -251,8 +255,8 @@ func initServer(hub *Server, to string) {
 	}
 
 	err = hub.Scheduler.GroupAdd(scheduler.GroupConfig{
-		Note: "test_group2",
-        WorkerNum: 10,
+		Note:      "test_group2",
+		WorkerNum: 10,
 	})
 	if err != nil {
 		panic(err)
@@ -260,40 +264,77 @@ func initServer(hub *Server, to string) {
 
 	//------ 2 groups -----
 
-	err = hub.Scheduler.SetRoutes([]string{
-		"^http://",
-		"^cli://",
-	})
+	r := scheduler.TaskRule{
+		Pattern:     "^cli://test/",
+		RewriteReg:  "^cli://test/(.+)",
+		RewriteRepl: "$1",
+		Type:        1,
+		Sort:        1,
+		Used:        true,
+	}
+
+	err = hub.Scheduler.TaskRulePut(r)
 	if err != nil {
 		panic(err)
 	}
 
-	r := scheduler.Rule{
-		Pattern: "^http://",
-		Type:    1,
-		Sort:    1,
-		Used:    true,
+	r = scheduler.TaskRule{
+		Pattern:     "^http://slow",
+		RewriteReg:  "^http://slow/(.+)",
+		RewriteRepl: to + "/$1",
+		Type:        1,
+		Sort:        2,
+		Used:        true,
 	}
-	r.GroupId = 1
-	r.Parallel = 1
-	r.HttpBase = to
 
-	err = hub.Scheduler.RulePut(r)
+	err = hub.Scheduler.TaskRulePut(r)
 	if err != nil {
 		panic(err)
 	}
 
-	r = scheduler.Rule{
-		Pattern: "^http://slow",
-		Type:    1,
-		Used:    true,
-		Sort:    2,
+    jr := scheduler.JobRule{
+		Pattern:     "^http://slow",
+		Type:        1,
+		Sort:        2,
+		Used:        true,
 	}
-	r.GroupId = 1
-	r.Parallel = 5
-	r.HttpBase = to
+    jr.Parallel = 10
+    jr.GroupId = 1
 
-	err = hub.Scheduler.RulePut(r)
+	err = hub.Scheduler.JobRulePut(jr)
+	if err != nil {
+		panic(err)
+	}
+
+	err = hub.Scheduler.TaskRulePut(r)
+	if err != nil {
+		panic(err)
+	}
+
+	r = scheduler.TaskRule{
+		Pattern:     "^http://fast",
+		RewriteReg:  "^http://fast/(.+)",
+		RewriteRepl: to + "/$1",
+		Type:        1,
+		Sort:        3,
+		Used:        true,
+	}
+
+	err = hub.Scheduler.TaskRulePut(r)
+	if err != nil {
+		panic(err)
+	}
+
+	r = scheduler.TaskRule{
+		Pattern:     "^(http://trigger)",
+		RewriteReg:  "^http://trigger/(.+)",
+		RewriteRepl: to + "/$1",
+		Type:        1,
+		Sort:        4,
+		Used:        true,
+	}
+
+	err = hub.Scheduler.TaskRulePut(r)
 	if err != nil {
 		panic(err)
 	}

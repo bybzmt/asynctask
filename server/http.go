@@ -26,18 +26,20 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/status", page_error(s.page_status))
 	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
+	h.HandleFunc("/api/task/check", page_error(s.page_task_check))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
 	h.HandleFunc("/api/task/timed", page_error(s.page_task_timed))
 	h.HandleFunc("/api/task/timeddel", page_error(s.page_task_timed_del))
 	h.HandleFunc("/api/task/empty", page_error(s.page_task_empty))
 	h.HandleFunc("/api/task/delIdle", page_error(s.page_job_delIdle))
 
-	h.HandleFunc("/api/router/get", page_error(s.page_router_get))
-	h.HandleFunc("/api/router/set", page_error(s.page_router_set))
+	h.HandleFunc("/api/taskrule/list", page_error(s.page_taskrules))
+	h.HandleFunc("/api/taskrule/put", page_error(s.page_taskrule_put))
+	h.HandleFunc("/api/taskrule/del", page_error(s.page_taskrule_del))
 
-	h.HandleFunc("/api/rule/list", page_error(s.page_rules))
-	h.HandleFunc("/api/rule/put", page_error(s.page_rule_put))
-	h.HandleFunc("/api/rule/del", page_error(s.page_rule_del))
+	h.HandleFunc("/api/jobrule/list", page_error(s.page_jobrules))
+	h.HandleFunc("/api/jobrule/put", page_error(s.page_jobrule_put))
+	h.HandleFunc("/api/jobrule/del", page_error(s.page_jobrule_del))
 
 	h.HandleFunc("/api/group/list", page_error(s.page_groups))
 	h.HandleFunc("/api/group/add", page_error(s.page_group_add))
@@ -60,13 +62,28 @@ func (s *Server) page_runing(r *http.Request) any {
 }
 
 func (s *Server) page_task_add(r *http.Request) any {
-	var o scheduler.Task
+	var t scheduler.Task
 
-	if err := httpReadJson(r, &o); err != nil {
+	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.TaskAdd(o)
+	return s.Scheduler.TaskAdd(&t)
+}
+
+func (s *Server) page_task_check(r *http.Request) any {
+	var t scheduler.Task
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+    o, err := s.Scheduler.TaskCheck(&t)
+    if err != nil {
+        return err
+    }
+
+    return o
 }
 
 func (s *Server) page_task_empty(r *http.Request) any {
@@ -131,21 +148,6 @@ func (s *Server) page_group_config(r *http.Request) any {
 	return s.Scheduler.GroupConfig(cfg)
 }
 
-func (s *Server) page_router_set(r *http.Request) any {
-
-	var cfg []string
-
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
-
-	return s.Scheduler.SetRoutes(cfg)
-}
-
-func (s *Server) page_router_get(r *http.Request) any {
-	return s.Scheduler.Routes()
-}
-
 func (s *Server) page_task_cancel(r *http.Request) any {
 	var cfg struct {
 		Id scheduler.ID
@@ -182,21 +184,21 @@ func (s *Server) page_task_timed_del(r *http.Request) any {
 	return s.Scheduler.TimerDel(t.TimedID)
 }
 
-func (s *Server) page_rules(r *http.Request) any {
-	return s.Scheduler.Rules()
+func (s *Server) page_taskrules(r *http.Request) any {
+	return s.Scheduler.TaskRules()
 }
 
-func (s *Server) page_rule_put(r *http.Request) any {
-	var t scheduler.Rule
+func (s *Server) page_taskrule_put(r *http.Request) any {
+	var t scheduler.TaskRule
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.RulePut(t)
+	return s.Scheduler.TaskRulePut(t)
 }
 
-func (s *Server) page_rule_del(r *http.Request) any {
+func (s *Server) page_taskrule_del(r *http.Request) any {
 	var t struct {
 		Type    scheduler.RuleType
 		Pattern string
@@ -206,7 +208,34 @@ func (s *Server) page_rule_del(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.RuleDel(t.Type, t.Pattern)
+	return s.Scheduler.TaskRuleDel(t.Type, t.Pattern)
+}
+
+func (s *Server) page_jobrules(r *http.Request) any {
+	return s.Scheduler.JobRules()
+}
+
+func (s *Server) page_jobrule_put(r *http.Request) any {
+	var t scheduler.JobRule
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+	return s.Scheduler.JobRulePut(t)
+}
+
+func (s *Server) page_jobrule_del(r *http.Request) any {
+	var t struct {
+		Type    scheduler.RuleType
+		Pattern string
+	}
+
+	if err := httpReadJson(r, &t); err != nil {
+		return err
+	}
+
+	return s.Scheduler.JobRuleDel(t.Type, t.Pattern)
 }
 
 func httpReadJson(r *http.Request, out any) error {

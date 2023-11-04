@@ -3,7 +3,7 @@ package scheduler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
@@ -33,14 +33,13 @@ type Config struct {
 }
 
 type Task struct {
-	Cmd  string   `json:"cmd,omitempty"`
-	Args []string `json:"args,omitempty"`
+	Name string `json:"name"`
+	// Args []string `json:"args,omitempty"`
+	Args json.RawMessage `json:"args,omitempty"`
 
-	Url    string            `json:"url,omitempty"`
 	Method string            `json:"method,omitempty"`
 	Header map[string]string `json:"header,omitempty"`
-	Form   map[string]string `json:"form,omitempty"`
-	Body   json.RawMessage   `json:"body,omitempty"`
+	Body   []byte            `json:"body,omitempty"`
 
 	Timer    uint   `json:"timer,omitempty"`
 	Timeout  uint   `json:"timeout,omitempty"`
@@ -48,6 +47,20 @@ type Task struct {
 	Code     int    `json:"code,omitempty"`
 	Retry    uint   `json:"retry,omitempty"`
 	RetrySec uint   `json:"retrySec,omitempty"`
+}
+
+type OrderCli struct {
+	Path string
+	Args []string
+	Env  []string
+	Dir  string
+}
+
+type OrderHttp struct {
+	Method string
+	Url    string
+	Header url.Values
+	Body   []byte
 }
 
 type TaskBase struct {
@@ -60,33 +73,6 @@ type TaskBase struct {
 	HttpHeader map[string]string
 }
 
-func (b *TaskBase) init() {
-	if b.HttpHeader == nil {
-		b.HttpHeader = make(map[string]string)
-	}
-	if b.CmdEnv == nil {
-		b.CmdEnv = make(map[string]string)
-	}
-}
-
-func (b *TaskBase) empty() bool {
-	b.CmdPath = strings.TrimSpace(b.CmdPath)
-	b.CmdDir = strings.TrimSpace(b.CmdDir)
-	b.HttpBase = strings.TrimSpace(b.HttpBase)
-
-	if b.Timeout != 0 ||
-		b.CmdPath == "" ||
-		len(b.CmdArgs) != 0 ||
-		len(b.CmdEnv) != 0 ||
-		b.CmdDir == "" ||
-		b.HttpBase == "" ||
-		len(b.HttpHeader) != 0 {
-		return false
-	}
-
-	return true
-}
-
 type GroupConfig struct {
 	Id        ID
 	WorkerNum uint32
@@ -94,7 +80,6 @@ type GroupConfig struct {
 }
 
 type JobConfig struct {
-	TaskBase
 	GroupId  ID
 	Priority int32  //权重系数
 	Parallel uint32 //默认并发数

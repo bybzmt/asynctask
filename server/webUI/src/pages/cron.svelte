@@ -1,53 +1,53 @@
 <script>
-    import Layout from "./lib/layout.svelte";
-    import Dialog from "./lib/dialog.svelte";
-    import Task from "./lib/task.svelte";
-    import { onMount } from "svelte";
-    import { sendJson, mkUrl, timeStr } from "./lib/base";
+    import Layout from "./lib/layout.svelte"
+    import Dialog from "./lib/dialog.svelte"
+    import Task from "./lib/task.svelte"
+    import { onMount } from "svelte"
+    import { sendJson, mkUrl, timeStr } from "./lib/base"
 
     onMount(() => {
-        showStatus();
-    });
+        showStatus()
+    })
 
-    let cron = [];
-    let editRow = {};
-    let isShow = false;
+    let cron = []
+    let editRow = {}
+    let isShow = false
 
     async function showStatus() {
-        let json = await sendJson(mkUrl("api/cron/getConfig"));
+        let json = await sendJson(mkUrl("api/cron/getConfig"))
 
-        cron = json.Data;
-        cron.Tasks = cron.Tasks || [];
+        cron = json.Data
+        cron.Tasks = cron.Tasks || []
     }
 
     async function reload() {
-        let json = await sendJson(mkUrl("api/cron/reload"));
+        let json = await sendJson(mkUrl("api/cron/reload"))
         if (json.Code != 0) {
-            alert(json.Data);
-            return;
+            alert(json.Data)
+            return
         }
-        alert("success");
-        await showStatus();
+        alert("success")
+        await showStatus()
     }
 
     async function rowDel(row) {
-        var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`);
+        var ok = confirm(`Del Group?\r\nId:${row.Id} Note: ${row.Note}`)
         if (ok) {
-            let cfgs = [];
+            let cfgs = []
             for (let i = 0; i < cron.Tasks.length; i++) {
                 if (row.Id != cron.Tasks[i].Id) {
-                    cfgs.push(cron.Tasks[i]);
+                    cfgs.push(cron.Tasks[i])
                 }
             }
 
-            let resp = await sendJson(mkUrl("api/cron/setConfig"), cfgs);
+            let resp = await sendJson(mkUrl("api/cron/setConfig"), cfgs)
 
             if (resp.Code != 0) {
-                alert(resp.Data);
-                return;
+                alert(resp.Data)
+                return
             }
 
-            await showStatus();
+            await showStatus()
         }
     }
 
@@ -60,85 +60,77 @@
             Week: "*",
             Note: "",
             Task: "",
-        };
-        isShow = true;
+        }
+        isShow = true
     }
 
     function rowEdit(row) {
-        let t = {};
-        t.Id = row.Id || 0;
-        t.Note = row.Note;
-        t.Task = JSON.stringify(row.Task);
+        let t = {}
+        t.Id = row.Id || 0
+        t.Note = row.Note
+        t.Task = JSON.stringify(row.Task)
 
-        let p = row.Cfg.trim().split(" ");
-        t.Minute = p.at(0) || "*";
-        t.Hour = p.at(1) || "*";
-        t.Day = p.at(2) || "*";
-        t.Month = p.at(3) || "*";
-        t.Week = p.at(4) || "*";
+        let p = row.Cfg.trim().split(" ")
+        t.Minute = p.at(0) || "*"
+        t.Hour = p.at(1) || "*"
+        t.Day = p.at(2) || "*"
+        t.Month = p.at(3) || "*"
+        t.Week = p.at(4) || "*"
 
-        editRow = t;
-        isShow = !isShow;
+        editRow = t
+        isShow = !isShow
     }
 
     async function save() {
-        let row = {};
-        row.Id = editRow.Id || 0;
-        row.Note = editRow.Note;
+        let row = {}
+        row.Id = editRow.Id || 0
+        row.Note = editRow.Note
 
-        let cfg = [
-            editRow.Minute,
-            editRow.Hour,
-            editRow.Day,
-            editRow.Month,
-            editRow.Week,
-        ];
+        let cfg = [editRow.Minute, editRow.Hour, editRow.Day, editRow.Month, editRow.Week]
 
         for (let i = 0; i < cfg.length; i++) {
-            cfg[i] = cfg[i].trim() || "*";
+            cfg[i] = cfg[i].trim() || "*"
         }
 
-        row.Cfg = cfg.join(" ");
+        row.Cfg = cfg.join(" ")
 
         try {
-            row.Task = JSON.parse(editRow.Task);
+            row.Task = JSON.parse(editRow.Task)
         } catch (e) {
-            alert("Task JSON.parse " + e.message);
-            return;
+            alert("Task JSON.parse " + e.message)
+            return
         }
 
-        let maxId = 0;
-        let cfgs = [];
+        let maxId = 0
+        let cfgs = []
         for (let i = 0; i < cron.Tasks.length; i++) {
             if (row.Id != cron.Tasks[i].Id) {
-                cfgs.push(cron.Tasks[i]);
+                cfgs.push(cron.Tasks[i])
             }
             if (cron.Tasks[i].Id > maxId) {
-                maxId = cron.Tasks[i].Id || 0;
+                maxId = cron.Tasks[i].Id || 0
             }
         }
         if (!(row.Id > 0)) {
-            row.Id = maxId + 1;
+            row.Id = maxId + 1
         }
-        cfgs.push(row);
+        cfgs.push(row)
 
-        let resp = await sendJson(mkUrl("api/cron/setConfig"), cfgs);
+        let resp = await sendJson(mkUrl("api/cron/setConfig"), cfgs)
 
         if (resp.Code != 0) {
-            alert(resp.Data);
-            return;
+            alert(resp.Data)
+            return
         }
 
-        isShow = !isShow;
+        isShow = !isShow
 
-        await showStatus();
+        await showStatus()
     }
 </script>
 
-<Layout tab="5">
-    <div
-        class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm"
-    >
+<Layout tab="7">
+    <div class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm">
         <span>Edit:</span>
         <span>{timeStr(cron.EditAt)}</span>
         <span class="col-start-1">Run :</span>
@@ -162,19 +154,9 @@
                         <tr>
                             <td class="px-2 py-1 border">{row.Cfg}</td>
                             <td class="px-2 py-1 border">{row.Note}</td>
-                            <td class="px-2 py-1 border"
-                                >{JSON.stringify(row.Task)}</td
-                            >
-                            <td class="px-2 py-1 border"
-                                ><button on:click={() => rowEdit(row)}
-                                    >编辑</button
-                                ></td
-                            >
-                            <td class="px-2 py-1 border"
-                                ><button on:click={() => rowDel(row)}
-                                    >删除</button
-                                ></td
-                            >
+                            <td class="px-2 py-1 border">{JSON.stringify(row.Task)}</td>
+                            <td class="px-2 py-1 border"><button on:click={() => rowEdit(row)}>编辑</button></td>
+                            <td class="px-2 py-1 border"><button on:click={() => rowDel(row)}>删除</button></td>
                         </tr>
                     {/each}
                 {:else}
@@ -183,9 +165,7 @@
                     </tr>
                 {/if}
                 <tr>
-                    <td class="text-center"
-                        ><button on:click={() => rowAdd()}>添加</button></td
-                    >
+                    <td class="text-center"><button on:click={() => rowAdd()}>添加</button></td>
                     <td colspan="4" />
                 </tr>
             </tbody>
@@ -194,7 +174,7 @@
 </Layout>
 
 <Dialog bind:isShow>
-    <div class="bg-white rounded-lg p-4 w-[500px]">
+    <div class="bg-white rounded-lg p-4 w-[700px]">
         <div>
             <pre class=" text-gray-400 text-sm">
 *: 匹配该字段所有值
@@ -206,10 +186,7 @@
         </div>
         <div class="grid grid-cols-[auto_auto] gap-4 mt-4">
             <label for="row_cfg">Cfg: </label>
-            <div
-                id="row_cfg"
-                class="grid grid-cols-5 gap-y-2 gap-x-4 text-center"
-            >
+            <div id="row_cfg" class="grid grid-cols-5 gap-y-2 gap-x-4 text-center">
                 <input class="border text-center" bind:value={editRow.Minute} />
                 <input class="border text-center" bind:value={editRow.Hour} />
                 <input class="border text-center" bind:value={editRow.Day} />
@@ -230,11 +207,7 @@
         </div>
         <div class="text-center mt-2">
             <button class="mx-4" type="button" on:click={save}>确定</button>
-            <button
-                class="mx-4"
-                type="button"
-                on:click={() => (isShow = !isShow)}>取消</button
-            >
+            <button class="mx-4" type="button" on:click={() => (isShow = !isShow)}>取消</button>
         </div>
     </div>
 </Dialog>

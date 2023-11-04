@@ -108,9 +108,5 @@ export function beforSecond(t) {
         return Math.floor(t/60) + "m"
     }
 
-    if (t == 0) {
-        return 'N/A'
-    }
-    
     return t + "s"
 }

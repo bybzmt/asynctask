@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"regexp"
 	"sync"
 )
@@ -62,40 +61,4 @@ func (s *Scheduler) db_router_load() (out []string, err error) {
 	return
 }
 
-func (s *Scheduler) SetRoutes(pattern []string) error {
-	s.router.l.Lock()
-	defer s.router.l.Unlock()
 
-	if len(pattern) == 0 {
-		return fmt.Errorf("pattern empty")
-	}
-
-	var exps []*regexp.Regexp
-
-	for _, p := range pattern {
-		if p == "" {
-			return fmt.Errorf("pattern empty")
-		}
-
-		exp, err := regexp.Compile(p)
-		if err != nil {
-			return err
-		}
-
-		exps = append(exps, exp)
-	}
-
-	s.router.routes = pattern
-	s.router.exps = exps
-
-    s.db_router_save(pattern)
-
-	return nil
-}
-
-func (s *Scheduler) Routes() []string {
-	s.router.l.Lock()
-	defer s.router.l.Unlock()
-
-	return s.router.routes
-}

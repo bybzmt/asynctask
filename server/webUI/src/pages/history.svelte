@@ -21,7 +21,6 @@
     let Groups = []
 
     let sortby = 2
-    let tab = 2
     let sortName = [
         { k: 1, n: "名称" },
         { k: 9, n: "工作组" },
@@ -56,13 +55,6 @@
         res.Groups.sort(function (a, b) {
             return a.Id < b.Id ? -1 : 1
         })
-
-        if (tab == 2 || tab == 3) {
-            res.Tasks = res.Tasks.filter(function (task) {
-                let ok = () => task.NowNum > 0 || task.WaitNum > 0
-                return tab == 3 ? !ok() : ok()
-            })
-        }
 
         res.Tasks.sort(jobSort(sortby))
 
@@ -123,7 +115,7 @@
     }
 </script>
 
-<Layout tab="2">
+<Layout tab="3">
     <div id="All">
         <table class="m-4 border text-base text-center">
             <thead>
@@ -157,10 +149,10 @@
                         <td class="px-2 py-1 border">{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td class="px-2 py-1 border">{g.NowNum} / {g.WorkerNum}</td>
                         <td class="px-2 py-1 border">{g.RunNum}</td>
-                        <td class="px-2 py-1 border">{g.ErrNum}</td>
                         <td class="px-2 py-1 border">{g.OldRun}</td>
                         <td class="px-2 py-1 border">{g.OldErr}</td>
                         <td class="px-2 py-1 border">{g.WaitNum}</td>
+                        <td class="px-2 py-1 border" />
                     </tr>
                 {/each}
             </tbody>
@@ -181,6 +173,8 @@
                     {/each}
                     <th class="px-2 py-1 border">上次</th>
                     <th class="px-2 py-1 border">报错</th>
+
+                    <th colspan="2" class="px-2 py-1 border" />
                 </tr>
             </thead>
             <tbody>
@@ -198,9 +192,11 @@
                         <td class="px-2 py-1 border">{fmtPriority(j)}</td>
                         <td class="px-2 py-1 border">{beforSecond(j.LastTime)}</td>
                         <td class="px-2 py-1 border">{j.ErrNum}</td>
+                        <td class="px-2 py-1 border"><button on:click={() => jobEmpty(j)}>Empty</button></td>
+                        <td class="px-2 py-1 border"><button on:click={() => jobDelIdle(j)}>Del Stat</button></td>
                     </tr>
                 {:else}
-                    <tr><td colspan="12" class="px-2 py-1 border text-center">empty</td> </tr>
+                    <tr><td colspan="13" class="px-2 py-1 border text-center">empty</td> </tr>
                 {/each}
             </tbody>
         </table>

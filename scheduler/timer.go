@@ -16,7 +16,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 	page := 20
 
 	for {
-		nt := make([]*order, 0, page)
+		nt := make([]*Order, 0, page)
 
 		empty := true
 
@@ -33,7 +33,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 			bucket.ForEach(func(k, v []byte) error {
 				empty = false
 
-				t := new(order)
+				t := new(Order)
 
 				if err = json.Unmarshal(v, &t); err != nil {
 					s.Log.WithFields(map[string]any{
@@ -94,7 +94,7 @@ func (s *Scheduler) timerChecker(now time.Time) {
 	}
 }
 
-func (s *Scheduler) timerAddTask(t *order) error {
+func (s *Scheduler) timerAddTask(t *Order) error {
 
 	// path: /timer/:unix-:id
 	err := s.Db.Update(func(tx *bolt.Tx) error {
@@ -162,12 +162,12 @@ func (s *Scheduler) TimerShow(starttime, num int) (out []timedTask) {
 		c := bucket.Cursor()
 		k, v := c.Seek([]byte(fmtId(starttime)))
 
-		o := new(order)
+		o := new(Order)
 
 		for i := 0; k != nil && i < num; i++ {
 			if err := json.Unmarshal(v, &o); err == nil {
 				out = append(out, timedTask{
-                    Task : o.Task,
+                    Task : *o.Task,
                     TimedID: string(k),
                 })
 			}
