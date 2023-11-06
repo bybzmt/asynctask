@@ -27,6 +27,7 @@ type job struct {
 	mode       job_mode
 
 	score int
+    empty bool
 
 	nowNum  int32
 	waitNum int32
@@ -55,6 +56,8 @@ func (j *job) addTask(t *Order) error {
 	if err != nil {
 		return err
 	}
+
+    j.empty = false
 
 	j.waitNum += 1
 	j.group.waitNum += 1
@@ -95,7 +98,6 @@ func (j *job) delTask(tid ID) error {
 	if has {
 		j.waitNum -= 1
 		j.group.waitNum -= 1
-		j.group.modeCheck(j)
 	}
 
 	return nil
@@ -104,8 +106,13 @@ func (j *job) delTask(tid ID) error {
 func (j *job) popTask() (*Order, error) {
 	t := new(Order)
 
-	err := db_pop(j.s.Db, &t, "task", j.name)
+	err := db_shift(j.s.Db, &t, "task", j.name)
 	if err != nil {
+		if err == Empty {
+            j.empty = true
+			j.waitNum = 0
+		}
+
 		return nil, err
 	}
 

@@ -49,7 +49,7 @@ func (s *Server) CronRun(ctx context.Context) {
 		for _, j := range cfg.Tasks {
 			c.AddFunc(j.Cfg, func(t scheduler.Task) func() {
 				return func() {
-					err := s.Scheduler.TaskAdd(&t)
+					err := s.Scheduler.TaskAdd(t)
 					if err != nil {
 						s.Scheduler.Log.Errorln("Cron AddTask", err)
 					}
@@ -150,7 +150,7 @@ func (s *Server) page_cron_setConfig(r *http.Request) any {
 			return err
 		}
 
-		_, err = s.Scheduler.TaskCheck(&j.Task)
+		_, err = s.Scheduler.TaskCheck(j.Task)
 		if err != nil {
 			return err
 		}

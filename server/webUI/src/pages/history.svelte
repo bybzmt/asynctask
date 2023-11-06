@@ -20,7 +20,7 @@
     let Tasks = []
     let Groups = []
 
-    let sortby = 2
+    let sortby = 1
     let sortName = [
         { k: 1, n: "名称" },
         { k: 9, n: "工作组" },

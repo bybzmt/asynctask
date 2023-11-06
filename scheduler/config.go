@@ -34,7 +34,6 @@ type Config struct {
 
 type Task struct {
 	Name string `json:"name"`
-	// Args []string `json:"args,omitempty"`
 	Args json.RawMessage `json:"args,omitempty"`
 
 	Method string            `json:"method,omitempty"`

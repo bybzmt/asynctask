@@ -170,7 +170,7 @@ func addTask(hub *Server, num int, taskadd chan int) {
 			taskadd <- 2
 		}
 
-		err := hub.Scheduler.TaskAdd(&task)
+		err := hub.Scheduler.TaskAdd(task)
 		if err != nil {
 			panic(err)
 		}

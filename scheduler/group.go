@@ -59,8 +59,8 @@ func (g *group) dispatch() bool {
 		if err == Empty {
 			if g.nowNum == 0 {
 				g.waitNum = 0
+				g.s.Log.Debugln("Group", g.Id, "Empty")
 			}
-			g.s.Log.Debugln("Group", g.Id, "Empty")
 			return false
 		}
 		g.s.Log.Warnln("GetTask Error", err)
@@ -176,15 +176,15 @@ func (g *group) modeCheck(j *job) {
 		return
 	}
 
-	if j.nowNum >= int32(j.Parallel) || (j.waitNum < 1 && j.nowNum > 0) {
-		if j.mode != job_mode_block {
-			jobRemove(j)
-			g.blockAdd(j)
-		}
-	} else if j.waitNum < 1 {
+	if j.empty {
 		if j.mode != job_mode_idle {
 			jobRemove(j)
 			j.s.idleAdd(j)
+		}
+	} else if j.nowNum >= int32(j.Parallel) {
+		if j.mode != job_mode_block {
+			jobRemove(j)
+			g.blockAdd(j)
 		}
 	} else {
 		j.countScore()
@@ -199,29 +199,29 @@ func (g *group) modeCheck(j *job) {
 }
 
 func (g *group) GetOrder() (*Order, error) {
-	if g.run == g.run.next {
-		return nil, Empty
-	}
-
-	j := g.run.next
-
-	o, err := j.popTask()
-
-	g.modeCheck(j)
-
-	if err != nil {
-		if err == Empty {
-			j.s.Log.Warnln("Job PopOrder Empty")
-
-			j.waitNum = 0
+	for {
+		if g.run == g.run.next {
+			return nil, Empty
 		}
-		return nil, err
+
+		j := g.run.next
+
+		o, err := j.popTask()
+
+		g.modeCheck(j)
+
+		if err != nil {
+			if err == Empty {
+				continue
+			}
+			return nil, err
+		}
+
+		o.g = j.group
+		o.job = j
+
+		return o, nil
 	}
-
-	o.g = j.group
-	o.job = j
-
-	return o, nil
 }
 
 func (g *group) front() *job {

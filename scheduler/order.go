@@ -23,7 +23,7 @@ type Order struct {
 	Task    *Task      `json:",omitempty"`
 	Cli     *OrderCli  `json:",omitempty"`
 	Http    *OrderHttp `json:",omitempty"`
-	AddTime uint
+	AddTime uint       `json:",omitempty"`
 
 	job *job
 	g   *group
@@ -109,6 +109,12 @@ func logCost(ts float64) string {
 
 func runCli(o *Order) (status int, msg string) {
 
+	if o.Cli == nil {
+		status = -1
+		o.err = fmt.Errorf("Order Cli is nil")
+		return
+	}
+
 	t := o.Cli
 
 	timeout := o.Task.Timeout
@@ -149,6 +155,12 @@ func runCli(o *Order) (status int, msg string) {
 }
 
 func runHttp(o *Order) (status int, msg string) {
+
+	if o.Http == nil {
+		status = -1
+		o.err = fmt.Errorf("Order Http is nil")
+		return
+	}
 
 	t := o.Http
 

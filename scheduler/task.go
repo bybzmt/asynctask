@@ -54,7 +54,11 @@ func (s *Scheduler) TaskDel(name string, tid ID) error {
 	return j.delTask(tid)
 }
 
-func (s *Scheduler) TaskCheck(t *Task) (*Order, error) {
+func (s *Scheduler) TaskCheck(t Task) (*Order, error) {
+	return s.taskCheck(&t)
+}
+
+func (s *Scheduler) taskCheck(t *Task) (*Order, error) {
 	s.tl.Lock()
 	defer s.tl.Unlock()
 
@@ -153,6 +157,7 @@ func (s *Scheduler) TaskCheck(t *Task) (*Order, error) {
 		o.Cli = &OrderCli{
 			Args: r.TaskBase.CmdArgs,
 			Dir:  r.TaskBase.CmdDir,
+			Env:  []string{},
 		}
 
 		for k, v := range r.TaskBase.CmdEnv {
@@ -163,6 +168,8 @@ func (s *Scheduler) TaskCheck(t *Task) (*Order, error) {
 
 		if r.exp2 != nil {
 			path = r.exp2.ReplaceAllString(u.String(), r.RewriteRepl)
+		} else if r.RewriteRepl != "" {
+			path = r.RewriteRepl
 		}
 
 		if r.TaskBase.CmdPath == "" {
@@ -178,9 +185,11 @@ func (s *Scheduler) TaskCheck(t *Task) (*Order, error) {
 
 		var args []string
 
-		err := json.Unmarshal(t.Args, &args)
-		if err != nil {
-			return nil, fmt.Errorf("Task Args need type []string")
+		if t.Args != nil {
+			err := json.Unmarshal(t.Args, &args)
+			if err != nil {
+				return nil, fmt.Errorf("Task Args need type []string")
+			}
 		}
 
 		o.Cli.Args = append(o.Cli.Args, args...)
@@ -221,8 +230,8 @@ func (s *Scheduler) taskNameCheck(t *Task) *url.URL {
 	return u
 }
 
-func (s *Scheduler) TaskAdd(t *Task) error {
-	o, err := s.TaskCheck(t)
+func (s *Scheduler) TaskAdd(t Task) error {
+	o, err := s.taskCheck(&t)
 	if err != nil {
 		return err
 	}

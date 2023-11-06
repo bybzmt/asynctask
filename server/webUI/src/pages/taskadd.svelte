@@ -8,6 +8,7 @@
     let taskinfo = ""
 
     async function doCheck() {
+        taskinfo = ""
         errmsg = ""
         try {
             let task = JSON.parse(addTask)

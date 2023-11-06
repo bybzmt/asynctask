@@ -70,10 +70,10 @@ func db_fetch(db *bolt.DB, v any, key ...string) error {
 			return nil
 		}
 
-        out := b.Get([]byte(k))
-        if out != nil {
-            return json.Unmarshal(out, v)
-        }
+		out := b.Get([]byte(k))
+		if out != nil {
+			return json.Unmarshal(out, v)
+		}
 		return nil
 	})
 }
@@ -130,11 +130,11 @@ func db_del(db *bolt.DB, key ...string) error {
 	})
 }
 
-func db_pop(db *bolt.DB, out any, bucket ...string) error {
+func db_shift(db *bolt.DB, out any, bucket ...string) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := getBucket(tx, bucket...)
 		if b == nil {
-			return nil
+			return Empty
 		}
 
 		key, val := b.Cursor().First()
@@ -142,6 +142,11 @@ func db_pop(db *bolt.DB, out any, bucket ...string) error {
 		if key == nil {
 			return Empty
 		}
+
+        err := b.Delete(key)
+        if err != nil {
+            return err
+        }
 
 		return json.Unmarshal(val, &out)
 	})

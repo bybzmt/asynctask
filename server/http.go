@@ -68,7 +68,7 @@ func (s *Server) page_task_add(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.TaskAdd(&t)
+	return s.Scheduler.TaskAdd(t)
 }
 
 func (s *Server) page_task_check(r *http.Request) any {
@@ -78,7 +78,7 @@ func (s *Server) page_task_check(r *http.Request) any {
 		return err
 	}
 
-    o, err := s.Scheduler.TaskCheck(&t)
+    o, err := s.Scheduler.TaskCheck(t)
     if err != nil {
         return err
     }

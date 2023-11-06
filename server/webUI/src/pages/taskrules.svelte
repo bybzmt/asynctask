@@ -57,7 +57,7 @@
         editRow.CmdArgs = editRow.CmdArgs || []
         editRow.Timeout = editRow.Timeout || 0
 
-        if (/cli:\/\//.test(row.name)) {
+        if (/cli:\/\//i.test(row.Pattern)) {
             editRow.Mode = 2
         } else {
             editRow.Mode = 1
