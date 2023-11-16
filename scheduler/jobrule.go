@@ -155,9 +155,9 @@ func (s *Scheduler) JobRules() (out []JobRule) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	var r JobRule
-
 	db_getall(s.Db, func(k, v []byte) error {
+		var r JobRule
+
 		err := json.Unmarshal(v, &r)
 		if err == nil {
 			out = append(out, r)
@@ -166,6 +166,8 @@ func (s *Scheduler) JobRules() (out []JobRule) {
 	}, "config", "jobrule", rule_types[rule_type_direct])
 
 	db_getall(s.Db, func(k, v []byte) error {
+		var r JobRule
+
 		err := json.Unmarshal(v, &r)
 		if err == nil {
 			out = append(out, r)

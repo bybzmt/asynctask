@@ -40,6 +40,7 @@
         editRow = {}
         editRow.Mode = 1
         editRow.Type = 1
+        editRow.Note = editRow.Note || ""
         editRow.Sort = editRow.Sort || 0
         editRow.CmdPath = editRow.CmdPath || ""
         editRow.CmdDir = editRow.CmdDir || ""

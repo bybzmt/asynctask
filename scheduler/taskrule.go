@@ -161,9 +161,9 @@ func (s *Scheduler) TaskRules() (out []TaskRule) {
 	s.tl.Lock()
 	defer s.tl.Unlock()
 
-	var r TaskRule
-
 	db_getall(s.Db, func(k, v []byte) error {
+		var r TaskRule
+
 		err := json.Unmarshal(v, &r)
 		if err == nil {
 			out = append(out, r)
@@ -172,6 +172,8 @@ func (s *Scheduler) TaskRules() (out []TaskRule) {
 	}, "config", "taskrule", rule_types[rule_type_direct])
 
 	db_getall(s.Db, func(k, v []byte) error {
+		var r TaskRule
+
 		err := json.Unmarshal(v, &r)
 		if err == nil {
 			out = append(out, r)

@@ -1,21 +1,19 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	bolt "go.etcd.io/bbolt"
 )
 
 type Scheduler struct {
 	Config
 	schedulerConfig
 
-	l sync.Mutex
+	l  sync.Mutex
 	tl sync.Mutex
 
 	now    time.Time
@@ -121,6 +119,8 @@ func (s *Scheduler) Run() {
 
 	s.l.Lock()
 
+	defer s.saveScheduler()
+
 	if s.running {
 		panic(errors.New("Run only run once"))
 	}
@@ -218,7 +218,7 @@ func (s *Scheduler) Close() error {
 
 		case <-s.closed:
 			s.Log.Debugln("Scheduler closd")
-			return s.saveScheduler()
+			return nil
 		}
 	}
 }
@@ -263,49 +263,11 @@ func (s *Scheduler) dayCheck() {
 }
 
 func (s *Scheduler) saveScheduler() error {
-
-	//key: config/scheduler.cfg
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config")
-		if err != nil {
-			return err
-		}
-
-		val, err := json.Marshal(&s.schedulerConfig)
-		if err != nil {
-			return err
-		}
-
-		return bucket.Put([]byte("scheduler.cfg"), val)
-	})
-
-	return err
+	return db_put(s.Db, s.schedulerConfig, "config", "scheduler.cfg")
 }
 
 func (s *Scheduler) loadScheduler() {
-	//key: config/scheduler.cfg
-	err := s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "config")
-		if bucket == nil {
-			return nil
-		}
-
-		var c schedulerConfig
-
-		val := bucket.Get([]byte("scheduler.cfg"))
-		if val == nil {
-			return nil
-		}
-
-		if err := json.Unmarshal(val, &c); err != nil {
-			return err
-		}
-
-		s.schedulerConfig = c
-
-		return nil
-	})
-
+	err := db_fetch(s.Db, &s.schedulerConfig, "config", "scheduler.cfg")
 	if err != nil {
 		s.Log.Warnln("/config/scheduler.cfg load error:", err)
 	}

@@ -149,10 +149,10 @@
                         <td class="px-2 py-1 border">{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td class="px-2 py-1 border">{g.NowNum} / {g.WorkerNum}</td>
                         <td class="px-2 py-1 border">{g.RunNum}</td>
+                        <td class="px-2 py-1 border">{g.ErrNum}</td>
                         <td class="px-2 py-1 border">{g.OldRun}</td>
                         <td class="px-2 py-1 border">{g.OldErr}</td>
                         <td class="px-2 py-1 border">{g.WaitNum}</td>
-                        <td class="px-2 py-1 border" />
                     </tr>
                 {/each}
             </tbody>
