@@ -60,7 +60,7 @@ func (s *Server) RedisRun(ctx context.Context) {
 		}
 
 		if err != nil {
-			s.Scheduler.Log.Debugln("redis list empty.", err.Error())
+			s.Scheduler.Log.Debugln("redis list empty.", s.Redis.Key, err.Error())
 
 			if exit {
 				return

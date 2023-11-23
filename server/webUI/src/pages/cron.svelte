@@ -130,7 +130,7 @@
 </script>
 
 <Layout tab="7">
-    <div class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-min text-sm">
+    <div class="m-4 grid gap-y-1 gap-x-2 grid-cols-[auto_auto_auto] w-max text-sm">
         <span>Edit:</span>
         <span>{timeStr(cron.EditAt)}</span>
         <span class="col-start-1">Run :</span>

@@ -41,7 +41,7 @@ func (c *JobRule) match(job string) bool {
 func (s *Scheduler) ruleApply(j *job) {
 	j.JobConfig = s.matchRule(j.name)
 
-	if j.group != nil {
+	if j.next != nil {
 		jobRemove(j)
 	}
 

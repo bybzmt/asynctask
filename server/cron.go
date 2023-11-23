@@ -111,6 +111,10 @@ func (s *Server) cron_run_cfg() cronConfig {
 }
 
 func (s *Server) page_cron_getConfig(r *http.Request) any {
+    return s.cron_getConfig()
+}
+
+func (s *Server) cron_getConfig() cronConfig {
 	var cfg cronConfig
 
 	//key: config/cron.cfg
@@ -156,9 +160,9 @@ func (s *Server) page_cron_setConfig(r *http.Request) any {
 		}
 	}
 
-	var cfg cronConfig
-	cfg.Tasks = tasks
-	cfg.EditAt = time.Now().Unix()
+    cfg := s.cron_getConfig()
+    cfg.Tasks = tasks
+    cfg.EditAt = time.Now().Unix()
 
 	//key: config/cron.cfg
 	err := s.Scheduler.Db.Update(func(tx *bolt.Tx) error {

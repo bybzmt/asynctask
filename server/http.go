@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"runtime"
 )
 
 //go:embed dist/*
@@ -78,12 +79,12 @@ func (s *Server) page_task_check(r *http.Request) any {
 		return err
 	}
 
-    o, err := s.Scheduler.TaskCheck(t)
-    if err != nil {
-        return err
-    }
+	o, err := s.Scheduler.TaskCheck(t)
+	if err != nil {
+		return err
+	}
 
-    return o
+	return o
 }
 
 func (s *Server) page_task_empty(r *http.Request) any {
@@ -259,8 +260,18 @@ func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *htt
 
 		defer func() {
 			if err := recover(); err != nil {
+				buf := make([]byte, 4096)
+
+                n := runtime.Stack(buf, false)
+
 				rs.Code = 1
-				rs.Data = err
+				rs.Data = struct {
+					Err   any
+					Stack string
+				}{
+					Err:   err,
+                    Stack: string(buf[0:n]),
+				}
 			}
 
 			w.Header().Add("Content-Type", "application/json")
