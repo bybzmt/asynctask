@@ -2,17 +2,25 @@ package scheduler
 
 import (
 	"crypto/rand"
-	"log"
 	"sort"
 	"testing"
+	"context"
 )
 
 func TestPriority(t *testing.T) {
 
 	var scores []int
-	g := new(group)
-    g.s = new(Scheduler)
-	g.init()
+
+    s, err := New(&Config{
+		Dirver: DirverFunc(func(id ID, ctx context.Context) error {
+			return nil
+		}),
+    })
+	if err != nil {
+		t.Fatal("New", err)
+	}
+
+	g := new(group).init(s, "")
 
 	for i := 0; i < 20; i++ {
 		scores = append(scores, ts_getRand()%100)
@@ -25,7 +33,7 @@ func TestPriority(t *testing.T) {
 		g.runAdd(j)
 		g.priority(j)
 
-		log.Printf("tmp %v", ts_getJobsScore(g))
+		t.Logf("tmp %v", ts_getJobsScore(g))
 	}
 
 	sort.Ints(scores)
@@ -41,8 +49,8 @@ func TestPriority(t *testing.T) {
 		if jscores[i] != score {
 			t.Error("scores len error")
 
-			log.Printf("expect %v", scores)
-			log.Printf("got %v", jscores)
+			t.Logf("expect %v", scores)
+			t.Logf("got %v", jscores)
 			return
 		}
 	}
@@ -62,5 +70,5 @@ func ts_getJobsScore(g *group) []int {
 		jscores = append(jscores, j.score)
 	}
 
-    return jscores
+	return jscores
 }

@@ -30,12 +30,14 @@ func (s *statRow) getAll() int64 {
 	return s.all
 }
 
-type RunTaskStat struct {
+func (s *statRow) len() int64 {
+	return int64(len(s.data))
+}
+
+type RunTask struct {
 	Id        ID
-	Group     ID
-	Name      string
-	Mode      string
-	Task      string
+	Group     string
+	Job       string
 	StartTime int64
 }
 
@@ -49,15 +51,18 @@ type JobStat struct {
 	OldErr   int
 	WaitNum  int
 	UseTime  int
-	LastTime int
-	GroupId  ID
+	LastTime int64
+	Group    string
 	Load     int64
 	NowNum   int
 	Score    int
 }
 
 type GroupStat struct {
-	GroupConfig
+	Name      string
+	WorkerNum uint32
+	Note      string
+
 	Capacity int64
 	Load     int64
 	NowNum   int
@@ -68,50 +73,43 @@ type GroupStat struct {
 	WaitNum  int
 }
 
-type Statistics struct {
-	schedulerConfig
+type Stat struct {
 	Groups []GroupStat
 	Tasks  []JobStat
-	Timed  int
 }
 
-func (g *group) getJobStat(j *job) JobStat {
+func getJobStat(j *job) JobStat {
 	useTime := 0
-	if len(j.useTimeStat.data) > 0 {
-		useTime = int(j.useTimeStat.getAll() / int64(len(j.useTimeStat.data)) / int64(time.Millisecond))
-	}
-
-	sec := 0
-
-	sec2 := j.lastTime.Unix()
-	if sec2 > 0 {
-		sec = int(g.s.now.Sub(j.lastTime) / time.Second)
+	if len(j.useTime.data) > 0 {
+		useTime = int(j.useTime.getAll() / j.useTime.len() / int64(time.Millisecond))
 	}
 
 	tmp := JobStat{
-		Priority: j.Priority,
-		Parallel: j.Parallel,
+		Priority: j.priority,
+		Parallel: j.parallel,
 		Name:     j.name,
-		WaitNum:  int(j.waitNum),
+		Group:    j.group,
+		WaitNum:  int(j.len()),
 		NowNum:   int(j.nowNum),
 		RunNum:   int(j.runNum),
 		ErrNum:   int(j.errNum),
 		OldRun:   int(j.oldRun),
 		OldErr:   int(j.oldErr),
 		UseTime:  useTime,
-		LastTime: sec,
-		GroupId:  j.group.Id,
-		Load:     j.loadStat.getAll(),
+		LastTime: j.lastTime.Unix(),
+		Load:     j.loadStat.getAll() / int64(time.Millisecond),
 		Score:    j.score,
 	}
 
 	return tmp
 }
 
-func (s *Scheduler) getGroupStat(g *group) (t GroupStat) {
-	t.GroupConfig = g.GroupConfig
-	t.Capacity = int64(len(g.loadStat.data)) * int64(s.statTick) * int64(g.WorkerNum)
-	t.Load = g.loadStat.getAll()
+func getGroupStat(g *group) (t GroupStat) {
+	t.WorkerNum = g.WorkerNum
+	t.Note = g.Note
+
+	t.Capacity = int64(len(g.loadStat.data)) * int64(g.s.statTick) * int64(g.WorkerNum)
+	t.Load = g.loadStat.getAll() / int64(time.Millisecond)
 	t.NowNum = g.nowNum
 	t.RunNum = g.runNum
 	t.ErrNum = g.errNum
@@ -121,18 +119,17 @@ func (s *Scheduler) getGroupStat(g *group) (t GroupStat) {
 	return
 }
 
-func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
+func (s *Scheduler) GetRunTask() []RunTask {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	runs := make([]RunTaskStat, 0, s.WorkerNum)
+	runs := make([]RunTask, 0, len(s.orders))
 
 	for t2 := range s.orders {
-		st := RunTaskStat{
-			Id:        t2.Id,
-			Group:     t2.g.Id,
-			Name:      t2.job.name,
-			Task:      t2.taskTxt,
+		st := RunTask{
+			Id:        t2.id,
+			Group:     t2.g.name,
+			Job:       t2.job.name,
 			StartTime: t2.startTime.Unix(),
 		}
 		runs = append(runs, st)
@@ -141,37 +138,22 @@ func (s *Scheduler) GetRunTaskStat() []RunTaskStat {
 	return runs
 }
 
-func (s *Scheduler) GetStatData() Statistics {
+func (s *Scheduler) GetStat() Stat {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	var out Statistics
-	out.schedulerConfig = s.schedulerConfig
-	out.Timed = s.timedNum
+	var out Stat
 
 	out.Groups = make([]GroupStat, 0, len(s.groups))
 	out.Tasks = make([]JobStat, 0, len(s.jobs))
 
 	for _, jt := range s.jobs {
-		tmp := jt.group.getJobStat(jt)
-
-		out.Tasks = append(out.Tasks, tmp)
+		out.Tasks = append(out.Tasks, getJobStat(jt))
 	}
 
 	for _, g := range s.groups {
-		out.Groups = append(out.Groups, s.getGroupStat(g))
+		out.Groups = append(out.Groups, getGroupStat(g))
 	}
 
 	return out
-}
-
-func (s *Scheduler) GetGroupStat() (out []GroupStat) {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	for _, g := range s.groups {
-		out = append(out, s.getGroupStat(g))
-	}
-
-	return
 }

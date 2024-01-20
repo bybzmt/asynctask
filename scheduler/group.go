@@ -2,15 +2,13 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 type group struct {
-	GroupConfig
+	Group
+
+	name string
 
 	s *Scheduler
 
@@ -33,7 +31,10 @@ type group struct {
 	loadStat statRow
 }
 
-func (g *group) init() {
+func (g *group) init(s *Scheduler, name string) *group {
+	g.s = s
+	g.name = name
+
 	g.tick = make(chan time.Time)
 
 	g.block = &job{}
@@ -46,7 +47,9 @@ func (g *group) init() {
 
 	g.loadStat.init(g.s.statSize)
 
-	g.ctx, g.cancel = context.WithCancel(context.Background())
+	g.ctx, g.cancel = context.WithCancel(g.s.ctx)
+
+	return g
 }
 
 func (g *group) dispatch() bool {
@@ -54,173 +57,129 @@ func (g *group) dispatch() bool {
 		return false
 	}
 
-	t, err := g.GetOrder()
+	o, err := g.GetOrder()
 	if err != nil {
-		if err == Empty {
+		if err == empty {
 			if g.nowNum == 0 {
 				g.waitNum = 0
-				g.s.Log.Debugln("Group", g.Id, "Empty")
+				g.s.log.Println("Group", g.name, "Empty")
 			}
 			return false
 		}
-		g.s.Log.Warnln("GetTask Error", err)
+		g.s.log.Println("GetTask Error", err)
 
 		return false
 	}
 
-	t.startTime = g.s.now
-	t.statTime = g.s.now
+	g.s.orders[o] = struct{}{}
 
-	if t.Task.Timeout == 0 {
-		t.Task.Timeout = 60
-	}
-
-	t.ctx, t.cancel = context.WithTimeout(g.ctx, time.Duration(t.Task.Timeout)*time.Second)
-
-	g.s.orders[t] = struct{}{}
-
-	//总状态
+	g.waitNum--
 	g.nowNum++
+	o.job.nowNum++
+	g.modeCheck(o.job)
 
-	go t.Run()
+	go o.run()
 
-	return g.nowNum+1 < int(g.WorkerNum)
+	return true
 }
 
-func (g *group) end(t *Order) {
-	loadTime := t.endTime.Sub(t.statTime)
-	useTime := t.endTime.Sub(t.startTime)
-
-	if t.err != nil {
+func (g *group) end(o *order) {
+	if o.err != nil {
 		g.errNum += 1
-		t.job.errNum += 1
-	} else {
-		if t.Task.Retry > 0 {
-			t.Task.Retry--
-
-			var sec uint = 60
-
-			if t.Task.RetrySec > 0 {
-				sec = t.Task.RetrySec
-			}
-
-			t.Task.Timer = uint(g.s.now.Unix()) + sec
-
-			g.s.timerAddTask(t)
-		}
+		o.job.errNum += 1
 	}
 
-	t.job.end(g.s.now, loadTime, useTime)
+	loadTime := g.s.now.Sub(o.statTime)
+	useTime := g.s.now.Sub(o.startTime)
 
-	g.modeCheck(t.job)
+	j := o.job
+	j.nowNum--
+	j.runNum++
+	j.lastTime = g.s.now
+	j.loadTime += loadTime
+	j.useTime.push(int64(useTime))
 
-	g.runNum++
 	g.nowNum--
+	g.runNum++
 	g.loadTime += loadTime
 
-	delete(g.s.orders, t)
+	delete(g.s.orders, o)
 
-	t.cancel()
+	o.cancel()
+
+	g.modeCheck(o.job)
 }
 
-func (g *group) statMaintain() {
-	g.loadStat.push(int64(g.loadTime))
-	g.loadTime = 0
-
-	for j := g.run.next; j != g.run; j = j.next {
-		j.loadStat.push(int64(j.loadTime))
-		j.loadTime = 0
-	}
-
-	for j := g.block.next; j != g.block; j = j.next {
-		j.loadStat.push(int64(j.loadTime))
-		j.loadTime = 0
-	}
-}
-
-func (s *Scheduler) statMaintain(now time.Time) {
+func (s *Scheduler) statMaintain() {
 	for t := range s.orders {
-		us := now.Sub(t.statTime)
-		t.statTime = now
-
+		us := s.now.Sub(t.statTime)
 		t.g.loadTime += us
 		t.job.loadTime += us
+		t.statTime = s.now
 	}
 
-	for j := s.idle.next; j != s.idle; j = j.next {
+	for _, j := range s.jobs {
 		j.loadStat.push(int64(j.loadTime))
 		j.loadTime = 0
 	}
 
 	for _, g := range s.groups {
-		g.statMaintain()
+		g.loadStat.push(int64(g.loadTime))
+		g.loadTime = 0
 	}
-}
-
-func (g *group) dayChange() {
-	g.oldRun = g.runNum
-	g.oldErr = g.errNum
-	g.runNum = 0
-	g.errNum = 0
-}
-
-func (g *group) addJob(j *job) {
-	g.runAdd(j)
-
-	g.modeCheck(j)
 }
 
 func (g *group) modeCheck(j *job) {
-	if j.next == nil || j.prev == nil {
-		j.s.Log.Warning("modeCheck nil")
-		return
-	}
-
-	if j.empty {
+	if j.len() == 0 {
 		if j.mode != job_mode_idle {
 			jobRemove(j)
 			j.s.idleAdd(j)
+			j.g = nil
 		}
-	} else if j.nowNum >= int32(j.Parallel) {
+	} else if j.nowNum >= int32(j.parallel) {
 		if j.mode != job_mode_block {
 			jobRemove(j)
 			g.blockAdd(j)
 		}
 	} else {
-		j.countScore()
-
 		if j.mode != job_mode_runnable {
 			jobRemove(j)
 			g.runAdd(j)
 		}
 
+		g.countScore(j)
 		g.priority(j)
 	}
 }
 
-func (g *group) GetOrder() (*Order, error) {
+func (g *group) GetOrder() (*order, error) {
 	for {
 		if g.run == g.run.next {
-			return nil, Empty
+			return nil, empty
 		}
 
 		j := g.run.next
 
-		o, err := j.popTask()
+		taskid := j.popTask()
 
-		g.modeCheck(j)
-
-		if err != nil {
-			if err == Empty {
-				continue
-			}
-			return nil, err
+		if taskid == 0 {
+			g.modeCheck(j)
+			continue
 		}
 
-		o.g = j.group
-		o.job = j
+		var o = order{
+			id:        taskid,
+			g:         g,
+			job:       j,
+			startTime: g.s.now,
+			statTime:  g.s.now,
+			log:       g.s.log,
+			dirver:    g.s.dirver,
+		}
 
-		return o, nil
+		o.ctx, o.cancel = context.WithCancel(g.ctx)
+
+		return &o, nil
 	}
 }
 
@@ -255,140 +214,21 @@ func (g *group) priority(j *job) {
 	jobMoveBefore(j, x)
 }
 
-func (s *Scheduler) GroupAdd(c GroupConfig) error {
-	s.l.Lock()
-	defer s.l.Unlock()
+func (g *group) countScore(j *job) {
+	var x, y, z, area float64
 
-	g, err := s.addGroup()
-	if err != nil {
-		return err
+	area = 10000
+
+	x = float64(j.nowNum) * (area / float64(g.WorkerNum))
+
+	if g.loadStat.getAll() > 0 {
+		y = float64(j.loadStat.getAll()) / float64(g.loadStat.getAll()) * area
 	}
 
-	c.Id = g.Id
-	g.GroupConfig = c
-
-	return s.db_group_save(g)
-}
-
-func (s *Scheduler) Groups() (out []GroupConfig) {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	for _, g := range s.groups {
-		out = append(out, g.GroupConfig)
+	xx := g.waitNum
+	if xx > 0 {
+		z = area - float64(j.len())/float64(xx)*area
 	}
 
-	return
-}
-
-func (s *Scheduler) GroupConfig(cfg GroupConfig) error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	g, ok := s.groups[cfg.Id]
-	if !ok {
-		return NotFound
-	}
-
-	g.GroupConfig = cfg
-
-	return s.db_group_save(g)
-}
-
-func (s *Scheduler) GroupDel(gid ID) error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
-	g, ok := s.groups[gid]
-	if !ok {
-		return NotFound
-	}
-
-	if g.Id == 1 {
-		return errors.New("Group Id:1 Can not Del")
-	}
-
-	g.cancel()
-	delete(s.groups, gid)
-
-	return db_del(s.Db, "config", "group", fmtId(g.Id))
-}
-
-func (s *Scheduler) db_group_save(g *group) error {
-	//key: config/group/:id
-	return db_put(s.Db, &g.GroupConfig, "config", "group", fmtId(g.Id))
-}
-
-func (s *Scheduler) addGroup() (*group, error) {
-	g := new(group)
-	var cfg GroupConfig
-	cfg.WorkerNum = s.WorkerNum
-
-	//key: config/group/:id
-	err := s.Db.Update(func(tx *bolt.Tx) error {
-		bucket, err := getBucketMust(tx, "config", "group")
-		if err != nil {
-			return err
-		}
-
-		id, err := bucket.NextSequence()
-		if err != nil {
-			return err
-		}
-
-		val, err := json.Marshal(&cfg)
-		if err != nil {
-			return err
-		}
-
-		if err = bucket.Put([]byte(fmtId(id)), val); err != nil {
-			return err
-		}
-
-		cfg.Id = ID(id)
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	g.GroupConfig = cfg
-	g.s = s
-	g.init()
-
-	s.groups[g.Id] = g
-
-	return g, nil
-}
-
-func (s *Scheduler) loadGroups() error {
-
-	//key: config/group/:id
-	return s.Db.View(func(tx *bolt.Tx) error {
-		bucket := getBucket(tx, "config", "group")
-		if bucket == nil {
-			return nil
-		}
-
-		return bucket.ForEach(func(key, val []byte) error {
-			var cfg GroupConfig
-			err := json.Unmarshal(val, &cfg)
-			if err != nil {
-				s.Log.Warnln("[store] key=config/group/"+string(key), "json.Unmarshal:", err)
-				return nil
-			}
-
-			g := new(group)
-			g.GroupConfig = cfg
-			g.Id = atoiId(key)
-			g.s = s
-			g.init()
-
-			s.groups[g.Id] = g
-
-			return nil
-		})
-	})
+	j.score = int(x + y + z + float64(j.priority))
 }
