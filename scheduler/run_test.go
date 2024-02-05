@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"log"
 	"strconv"
 	"sync"
 	"testing"
@@ -47,15 +46,14 @@ func TestRun(t *testing.T) {
 		WorkerNum:   5,
 		Parallel:    1,
 		JobsMaxIdle: 100,
-		CloseWait:   10,
 
 		Jobs: []*Job{
-			&Job{
+			{
 				Pattern:  "slow",
 				Group:    "slow",
 				Parallel: 10,
 			},
-			&Job{
+			{
 				Pattern:  "^fast",
 				Group:    "fast",
 				Parallel: 2,
@@ -63,7 +61,11 @@ func TestRun(t *testing.T) {
 		},
 
 		Groups: map[string]*Group{
-			"slow": &Group{
+			"slow": {
+				Note:      "slow",
+				WorkerNum: 10,
+			},
+			"fast": {
 				Note:      "slow",
 				WorkerNum: 10,
 			},
@@ -72,16 +74,18 @@ func TestRun(t *testing.T) {
 		Dirver: DirverFunc(func(id ID, ctx context.Context) error {
 
 			ts.l.Lock()
-			t, ok := ts.m[id]
+			x, ok := ts.m[id]
 			ts.l.Unlock()
 
 			if !ok {
 				return NotFound
 			}
 
-			if t.sleep > 0 {
-				time.Sleep(time.Duration(t.sleep) * time.Millisecond)
+			if x.sleep > 0 {
+				time.Sleep(time.Duration(x.sleep) * time.Millisecond)
 			}
+
+			t.Log("task", id)
 
 			ts.end <- 1
 
@@ -94,9 +98,12 @@ func TestRun(t *testing.T) {
 		t.Fatal("New", err)
 	}
 
-	go s.Run()
+	go func() {
+		s.Start()
+		ts.end <- 2
+	}()
 
-	go addTask(s, &ts, 10000)
+	go addTask(t, s, &ts, 1000)
 
 	allNum := 0
 	runnum := 0
@@ -116,6 +123,12 @@ func TestRun(t *testing.T) {
 	}
 
 toend:
+
+	s.Stop()
+
+	if x := <-ts.end; x != 2 {
+		t.Fatal("end error", x, allNum)
+	}
 
 	t.Log("all task end")
 
@@ -139,11 +152,11 @@ toend:
 	}
 }
 
-func addTask(s *Scheduler, ts *tasks, num int) {
+func addTask(t *testing.T, s *Scheduler, ts *tasks, num int) {
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
-			log.Println("i:", i, "/", num)
+			t.Log("i:", i, "/", num)
 		}
 
 		an := ts_getRand() % len(ts_actions)
@@ -169,11 +182,11 @@ func addTask(s *Scheduler, ts *tasks, num int) {
 		}
 
 		ts.m[ts.id] = task
-		ts.add <- 1
 		ts.l.Unlock()
 
 		s.TaskAdd(&Task{Id: task.id, Job: task.job})
+		ts.add <- 1
 	}
 
-	log.Println("i:", num, "/", num)
+	t.Log("i:", num, "/", num)
 }

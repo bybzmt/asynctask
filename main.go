@@ -2,7 +2,6 @@ package main
 
 import (
 	"asynctask/server"
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -16,7 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var Server server.Server
+var s *server.Server
+var dbFile string
+var config string
 var LogFile string
 var LogLevel string
 
@@ -39,52 +40,66 @@ func init() {
 		logLevel = "info"
 	}
 
-	flag.StringVar(&Server.Http.Addr, "http.addr", os.Getenv("HTTPADDR"), "http server addr")
-	flag.BoolVar(&Server.HttpEnable, "http.enable", true, "http server enable")
-
 	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
-	flag.StringVar(&Server.DbFile, "db.file", dbfile, "storage file")
-
-	flag.StringVar(&Server.Redis.Addr, "redis.addr", os.Getenv("REDISADDR"), "redis addr:port")
-	flag.StringVar(&Server.Redis.Pwd, "redis.pwd", os.Getenv("REDISPWD"), "redis password")
-	flag.StringVar(&Server.Redis.Db, "redis.db", os.Getenv("REDISDB"), "redis db")
-	flag.StringVar(&Server.Redis.Key, "redis.key", os.Getenv("REDISKEY"), "redis list key for addTask")
+	flag.StringVar(&dbFile, "db.file", dbfile, "storage file")
+	flag.StringVar(&config, "config", "config.json", "config file")
 }
 
 func main() {
 	flag.Parse()
 
-	if err := initLog(); err != nil {
-		logrus.Fatalln(err)
-	}
-
-	err := Server.Init()
+	l, err := initLog()
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 
-	ctx, canceler := context.WithCancel(context.Background())
+	s, err = server.New(config, dbFile, l)
+	if err != nil {
+		logrus.Fatalln(err)
+	}
 
 	go func() {
 		waitSignal()
-		canceler()
+
+		s.Stop()
+
+		s.CloseWait()
+
+		s.Kill()
 	}()
 
 	logrus.Info("Scheduler Start")
 
-	Server.Run(ctx)
+	s.Start()
 
 	logrus.Info("Scheduler Stop")
 }
 
 func waitSignal() {
-	s := make(chan os.Signal, 1)
-	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-	<-s
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+
+	for {
+		n := <-sig
+
+		switch n {
+		case syscall.SIGHUP:
+			logrus.Warnln("Reload")
+
+			//realod
+			err := s.Reload()
+			if err != nil {
+				logrus.Warnln("reload", err)
+			}
+
+		default:
+			return
+		}
+	}
 }
 
-func initLog() error {
+func initLog() (*logrus.Logger, error) {
 	var l *logrus.Logger
 
 	if LogFile == "" {
@@ -98,7 +113,7 @@ func initLog() error {
 			rotatelogs.WithMaxAge(45*24*time.Hour),
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		l.SetOutput(writer)
 	}
@@ -115,7 +130,7 @@ func initLog() error {
 	case "debug":
 		l.SetLevel(logrus.DebugLevel)
 	default:
-		return fmt.Errorf("Unkown LogLevel: %s", LogLevel)
+		return nil, fmt.Errorf("Unkown LogLevel: %s", LogLevel)
 	}
 
 	l.SetFormatter(&logrus.TextFormatter{
@@ -123,7 +138,5 @@ func initLog() error {
 		FullTimestamp: true,
 	})
 
-	Server.Scheduler.Log = l
-
-	return nil
+	return l, nil
 }

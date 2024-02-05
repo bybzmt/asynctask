@@ -107,8 +107,9 @@ func getJobStat(j *job) JobStat {
 func getGroupStat(g *group) (t GroupStat) {
 	t.WorkerNum = g.WorkerNum
 	t.Note = g.Note
+    t.Name = g.name
 
-	t.Capacity = int64(len(g.loadStat.data)) * int64(g.s.statTick) * int64(g.WorkerNum)
+	t.Capacity = g.loadStat.len() * int64(time.Second) * int64(g.WorkerNum)
 	t.Load = g.loadStat.getAll() / int64(time.Millisecond)
 	t.NowNum = g.nowNum
 	t.RunNum = g.runNum

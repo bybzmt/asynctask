@@ -24,10 +24,16 @@ type order struct {
 }
 
 func (o *order) run() {
+	err := ""
+
 	o.log.Println("task run", o.id)
-	defer o.log.Println("task end", o.id)
+	defer o.log.Println("task end", o.id, err)
 
 	o.err = o.dirver.Run(o.id, o.ctx)
+
+	if o.err != nil {
+		err = o.err.Error()
+	}
 
 	o.g.s.complete <- o
 }

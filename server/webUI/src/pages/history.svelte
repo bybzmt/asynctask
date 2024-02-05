@@ -145,7 +145,7 @@
                 </tr>
                 {#each Groups as g}
                     <tr>
-                        <td class="px-2 py-1 border text-left">{g.Id}: {g.Note}</td>
+                        <td class="px-2 py-1 border text-left">{g.Name}</td>
                         <td class="px-2 py-1 border">{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td class="px-2 py-1 border">{g.NowNum} / {g.WorkerNum}</td>
                         <td class="px-2 py-1 border">{g.RunNum}</td>
@@ -181,8 +181,8 @@
                 {#each Tasks as j}
                     <tr>
                         <td class="px-2 py-1 border">{j.Name}</td>
-                        <td class="px-2 py-1 border">{j.GroupId}</td>
-                        <td class="px-2 py-1 border">{Math.round((j.Load / getCapacity(j.GroupId)) * 100)}%</td>
+                        <td class="px-2 py-1 border">{j.Group}</td>
+                        <td class="px-2 py-1 border">{Math.round((j.Load / getCapacity(j.Group)) * 100)}%</td>
                         <td class="px-2 py-1 border">{j.NowNum + "/" + j.Parallel}</td>
                         <td class="px-2 py-1 border">{j.RunNum}</td>
                         <td class="px-2 py-1 border">{j.OldRun}</td>

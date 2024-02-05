@@ -1,8 +1,6 @@
 package server
 
 import (
-	"asynctask/scheduler"
-	"context"
 	"encoding/json"
 	"github.com/go-redis/redis"
 	"strconv"
@@ -14,76 +12,78 @@ type RedisConfig struct {
 	Pwd  string
 	Db   string
 	Key  string
+
+	r *redis.Client
 }
 
-func (s *Server) initRedis() error {
-    if s.Redis.Key == "" {
-        return nil
-    }
-
-	redis := s.getRedis()
-
-	_, err := redis.LLen(s.Redis.Key).Result()
-
-	return err
-}
-
-func (s *Server) getRedis() *redis.Client {
-
-	_db, _ := strconv.Atoi(s.Redis.Db)
+func (c *RedisConfig) checkConfig() error {
+	_db, _ := strconv.Atoi(c.Db)
 
 	redis := redis.NewClient(&redis.Options{
-		Addr:     s.Redis.Addr,
-		Password: s.Redis.Pwd,
+		Addr:     c.Addr,
+		Password: c.Pwd,
 		DB:       _db,
 	})
 
-	return redis
+	_, err := redis.Ping().Result()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (s *Server) RedisRun(ctx context.Context) {
-	s.Scheduler.Log.Println("[Info] redis init")
-	defer s.Scheduler.Log.Println("[Info] redis close")
+func (c *RedisConfig) RedisRun(s *Server) {
+	s.log.Println("[Info] redis init")
+	defer s.log.Println("[Info] redis close")
 
-	redis := s.getRedis()
-	redis = redis.WithContext(ctx)
+	s.l.Lock()
+	_db, _ := strconv.Atoi(c.Db)
+
+	redis := redis.NewClient(&redis.Options{
+		Addr:     c.Addr,
+		Password: c.Pwd,
+		DB:       _db,
+	})
+
+	redis = redis.WithContext(s.ctx)
+	c.r = redis
+	ctx := s.ctx
+
+	s.l.Unlock()
+
+	// _, err := redis.LLen(c.Key).Result()
 
 	for {
-		out, err := redis.BLPop(time.Second*5, s.Redis.Key).Result()
-
-		exit := false
-
-		select {
-		case <-ctx.Done():
-			exit = true
-		default:
-		}
+		out, err := redis.BLPop(time.Second*5, c.Key).Result()
 
 		if err != nil {
-			s.Scheduler.Log.Debugln("redis list empty.", s.Redis.Key, err.Error())
+			s.log.Debugln("redis list empty.", c.Key, err.Error())
 
-			if exit {
-				return
+			select {
+			case <-ctx.Done():
+			default:
+				time.Sleep(time.Second)
 			}
-
-			time.Sleep(time.Second)
 		} else {
 			data := out[1]
 
-			o := scheduler.Task{}
-			err = json.Unmarshal([]byte(data), &o)
+			t := Task{}
+			err = json.Unmarshal([]byte(data), &t)
 			if err != nil {
-				s.Scheduler.Log.Warnln("redis data Unmarshal error:", err.Error(), data)
+				s.log.Warnln("redis data Unmarshal error:", err.Error(), data)
 			} else {
-				err := s.Scheduler.TaskAdd(o)
+				err := s.TaskAdd(&t)
 				if err != nil {
-					s.Scheduler.Log.Warnln("redis add Task Fail", data)
+					s.log.Warnln("redis add Task Fail", data)
 				}
 			}
+		}
 
-			if exit {
-				return
-			}
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 	}
 }

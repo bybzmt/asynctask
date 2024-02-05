@@ -1,21 +1,21 @@
 package scheduler
 
 import (
+	"context"
 	"crypto/rand"
 	"sort"
 	"testing"
-	"context"
 )
 
 func TestPriority(t *testing.T) {
 
 	var scores []int
 
-    s, err := New(&Config{
+	s, err := New(&Config{
 		Dirver: DirverFunc(func(id ID, ctx context.Context) error {
 			return nil
 		}),
-    })
+	})
 	if err != nil {
 		t.Fatal("New", err)
 	}

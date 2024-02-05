@@ -27,59 +27,69 @@ func (s *Server) initHttp() {
 	h.HandleFunc("/api/task/status", page_error(s.page_status))
 	h.HandleFunc("/api/task/runing", page_error(s.page_runing))
 	h.HandleFunc("/api/task/add", page_error(s.page_task_add))
+	h.HandleFunc("/api/task/del", page_error(s.page_task_del))
 	h.HandleFunc("/api/task/check", page_error(s.page_task_check))
 	h.HandleFunc("/api/task/cancel", page_error(s.page_task_cancel))
 	h.HandleFunc("/api/task/timed", page_error(s.page_task_timed))
-	h.HandleFunc("/api/task/timeddel", page_error(s.page_task_timed_del))
 	h.HandleFunc("/api/task/empty", page_error(s.page_task_empty))
 	h.HandleFunc("/api/task/delIdle", page_error(s.page_job_delIdle))
+	h.HandleFunc("/api/config", page_error(s.page_config))
 
-	h.HandleFunc("/api/taskrule/list", page_error(s.page_taskrules))
-	h.HandleFunc("/api/taskrule/put", page_error(s.page_taskrule_put))
-	h.HandleFunc("/api/taskrule/del", page_error(s.page_taskrule_del))
+	c := &http.Server{
+		Addr:    s.cfg.HttpAddr,
+		Handler: h,
+	}
 
-	h.HandleFunc("/api/jobrule/list", page_error(s.page_jobrules))
-	h.HandleFunc("/api/jobrule/put", page_error(s.page_jobrule_put))
-	h.HandleFunc("/api/jobrule/del", page_error(s.page_jobrule_del))
+	s.http = c
+}
 
-	h.HandleFunc("/api/group/list", page_error(s.page_groups))
-	h.HandleFunc("/api/group/add", page_error(s.page_group_add))
-	h.HandleFunc("/api/group/del", page_error(s.page_group_del))
-	h.HandleFunc("/api/group/set", page_error(s.page_group_config))
-
-	h.HandleFunc("/api/cron/getConfig", page_error(s.page_cron_getConfig))
-	h.HandleFunc("/api/cron/setConfig", page_error(s.page_cron_setConfig))
-	h.HandleFunc("/api/cron/reload", page_error(s.page_cron_reload))
-
-	s.Http.Handler = h
+type Stat struct {
+	scheduler.Stat
+	Timed int
 }
 
 func (s *Server) page_status(r *http.Request) any {
-	return s.Scheduler.GetStatData()
+	t := &Stat{
+		Stat:  s.s.GetStat(),
+		Timed: s.timer.Len(),
+	}
+	return t
 }
 
 func (s *Server) page_runing(r *http.Request) any {
-	return s.Scheduler.GetRunTaskStat()
+	return s.TaskRuning()
 }
 
 func (s *Server) page_task_add(r *http.Request) any {
-	var t scheduler.Task
+	var t Task
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	return s.Scheduler.TaskAdd(t)
+	return s.TaskAdd(&t)
+}
+
+func (s *Server) page_task_del(r *http.Request) any {
+	var cfg struct {
+		Id ID
+	}
+
+	if err := httpReadJson(r, &cfg); err != nil {
+		return err
+	}
+
+	return s.TaskDel(cfg.Id)
 }
 
 func (s *Server) page_task_check(r *http.Request) any {
-	var t scheduler.Task
+	var t Task
 
 	if err := httpReadJson(r, &t); err != nil {
 		return err
 	}
 
-	o, err := s.Scheduler.TaskCheck(t)
+	o, err := s.TaskCheck(&t)
 	if err != nil {
 		return err
 	}
@@ -96,7 +106,7 @@ func (s *Server) page_task_empty(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.TaskEmpty(t.Name)
+	return s.TaskEmpty(t.Name)
 }
 
 func (s *Server) page_job_delIdle(r *http.Request) any {
@@ -108,135 +118,30 @@ func (s *Server) page_job_delIdle(r *http.Request) any {
 		return err
 	}
 
-	return s.Scheduler.TaskDelIdle(t.Name)
-}
-
-func (s *Server) page_groups(r *http.Request) any {
-	return s.Scheduler.Groups()
-}
-
-func (s *Server) page_group_add(r *http.Request) any {
-
-	var c scheduler.GroupConfig
-
-	if err := httpReadJson(r, &c); err != nil {
-		return err
-	}
-
-	return s.Scheduler.GroupAdd(c)
-}
-
-func (s *Server) page_group_del(r *http.Request) any {
-	var cfg struct {
-		Id scheduler.ID
-	}
-
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
-
-	return s.Scheduler.GroupDel(cfg.Id)
-}
-
-func (s *Server) page_group_config(r *http.Request) any {
-
-	var cfg scheduler.GroupConfig
-
-	if err := httpReadJson(r, &cfg); err != nil {
-		return err
-	}
-
-	return s.Scheduler.GroupConfig(cfg)
+	return s.JobDel(t.Name)
 }
 
 func (s *Server) page_task_cancel(r *http.Request) any {
 	var cfg struct {
-		Id scheduler.ID
+		Id ID
 	}
 
 	if err := httpReadJson(r, &cfg); err != nil {
 		return err
 	}
 
-	return s.Scheduler.TaskCancel(cfg.Id)
+	return s.TaskCancel(cfg.Id)
 }
 
 func (s *Server) page_task_timed(r *http.Request) any {
-	var t struct {
-		Starttime int
-	}
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.TimerShow(t.Starttime, 100)
+	return s.TimerTopN(100)
 }
 
-func (s *Server) page_task_timed_del(r *http.Request) any {
-	var t struct {
-		TimedID string
-	}
+func (s *Server) page_config(r *http.Request) any {
+	s.l.Lock()
+	defer s.l.Unlock()
 
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.TimerDel(t.TimedID)
-}
-
-func (s *Server) page_taskrules(r *http.Request) any {
-	return s.Scheduler.TaskRules()
-}
-
-func (s *Server) page_taskrule_put(r *http.Request) any {
-	var t scheduler.TaskRule
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.TaskRulePut(t)
-}
-
-func (s *Server) page_taskrule_del(r *http.Request) any {
-	var t struct {
-		Type    scheduler.RuleType
-		Pattern string
-	}
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.TaskRuleDel(t.Type, t.Pattern)
-}
-
-func (s *Server) page_jobrules(r *http.Request) any {
-	return s.Scheduler.JobRules()
-}
-
-func (s *Server) page_jobrule_put(r *http.Request) any {
-	var t scheduler.JobRule
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.JobRulePut(t)
-}
-
-func (s *Server) page_jobrule_del(r *http.Request) any {
-	var t struct {
-		Type    scheduler.RuleType
-		Pattern string
-	}
-
-	if err := httpReadJson(r, &t); err != nil {
-		return err
-	}
-
-	return s.Scheduler.JobRuleDel(t.Type, t.Pattern)
+	return s.cfg
 }
 
 func httpReadJson(r *http.Request, out any) error {
@@ -262,7 +167,7 @@ func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *htt
 			if err := recover(); err != nil {
 				buf := make([]byte, 4096)
 
-                n := runtime.Stack(buf, false)
+				n := runtime.Stack(buf, false)
 
 				rs.Code = 1
 				rs.Data = struct {
@@ -270,7 +175,7 @@ func page_error(fn func(r *http.Request) any) func(w http.ResponseWriter, r *htt
 					Stack string
 				}{
 					Err:   err,
-                    Stack: string(buf[0:n]),
+					Stack: string(buf[0:n]),
 				}
 			}
 

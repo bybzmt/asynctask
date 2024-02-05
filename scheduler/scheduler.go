@@ -28,13 +28,9 @@ type Scheduler struct {
 	orders   map[*order]struct{}
 	complete chan *order
 
-	//统计周期
-	statTick time.Duration
+	today    int
+	running  bool
 	statSize int
-
-	today int
-
-	running bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -46,11 +42,9 @@ func (s *Scheduler) init() error {
 		s.log = new(nullLogger)
 	}
 
-	s.running = true
 	s.today = time.Now().Day()
 
 	s.statSize = 60 * 5
-	s.statTick = time.Second
 
 	s.jobs = make(map[string]*job)
 	s.complete = make(chan *order)
@@ -66,6 +60,10 @@ func (s *Scheduler) init() error {
 }
 
 func New(c *Config) (*Scheduler, error) {
+	if c == nil {
+		panic("Config is nil")
+	}
+
 	s := new(Scheduler)
 	s.init()
 
@@ -91,24 +89,49 @@ func (s *Scheduler) GetConfig() *Config {
 	return &c
 }
 
-func (s *Scheduler) SetConfig(c *Config) error {
-	s.l.Lock()
-	defer s.l.Unlock()
+func (s *Scheduler) CheckConfig(c *Config) error {
+	if c.Group == "" {
+		c.Group = "default"
+	}
 
+	if c.WorkerNum == 0 {
+		c.WorkerNum = 10
+	}
+
+	if c.Parallel == 0 {
+		c.Parallel = 1
+	}
+
+	if c.JobsMaxIdle == 0 {
+		c.JobsMaxIdle = 100
+	}
+
+	if c.Log == nil {
+		c.Log = new(nullLogger)
+	}
+
+	if c.Groups == nil {
+		c.Groups = make(map[string]*Group)
+	}
+
+	if _, ok := c.Groups[c.Group]; !ok {
+		c.Groups[c.Group] = &Group{
+			Note:      c.Group,
+			WorkerNum: c.WorkerNum,
+		}
+	}
+
+	//check
 	if c.Dirver == nil {
 		return DirverError
 	}
 
-	groups := make(map[string]*group)
-
-	for k := range c.Groups {
-		if g, ok := s.groups[k]; ok {
-			groups[k] = g
-		}
-	}
-
 	for _, j := range c.Jobs {
-		_, ok := groups[j.Group]
+		if j.Group == "" {
+			j.Group = c.Group
+		}
+
+		_, ok := c.Groups[j.Group]
 		if !ok {
 			return errors.New("Job:" + j.Pattern + " Group:" + j.Group + " Not Found")
 		}
@@ -120,44 +143,49 @@ func (s *Scheduler) SetConfig(c *Config) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *Scheduler) SetConfig(c *Config) error {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	//default
+	if err := s.CheckConfig(c); err != nil {
+		return err
+	}
+
+	var j rules
+
+	if err := j.set(c.Jobs); err != nil {
+		return err
+	}
+
+	//apply
 	s.cfg = *c
-	s.groups = groups
 	s.rules = j
+	s.dirver = c.Dirver
 
-	//default value
-
-	if s.cfg.Group == "" {
-		s.cfg.Group = "default"
+	if c.Log != nil {
+		s.log = c.Log
+	} else {
+		c.Log = new(nullLogger)
 	}
 
-	if s.cfg.WorkerNum == 0 {
-		s.cfg.WorkerNum = 10
+	groups := make(map[string]*group)
+
+	for k, g := range s.groups {
+		if cg, ok := s.cfg.Groups[k]; ok {
+			g.Group = *cg
+			groups[k] = g
+		} else {
+			g.WorkerNum = 0
+		}
 	}
 
-	if s.cfg.Parallel == 0 {
-		s.cfg.Parallel = 1
-	}
+	s.groups = groups
 
-	if s.cfg.Timeout == 0 {
-		s.cfg.Timeout = 60
-	}
-
-	if s.cfg.JobsMaxIdle == 0 {
-		s.cfg.JobsMaxIdle = 100
-	}
-
-	if s.cfg.CloseWait == 0 {
-		s.cfg.CloseWait = 10
-	}
-
-	s.log = s.cfg.Log
-	if s.log == nil {
-		s.log = new(nullLogger)
-	}
-
-	//apply config
 	for k, j := range s.jobs {
-
 		t := s.rules.match(k)
 		if t != nil {
 			j.priority = t.Priority
@@ -187,39 +215,25 @@ func (s *Scheduler) SetConfig(c *Config) error {
 		g.modeCheck(j)
 	}
 
-	s.dirver = c.Dirver
-
 	return nil
 }
 
-func (s *Scheduler) Run() {
-	s.log.Println("run start")
-	defer s.log.Println("run stop")
+func (s *Scheduler) Start() {
+	s.log.Println("scheduler start")
+	defer s.log.Println("scheduler stop")
 
 	if s.running {
 		panic(errors.New("Run only run once"))
 	}
+	s.running = true
 
-	ticker := time.NewTicker(s.statTick)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-
-	var num uint
 
 	for {
 		select {
 		case now := <-ticker.C:
 			s.onTick(now)
-
-			if !s.running {
-				num++
-
-				s.log.Println("close tick", num)
-
-				if num == s.cfg.CloseWait {
-					s.log.Println("allTaskCancel")
-					s.cancel()
-				}
-			}
 
 		case o := <-s.complete:
 			s.onComplete(o)
@@ -231,7 +245,6 @@ func (s *Scheduler) Run() {
 			s.l.Unlock()
 
 			if l == 0 {
-				s.log.Println("Scheduler closd")
 				return
 			}
 		}
@@ -267,7 +280,7 @@ func (s *Scheduler) onComplete(o *order) {
 	}
 }
 
-func (s *Scheduler) Close() {
+func (s *Scheduler) Stop() {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -281,6 +294,14 @@ func (s *Scheduler) Close() {
 
 	for _, g := range s.groups {
 		g.WorkerNum = 0
+	}
+}
+
+func (s *Scheduler) Kill() {
+	s.Stop()
+
+	if s.cancel != nil {
+		s.cancel()
 	}
 }
 
@@ -334,6 +355,7 @@ func (s *Scheduler) getGroup(name string) *group {
 	if c, ok := s.cfg.Groups[name]; ok {
 		g.Group = *c
 	} else {
+		g.Note = s.cfg.Group
 		g.WorkerNum = s.cfg.WorkerNum
 	}
 
@@ -362,6 +384,7 @@ func (s *Scheduler) idleAdd(j *job) {
 		if j != nil {
 			s.idleLen--
 			jobRemove(j)
+			delete(s.jobs, j.name)
 		}
 	}
 }

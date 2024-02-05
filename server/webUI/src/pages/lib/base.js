@@ -96,16 +96,22 @@ export function timeStr(t) {
 }
 
 export function beforSecond(t) {
-    if (t > 60*60*24*3) {
-        return Math.floor(t/60/60/24) + "d"
+    if (t == 0) {
+        return "n/a"
     }
 
-    if (t > 60*60*3) {
-        return Math.floor(t/60/60) + "h"
+    t = parseInt(Date.now() / 1000) - t
+
+    if (t > 60 * 60 * 24 * 3) {
+        return Math.floor(t / 60 / 60 / 24) + "d"
     }
 
-    if (t > 60*3) {
-        return Math.floor(t/60) + "m"
+    if (t > 60 * 60 * 3) {
+        return Math.floor(t / 60 / 60) + "h"
+    }
+
+    if (t > 60 * 3) {
+        return Math.floor(t / 60) + "m"
     }
 
     return t + "s"

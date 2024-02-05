@@ -1,0 +1,44 @@
+{
+    "HttpEnable": true,
+    "HttpAddr":   "127.0.0.1:8080",
+    "Timeout":    600,
+    "Jobs": [
+        {
+            "Pattern":  "^slow",
+            "Parallel": 1,
+            "Group":    "slow"
+        }
+    ],
+    "Groups": {
+        "slow": {
+            "WorkerNum": 5,
+            "Note":      "slow"
+        }
+    },
+
+    "Routes": [
+        {
+            "Pattern": "^fast/(.+)",
+            "Job":     "fast/$1",
+            "Dirver":  "http",
+            "Rewrite": {
+                "Pattern": "^fast/",
+                "Rewrite": "/"
+                }
+        },
+        {
+            "Pattern": "^slow/",
+            "Job":     "slow",
+            "Dirver":  "http",
+            "Rewrite": {
+                "Pattern": "^slow/",
+                "Rewrite": "/"
+            }
+        }
+    ],
+    "Dirver": {
+        "http": {
+            "Type": 1
+        }
+    }
+}

@@ -50,6 +50,19 @@ func (s *Scheduler) TaskCancel(oid ID) error {
 	return NotFound
 }
 
+func (s *Scheduler) TaskRuning() []ID {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+    var ids []ID
+
+	for t := range s.orders {
+        ids = append(ids, t.id)
+	}
+
+	return ids
+}
+
 func (s *Scheduler) TaskAdd(t *Task) {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -73,4 +86,6 @@ func (s *Scheduler) TaskAdd(t *Task) {
 	j.addTask(t.Id)
 	j.g.waitNum++
 	j.g.modeCheck(j)
+
+    j.g.dispatch()
 }

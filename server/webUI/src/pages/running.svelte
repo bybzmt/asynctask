@@ -63,7 +63,6 @@
             <thead>
                 <tr>
                     <th class="px-2 py-1 border">ID</th>
-                    <th class="px-2 py-1 border">工作组</th>
                     <th class="px-2 py-1 border">任务组</th>
                     <th class="px-2 py-1 border">任务</th>
                     <th class="px-2 py-1 border">用时</th>
@@ -74,14 +73,11 @@
                 {#each Runs as task}
                     <tr>
                         <td class="px-2 py-1 border">{task.Id}</td>
-                        <td class="px-2 py-1 border">{task.Group} ({getGroup(task.Group).Note})</td>
-                        <td class="px-2 py-1 border">{task.Name}</td>
-                        <td class="px-2 py-1 border">{task.Task}</td>
+                        <td class="px-2 py-1 border">{task.Job}</td>
+                        <td class="px-2 py-1 border">{JSON.stringify(task.Task)}</td>
                         <td class="px-2 py-1 border">{useTime(task)}s</td>
                         <td class="px-2 py-1 border">
-                            {#if useTime(task) > 1}
-                                <button on:dblclick={() => taskCancel(task)}>中止任务</button>
-                            {/if}
+                            <button on:dblclick={() => taskCancel(task)}>中止任务</button>
                         </td>
                     </tr>
                 {:else}

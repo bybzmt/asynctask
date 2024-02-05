@@ -28,7 +28,7 @@
     async function rowDel(row) {
         var ok = confirm(`Del timer?\r\nId:${row.Id} name: ${row.name}`)
         if (ok) {
-            let json = await sendJson(mkUrl("api/task/timeddel"), {
+            let json = await sendJson(mkUrl("api/task/del"), {
                 TimedID: row.TimedID,
             })
             if (json.Code != 0) {

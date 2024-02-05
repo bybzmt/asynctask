@@ -11,12 +11,8 @@ type Config struct {
 	WorkerNum uint32
 	//默认并发数
 	Parallel uint32
-	//默认超时
-	Timeout uint
 	//空闲数量
 	JobsMaxIdle uint
-	//关闭等待
-	CloseWait uint
 
 	Jobs []*Job
 
@@ -56,7 +52,5 @@ func (f DirverFunc) Run(id ID, ctx context.Context) error {
 }
 
 type Logger interface {
-	Print(...interface{})
-	Printf(string, ...interface{})
 	Println(...interface{})
 }

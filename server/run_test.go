@@ -1,8 +1,6 @@
 package server
 
 import (
-	"asynctask/scheduler"
-	"context"
 	"crypto/rand"
 	"encoding/json"
 	"net"
@@ -15,7 +13,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	bolt "go.etcd.io/bbolt"
 )
 
 var ts_actions = []int{
@@ -30,7 +27,7 @@ var ts_actions = []int{
 }
 
 func TestRun(t *testing.T) {
-	var hub Server
+	var hub *Server
 	var my myServer
 
 	taskadd := make(chan int, 10)
@@ -44,38 +41,41 @@ func TestRun(t *testing.T) {
 	to := "http://" + my.l.Addr().String()
 	to = strings.ReplaceAll(to, "[::]", "127.0.0.1")
 
-	initServer(&hub, to)
-
-	hub.HttpEnable = true
-	hub.Http.Addr = "127.0.0.1:8080"
-
-	if err := hub.Init(); err != nil {
+	hub, err := initServer(to)
+	if err != nil {
 		panic(err)
 	}
 
-	ctx, canceler := context.WithCancel(context.Background())
-
-	go hub.Run(ctx)
+	go hub.Start()
 
 	logrus.Println("listen", to)
-	logrus.Println("http", hub.Http.Addr)
+	logrus.Println("http", hub.cfg.HttpAddr)
 
-	go addTask(&hub, 10000, taskadd)
+	go addTask(hub, 10000, taskadd)
 
-	httpNum := 0
 	allNum := 0
+	timerNum := 0
 	runnum := 0
 	oldTrigger := 0
 
+	tick := time.NewTimer(time.Second)
+
+	t.Log("runnum", runnum, allNum)
+
 	for {
 		select {
+		case <-tick.C:
+			t.Log("runnum", runnum, allNum)
+
 		case x := <-taskadd:
 			allNum++
+
 			if x == 2 {
-				httpNum++
+				timerNum++
 			}
 
 		case trigger := <-taskend:
+			t.Log("taskend", runnum, timerNum, allNum)
 
 			if trigger > 0 {
 				if trigger >= oldTrigger {
@@ -87,7 +87,7 @@ func TestRun(t *testing.T) {
 
 			runnum++
 
-			if runnum == httpNum {
+			if runnum == allNum {
 				goto toend
 			}
 		}
@@ -99,13 +99,8 @@ toend:
 
 	time.Sleep(time.Millisecond * 200)
 
-	stat := hub.Scheduler.GetStatData()
-
-	canceler()
-
-	if stat.Timed != 0 {
-		t.Error("timer task not empty num:", stat.Timed)
-	}
+	stat := hub.s.GetStat()
+	hub.Stop()
 
 	RunNum := 0
 	for _, g := range stat.Groups {
@@ -133,44 +128,38 @@ func addTask(hub *Server, num int, taskadd chan int) {
 		an := ts_getRand() % len(ts_actions)
 		sl := ts_actions[an]
 
-		var task scheduler.Task
+		var task Task
 
-		if ts_getRand()%(num/100) == 0 {
-			task.Timer = uint(time.Now().Unix()) + 2
+		if (ts_getRand() % 10000) < 100 {
+			task.RunAt = time.Now().Unix() + 2
 		}
 
-		if ts_getRand()%7 == 0 {
-			task.Name = "cli://test/echo"
-			task.Args, _ = json.Marshal([]string{"1"})
+		tmp := ts_getRand()
+		sleep := tmp % sl
 
-			taskadd <- 1
-		} else {
+		p := url.Values{}
+		p.Add("code", "200")
+		p.Add("sleep", strconv.Itoa(sleep))
 
-			tmp := ts_getRand()
-			sleep := tmp % sl
-
-			p := url.Values{}
-			p.Add("code", "200")
-			p.Add("sleep", strconv.Itoa(sleep))
-
-			if task.Timer > 0 {
-				p.Add("trigger", strconv.Itoa(int(task.Timer)))
-			}
-
-			if task.Timer > 0 {
-				task.Name = "http://trigger/" + strconv.Itoa(sl)
-			} else if sl > 1000 {
-				task.Name = "http://slow/" + strconv.Itoa(sl)
-			} else {
-				task.Name = "http://fast/" + strconv.Itoa(sleep)
-			}
-
-			task.Name += "/?" + p.Encode()
+		if task.RunAt > 0 {
+			p.Add("trigger", strconv.Itoa(int(task.RunAt)))
 
 			taskadd <- 2
+		} else {
+			taskadd <- 1
 		}
 
-		err := hub.Scheduler.TaskAdd(task)
+		if task.RunAt > 0 {
+			task.Url = "trigger/" + strconv.Itoa(sl)
+		} else if sl > 1000 {
+			task.Url = "slow/" + strconv.Itoa(sl)
+		} else {
+			task.Url = "fast/" + strconv.Itoa(sleep)
+		}
+
+		task.Url += "/?" + p.Encode()
+
+		err := hub.TaskAdd(&task)
 		if err != nil {
 			panic(err)
 		}
@@ -221,121 +210,94 @@ func initTestServer(my *myServer, taskend chan int) {
 	my.Serve(my.l)
 }
 
-func initServer(hub *Server, to string) {
+func initServer(to string) (*Server, error) {
 
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
+	cfg := Config{
+		HttpEnable: true,
+		HttpAddr:   "127.0.0.1:8080",
+		Timeout:    600,
+		Jobs: []*Job{
+			{
+				Pattern:  "^slow",
+				Parallel: 10,
+				Group:    "slow",
+			},
+		},
+		Groups: map[string]*Group{
+			"slow": {
+				WorkerNum: 10,
+				Note:      "slow",
+			},
+		},
 
-	hub.Scheduler.WorkerNum = 10
-	hub.Scheduler.Parallel = 1
+		Routes: []*Route{
+			{
+				Pattern: "^fast/(.+)",
+				Job:     "fast/$1",
+				Dirver:  "http",
+				Rewrite: &Rewrite{
+					Pattern: "^fast/",
+					Rewrite: to + "/",
+				},
+			},
+			{
+				Pattern: "^slow/",
+				Job:     "slow",
+				Dirver:  "http",
+				Rewrite: &Rewrite{
+					Pattern: "^slow/",
+					Rewrite: to + "/",
+				},
+			},
+			{
+				Pattern: "trigger/(.+)",
+				Job:     "trigger/$1",
+				Dirver:  "http",
+				Rewrite: &Rewrite{
+					Pattern: "^trigger/",
+					Rewrite: to + "/",
+				},
+			},
+		},
+		Dirver: map[string]*Dirver{
+			"http": {
+				Type: DIRVER_HTTP,
+			},
+		},
+	}
 
 	f, err := os.CreateTemp("", "asynctask_*.bolt")
 	if err != nil {
 		panic(err)
 	}
 
-	logrus.Println("tmpfile", f.Name())
-
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	db, err := bolt.Open(f.Name(), 0644, nil)
+	f2, err := os.CreateTemp("", "config_*.json")
 	if err != nil {
 		panic(err)
 	}
 
-	hub.Scheduler.Db = db
+	defer os.Remove(f2.Name())
+	defer f2.Close()
 
-	err = hub.Scheduler.Init()
+	err = json.NewEncoder(f2).Encode(&cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	err = hub.Scheduler.GroupAdd(scheduler.GroupConfig{
-		Note:      "test_group2",
-		WorkerNum: 10,
+	err = f2.Sync()
+	if err != nil {
+		panic(err)
+	}
+
+	l := logrus.StandardLogger()
+	l.SetLevel(logrus.DebugLevel)
+	l.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
 	})
-	if err != nil {
-		panic(err)
-	}
 
-	//------ 2 groups -----
-
-	r := scheduler.TaskRule{
-		Pattern:     "^cli://test/",
-		RewriteReg:  "^cli://test/(.+)",
-		RewriteRepl: "$1",
-		Type:        1,
-		Sort:        1,
-		Used:        true,
-	}
-
-	err = hub.Scheduler.TaskRulePut(r)
-	if err != nil {
-		panic(err)
-	}
-
-	r = scheduler.TaskRule{
-		Pattern:     "^http://slow",
-		RewriteReg:  "^http://slow/(.+)",
-		RewriteRepl: to + "/$1",
-		Type:        1,
-		Sort:        2,
-		Used:        true,
-	}
-
-	err = hub.Scheduler.TaskRulePut(r)
-	if err != nil {
-		panic(err)
-	}
-
-    jr := scheduler.JobRule{
-		Pattern:     "^http://slow",
-		Type:        1,
-		Sort:        2,
-		Used:        true,
-	}
-    jr.Parallel = 10
-    jr.GroupId = 1
-
-	err = hub.Scheduler.JobRulePut(jr)
-	if err != nil {
-		panic(err)
-	}
-
-	err = hub.Scheduler.TaskRulePut(r)
-	if err != nil {
-		panic(err)
-	}
-
-	r = scheduler.TaskRule{
-		Pattern:     "^http://fast",
-		RewriteReg:  "^http://fast/(.+)",
-		RewriteRepl: to + "/$1",
-		Type:        1,
-		Sort:        3,
-		Used:        true,
-	}
-
-	err = hub.Scheduler.TaskRulePut(r)
-	if err != nil {
-		panic(err)
-	}
-
-	r = scheduler.TaskRule{
-		Pattern:     "^(http://trigger)",
-		RewriteReg:  "^http://trigger/(.+)",
-		RewriteRepl: to + "/$1",
-		Type:        1,
-		Sort:        4,
-		Used:        true,
-	}
-
-	err = hub.Scheduler.TaskRulePut(r)
-	if err != nil {
-		panic(err)
-	}
+	return New(f2.Name(), f.Name(), l)
 }

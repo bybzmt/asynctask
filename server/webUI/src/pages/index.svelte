@@ -37,7 +37,7 @@
 
     function getCapacity(gid) {
         for (let g of Groups) {
-            if (g.Id == gid) {
+            if (g.Name == gid) {
                 return g.Capacity
             }
         }
@@ -101,26 +101,6 @@
 
         return j.Score + (j.Priority > 0 ? "(+" + j.Priority + ")" : "(" + j.Priority + ")")
     }
-
-    async function jobEmpty(job) {
-        var ok = confirm("Empty Job?\r\nName: " + job.Name)
-        if (ok) {
-            await sendJson(mkUrl("api/task/empty"), {
-                name: job.Name,
-            })
-            await showStatus()
-        }
-    }
-
-    async function jobDelIdle(job) {
-        var ok = confirm("Del Idle Job?\r\nName: " + job.Name)
-        if (ok) {
-            await sendJson(mkUrl("api/task/delIdle"), {
-                name: job.Name,
-            })
-            await showStatus()
-        }
-    }
 </script>
 
 <Layout tab="2">
@@ -153,7 +133,7 @@
                 </tr>
                 {#each Groups as g}
                     <tr>
-                        <td class="px-2 py-1 border text-left">{g.Id}: {g.Note}</td>
+                        <td class="px-2 py-1 border text-left">{g.Name}</td>
                         <td class="px-2 py-1 border">{Math.round((g.Load / g.Capacity) * 100)}%</td>
                         <td class="px-2 py-1 border">{g.NowNum} / {g.WorkerNum}</td>
                         <td class="px-2 py-1 border">{g.RunNum}</td>
@@ -187,8 +167,8 @@
                 {#each Tasks as j}
                     <tr>
                         <td class="px-2 py-1 border">{j.Name}</td>
-                        <td class="px-2 py-1 border">{j.GroupId}</td>
-                        <td class="px-2 py-1 border">{Math.round((j.Load / getCapacity(j.GroupId)) * 100)}%</td>
+                        <td class="px-2 py-1 border">{j.Group}</td>
+                        <td class="px-2 py-1 border">{Math.round((j.Load / getCapacity(j.Group)) * 100)}%</td>
                         <td class="px-2 py-1 border">{j.NowNum + "/" + j.Parallel}</td>
                         <td class="px-2 py-1 border">{j.RunNum}</td>
                         <td class="px-2 py-1 border">{j.OldRun}</td>

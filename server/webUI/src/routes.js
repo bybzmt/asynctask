@@ -13,17 +13,8 @@ export default {
         "/task/add": {
             page: () => import('./pages/taskadd.svelte'),
         },
-        "/config/groups": {
-            page: () => import('./pages/groups.svelte'),
-        },
-        "/config/taskrules": {
-            page: () => import('./pages/taskrules.svelte'),
-        },
-        "/config/jobrules": {
-            page: () => import('./pages/jobrules.svelte'),
-        },
-        "/cron": {
-            page: () => import('./pages/cron.svelte'),
+        "/config": {
+            page: () => import('./pages/config.svelte'),
         },
         "/timed": {
             page: () => import('./pages/timed.svelte'),
