@@ -76,7 +76,7 @@ func copyMap(src map[string]string) map[string]string {
 
 func (s *Server) store_order_get(id ID) *Order {
 
-	var t []byte
+	var out *Order
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := getBucket(tx, "tasks")
@@ -84,24 +84,22 @@ func (s *Server) store_order_get(id ID) *Order {
 			return nil
 		}
 
-		t = b.Get([]byte(fmtId(id)))
+		t := b.Get([]byte(fmtId(id)))
+
+		if t == nil {
+			return nil
+		}
+
+		if err := json.Unmarshal(t, &out); err != nil {
+			s.log.Warnln("Order Unmarshal Error", err)
+			return nil
+		}
 
 		return nil
 	})
 
 	if err != nil {
 		s.log.Warnln("store_order_get Error", err)
-		return nil
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	out := new(Order)
-
-	if err := json.Unmarshal(t, out); err != nil {
-		s.log.Warnln("Order Unmarshal Error", err)
 		return nil
 	}
 

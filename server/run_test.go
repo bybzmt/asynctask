@@ -36,22 +36,18 @@ func TestRun(t *testing.T) {
 	go initTestServer(&my, taskend)
 	defer my.Close()
 
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond)
 
 	to := "http://" + my.l.Addr().String()
 	to = strings.ReplaceAll(to, "[::]", "127.0.0.1")
 
-	hub, err := initServer(to)
-	if err != nil {
-		panic(err)
-	}
+	hub = initServer(to)
+
+	t.Log("listen", to)
+	t.Log("http", hub.cfg.HttpAddr)
 
 	go hub.Start()
-
-	logrus.Println("listen", to)
-	logrus.Println("http", hub.cfg.HttpAddr)
-
-	go addTask(hub, 10000, taskadd)
+	go addTask(t, hub, 10000, taskadd)
 
 	allNum := 0
 	timerNum := 0
@@ -75,17 +71,17 @@ func TestRun(t *testing.T) {
 			}
 
 		case trigger := <-taskend:
+			runnum++
+
 			t.Log("taskend", runnum, timerNum, allNum)
 
 			if trigger > 0 {
-				if trigger >= oldTrigger {
-					oldTrigger = trigger
-				} else {
-					t.Error("timer task order error")
+				if trigger < oldTrigger {
+					t.Error("timer task order error", oldTrigger, trigger)
 				}
-			}
 
-			runnum++
+				oldTrigger = trigger
+			}
 
 			if runnum == allNum {
 				goto toend
@@ -95,12 +91,11 @@ func TestRun(t *testing.T) {
 
 toend:
 
-	logrus.Println("all task end")
+	t.Log("all task end")
 
-	time.Sleep(time.Millisecond * 200)
+	hub.Stop()
 
 	stat := hub.s.GetStat()
-	hub.Stop()
 
 	RunNum := 0
 	for _, g := range stat.Groups {
@@ -114,15 +109,15 @@ toend:
 	if RunNum != allNum {
 		t.Error("run task num err", RunNum, "/", allNum)
 	} else {
-		logrus.Println("run task", RunNum, "/", allNum)
+		t.Log("run task", RunNum, "/", allNum)
 	}
 }
 
-func addTask(hub *Server, num int, taskadd chan int) {
+func addTask(t *testing.T, hub *Server, num int, taskadd chan int) {
 
 	for i := 0; i < num; i++ {
 		if i%1000 == 0 {
-			logrus.Println("i:", i, "/", num)
+			t.Log("i:", i, "/", num)
 		}
 
 		an := ts_getRand() % len(ts_actions)
@@ -165,7 +160,7 @@ func addTask(hub *Server, num int, taskadd chan int) {
 		}
 	}
 
-	logrus.Println("i:", num, "/", num)
+	t.Log("i:", num, "/", num)
 }
 
 func ts_getRand() int {
@@ -210,7 +205,7 @@ func initTestServer(my *myServer, taskend chan int) {
 	my.Serve(my.l)
 }
 
-func initServer(to string) (*Server, error) {
+func initServer(to string) *Server {
 
 	cfg := Config{
 		HttpEnable: true,
@@ -251,7 +246,7 @@ func initServer(to string) (*Server, error) {
 			},
 			{
 				Pattern: "trigger/(.+)",
-				Job:     "trigger/$1",
+				Job:     "trigger",
 				Dirver:  "http",
 				Rewrite: &Rewrite{
 					Pattern: "^trigger/",
@@ -299,5 +294,10 @@ func initServer(to string) (*Server, error) {
 		FullTimestamp: true,
 	})
 
-	return New(f2.Name(), f.Name(), l)
+	t, err := New(f2.Name(), f.Name(), l)
+	if err != nil {
+		panic(err)
+	}
+
+	return t
 }

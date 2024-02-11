@@ -1,8 +1,8 @@
 package server
 
 import (
-    "time"
 	rbtree "github.com/sakeven/RbTree"
+	"time"
 )
 
 type timePoint struct {
@@ -34,6 +34,7 @@ func (t *timer) pop(unixSec int64) []ID {
 	defer t.tp.Delete(min.Key)
 
 	ids := min.Value.tasks
+
 	t.num -= len(ids)
 
 	return ids
@@ -90,11 +91,13 @@ func (s *Server) TimerTopN(num int) []*Order {
 	var out []*Order
 
 	for _, id := range ids {
-		o := s.store_order_get(ID(id))
+		o := s.store_order_get(id)
 
 		if o != nil {
 			out = append(out, o)
-		}
+		} else {
+			s.log.Warnln("TimerTopN task NotFound", id)
+        }
 	}
 
 	return out
@@ -111,8 +114,8 @@ func (s *Server) checkTimer(now time.Time) {
 			break
 		}
 
-		for id := range ids {
-			o := s.store_order_get(ID(id))
+		for _, id := range ids {
+			o := s.store_order_get(id)
 
 			if o != nil {
 				t2 := task{
@@ -121,6 +124,8 @@ func (s *Server) checkTimer(now time.Time) {
 				}
 
 				s.s.TaskAdd(&t2)
+			} else {
+				s.log.Warnln("checkTimer task NotFound", id)
 			}
 		}
 	}
