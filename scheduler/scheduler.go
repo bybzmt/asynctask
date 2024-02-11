@@ -29,7 +29,7 @@ type Scheduler struct {
 	complete chan *order
 
 	today    int
-	running  bool
+	running  int
 	statSize int
 
 	ctx    context.Context
@@ -222,10 +222,8 @@ func (s *Scheduler) Start() {
 	s.log.Println("scheduler start")
 	defer s.log.Println("scheduler stop")
 
-	if s.running {
-		panic(errors.New("Run only run once"))
-	}
-	s.running = true
+	s.running = 1
+	defer func() { s.running = 3 }()
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -239,7 +237,7 @@ func (s *Scheduler) Start() {
 			s.onComplete(o)
 		}
 
-		if !s.running {
+		if s.running != 1 {
 			s.l.Lock()
 			l := len(s.orders)
 			s.l.Unlock()
@@ -284,13 +282,13 @@ func (s *Scheduler) Stop() {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	if !s.running {
+	if s.running != 1 {
 		return
 	}
 
 	s.log.Println("Scheduler closing...")
 
-	s.running = false
+	s.running++
 
 	for _, g := range s.groups {
 		g.WorkerNum = 0
@@ -302,6 +300,12 @@ func (s *Scheduler) Kill() {
 
 	if s.cancel != nil {
 		s.cancel()
+	}
+}
+
+func (s *Scheduler) WaitStop() {
+	for s.running != 3 {
+		time.Sleep(time.Millisecond)
 	}
 }
 

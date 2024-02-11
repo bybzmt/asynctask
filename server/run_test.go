@@ -95,6 +95,8 @@ toend:
 
 	hub.Stop()
 
+	hub.s.WaitStop()
+
 	stat := hub.s.GetStat()
 
 	RunNum := 0
