@@ -2,6 +2,7 @@
 asynctask
 *.bolt
 *.log
+*.json
 
 #js
 /server/dist/*

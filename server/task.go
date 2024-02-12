@@ -1,7 +1,5 @@
 package server
 
-import "time"
-
 func (s *Server) TaskEmpty(job string) error {
 	s.l.Lock()
 	defer s.l.Unlock()
@@ -59,15 +57,21 @@ func (s *Server) TaskAdd(t *Task) error {
 		return err
 	}
 
-	o.AddTime = time.Now().Unix()
+	o.AddTime = s.now.Unix()
 
 	if err := s.store_order_add(o); err != nil {
 		return err
 	}
 
+	s.orderAdd(o)
+
+	return nil
+}
+
+func (s *Server) orderAdd(o *Order) {
 	if o.Task.RunAt > o.AddTime {
 		s.timer.push(o.Task.RunAt, o.Id)
-		return nil
+		return
 	}
 
 	t2 := task{
@@ -76,8 +80,6 @@ func (s *Server) TaskAdd(t *Task) error {
 	}
 
 	s.s.TaskAdd(&t2)
-
-	return nil
 }
 
 func (s *Server) TaskRuning() []*Order {

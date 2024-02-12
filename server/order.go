@@ -44,9 +44,8 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 		return NotFound
 	}
 
-	o.startTime = time.Now()
-
 	s.l.Lock()
+	o.startTime = s.now
 	d, ok := s.cfg.Dirver[o.Dirver]
 	var timeout uint = s.cfg.Timeout
 	s.l.Unlock()
@@ -65,6 +64,10 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 		o.err = DirverNotFound
 	}
 
+	s.l.Lock()
+    now := s.now
+	s.l.Unlock()
+
 	del := true
 
 	if o.err != nil {
@@ -77,7 +80,7 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 				sec = o.Task.Interval
 			}
 
-			o.Task.RunAt = time.Now().Unix() + int64(sec)
+			o.Task.RunAt = now.Unix() + int64(sec)
 
 			s.store_order_put(o)
 
@@ -91,14 +94,12 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 		s.store_order_del(o.Id)
 	}
 
-	s.logTask(o)
+	s.logTask(now, o)
 
 	return o.err
 }
 
-func (s *Server) logTask(o *Order) {
-	now := time.Now()
-
+func (s *Server) logTask(now time.Time, o *Order) {
 	runTime := now.Sub(o.startTime).Seconds()
 
 	logFields := map[string]any{

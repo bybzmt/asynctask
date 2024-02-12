@@ -219,7 +219,9 @@ func (g *group) countScore(j *job) {
 
 	area = 10000
 
-	x = float64(j.nowNum) * (area / float64(g.WorkerNum))
+	if g.WorkerNum > 0 {
+		x = float64(j.nowNum) * (area / float64(g.WorkerNum))
+	}
 
 	if g.loadStat.getAll() > 0 {
 		y = float64(j.loadStat.getAll()) / float64(g.loadStat.getAll()) * area

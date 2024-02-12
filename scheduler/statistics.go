@@ -80,8 +80,13 @@ type Stat struct {
 
 func getJobStat(j *job) JobStat {
 	useTime := 0
-	if len(j.useTime.data) > 0 {
+	if j.useTime.len() > 0 {
 		useTime = int(j.useTime.getAll() / j.useTime.len() / int64(time.Millisecond))
+	}
+
+	var lastTime int64
+	if !j.lastTime.IsZero() {
+		lastTime = j.lastTime.Unix()
 	}
 
 	tmp := JobStat{
@@ -96,7 +101,7 @@ func getJobStat(j *job) JobStat {
 		OldRun:   int(j.oldRun),
 		OldErr:   int(j.oldErr),
 		UseTime:  useTime,
-		LastTime: j.lastTime.Unix(),
+		LastTime: lastTime,
 		Load:     j.loadStat.getAll() / int64(time.Millisecond),
 		Score:    j.score,
 	}
@@ -107,9 +112,9 @@ func getJobStat(j *job) JobStat {
 func getGroupStat(g *group) (t GroupStat) {
 	t.WorkerNum = g.WorkerNum
 	t.Note = g.Note
-    t.Name = g.name
+	t.Name = g.name
 
-	t.Capacity = g.loadStat.len() * int64(time.Second) * int64(g.WorkerNum)
+	t.Capacity = g.loadStat.len() * int64(time.Second) * int64(g.WorkerNum) / int64(time.Millisecond)
 	t.Load = g.loadStat.getAll() / int64(time.Millisecond)
 	t.NowNum = g.nowNum
 	t.RunNum = g.runNum

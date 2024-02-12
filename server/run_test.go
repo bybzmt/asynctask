@@ -46,22 +46,22 @@ func TestRun(t *testing.T) {
 	t.Log("listen", to)
 	t.Log("http", hub.cfg.HttpAddr)
 
+	total := 100_0000
+
 	go hub.Start()
-	go addTask(t, hub, 10000, taskadd)
+	go addTask(t, hub, total, taskadd)
 
 	allNum := 0
 	timerNum := 0
 	runnum := 0
 	oldTrigger := 0
 
-	tick := time.NewTimer(time.Second)
-
-	t.Log("runnum", runnum, allNum)
+	tick := time.Tick(time.Second)
 
 	for {
 		select {
-		case <-tick.C:
-			t.Log("runnum", runnum, allNum)
+		case <-tick:
+			t.Log("runnum", runnum, "timerNum", timerNum, "addNum", allNum, "total", total)
 
 		case x := <-taskadd:
 			allNum++
@@ -72,8 +72,6 @@ func TestRun(t *testing.T) {
 
 		case trigger := <-taskend:
 			runnum++
-
-			t.Log("taskend", runnum, timerNum, allNum)
 
 			if trigger > 0 {
 				if trigger < oldTrigger {
@@ -91,7 +89,7 @@ func TestRun(t *testing.T) {
 
 toend:
 
-	t.Log("all task end")
+	t.Log("all task end", "runnum", runnum, "timerNum", timerNum, "addNum", allNum, "total", total)
 
 	hub.Stop()
 
@@ -118,9 +116,6 @@ toend:
 func addTask(t *testing.T, hub *Server, num int, taskadd chan int) {
 
 	for i := 0; i < num; i++ {
-		if i%1000 == 0 {
-			t.Log("i:", i, "/", num)
-		}
 
 		an := ts_getRand() % len(ts_actions)
 		sl := ts_actions[an]
@@ -162,7 +157,7 @@ func addTask(t *testing.T, hub *Server, num int, taskadd chan int) {
 		}
 	}
 
-	t.Log("i:", num, "/", num)
+	t.Log("add task end", num)
 }
 
 func ts_getRand() int {
@@ -290,7 +285,7 @@ func initServer(to string) *Server {
 	}
 
 	l := logrus.StandardLogger()
-	l.SetLevel(logrus.DebugLevel)
+	l.SetLevel(logrus.FatalLevel)
 	l.SetFormatter(&logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,

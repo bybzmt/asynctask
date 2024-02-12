@@ -1,10 +1,10 @@
 package server
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"strconv"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -55,13 +55,10 @@ func getBucket(bk bucketer, keys ...string) *bolt.Bucket {
 	return out.(*bolt.Bucket)
 }
 
-func fmtId(id any) string {
-	return fmt.Sprintf("%015d", id)
-}
-
-func atoiId(key []byte) ID {
-	id, _ := strconv.Atoi(string(key))
-	return ID(id)
+func fmtId(id any) []byte {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, id)
+	return buf.Bytes()
 }
 
 func copyMap(src map[string]string) map[string]string {
@@ -84,7 +81,7 @@ func (s *Server) store_order_get(id ID) *Order {
 			return nil
 		}
 
-		t := b.Get([]byte(fmtId(id)))
+		t := b.Get(fmtId(id))
 
 		if t == nil {
 			return nil
@@ -113,7 +110,7 @@ func (s *Server) store_order_del(id ID) {
 			return nil
 		}
 
-		return b.Delete([]byte(fmtId(id)))
+		return b.Delete(fmtId(id))
 	})
 
 	if err != nil {
@@ -140,7 +137,7 @@ func (s *Server) store_order_add(o *Order) error {
 			return err
 		}
 
-		return b.Put([]byte(fmtId(o.Id)), v)
+		return b.Put(fmtId(o.Id), v)
 	})
 }
 
@@ -156,8 +153,36 @@ func (s *Server) store_order_put(o *Order) error {
 			return err
 		}
 
-		return b.Put([]byte(fmtId(o.Id)), v)
+		return b.Put(fmtId(o.Id), v)
 	})
+}
+
+func (s *Server) store_init() error {
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := getBucket(tx, "tasks")
+		if b == nil {
+			return nil
+		}
+
+		return b.ForEach(func(k, v []byte) error {
+			if v == nil {
+				return nil
+			}
+
+			var o *Order
+
+			if err := json.Unmarshal(v, &o); err != nil {
+				s.log.Warnln("store_init Unmarshal Error", err)
+				return nil
+			}
+
+			s.orderAdd(o)
+
+			return nil
+		})
+	})
+
+	return err
 }
 
 func json_encode(val any) string {

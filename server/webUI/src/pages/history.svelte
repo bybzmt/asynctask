@@ -36,7 +36,7 @@
 
     function getCapacity(gid) {
         for (let g of Groups) {
-            if (g.Id == gid) {
+            if (g.Name == gid) {
                 return g.Capacity
             }
         }

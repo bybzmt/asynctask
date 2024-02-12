@@ -40,6 +40,7 @@ type Server struct {
 
 	config string
 	dbFile string
+	now    time.Time
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -128,7 +129,9 @@ func (s *Server) getConfig() (*Config, error) {
 }
 
 func (s *Server) initDb() error {
-	db, err := bolt.Open(s.dbFile, 0666, nil)
+	db, err := bolt.Open(s.dbFile, 0666, &bolt.Options{
+		NoSync: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -204,7 +207,25 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 }
 
 func (s *Server) Start() {
+	s.store_init()
+
 	s.run = true
+	s.now = time.Now()
+
+	go func() {
+		tick := time.Tick(time.Second)
+
+		for s.run {
+			now := <-tick
+			s.now = now
+
+			s.checkTimer(now)
+
+			if err := s.db.Sync(); err != nil {
+				s.log.Error("db Sync", err)
+			}
+		}
+	}()
 
 	go func() {
 		for s.run {
@@ -224,16 +245,6 @@ func (s *Server) Start() {
 				}()
 			}
 
-			go func() {
-				tick := time.NewTicker(time.Second)
-
-				for s.run {
-					now := <-tick.C
-
-					s.checkTimer(now)
-				}
-			}()
-
 			for _, r := range s.cfg.Redis {
 				go r.RedisRun(s)
 			}
@@ -247,6 +258,14 @@ func (s *Server) Start() {
 	}()
 
 	s.s.Start()
+
+	if err := s.db.Sync(); err != nil {
+		s.log.Error("db Sync", err)
+	}
+
+	if err := s.db.Close(); err != nil {
+		s.log.Error("db Close", err)
+	}
 }
 
 func (s *Server) Reload() error {

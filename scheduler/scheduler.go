@@ -228,6 +228,8 @@ func (s *Scheduler) Start() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	s.now = time.Now()
+
 	for {
 		select {
 		case now := <-ticker.C:
@@ -269,8 +271,6 @@ func (s *Scheduler) onTick(now time.Time) {
 func (s *Scheduler) onComplete(o *order) {
 	s.l.Lock()
 	defer s.l.Unlock()
-
-	s.now = time.Now()
 
 	o.g.end(o)
 
