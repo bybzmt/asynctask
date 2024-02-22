@@ -1,24 +1,17 @@
 package server
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
-	"net/textproto"
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
-
-	"golang.org/x/net/http/httpguts"
 )
 
 var trailingPort = regexp.MustCompile(`:([0-9]+)$`)
@@ -41,29 +34,27 @@ var osDefaultInheritEnv = func() []string {
 	return nil
 }()
 
-
 type DirverCgi struct {
-	Path string // path to the CGI executable
-	Root string // root URI prefix of handler or empty for "/"
+	Path string `json:",omitempty"` // path to the CGI executable
+	Root string `json:",omitempty"` // root URI prefix of handler or empty for "/"
 
 	// Dir specifies the CGI executable's working directory.
 	// If Dir is empty, the base directory of Path is used.
 	// If Path has no base directory, the current working
 	// directory is used.
-	Dir string
-
-	Env        []string    // extra environment variables to set, if any, as "key=value"
-	InheritEnv []string    // environment variables to inherit from host, as "key"
-	logger     *log.Logger // optional log for errors or nil to use log.Print
-	Args       []string    // optional arguments to pass to child process
-	err     io.Writer   // optional stderr for the child process; nil means os.Stderr
+	Dir        string   `json:",omitempty"`
+	Args       []string `json:",omitempty"` // optional arguments to pass to child process
+	Env        []string `json:",omitempty"` // extra environment variables to set, if any, as "key=value"
+	InheritEnv []string `json:",omitempty"` // environment variables to inherit from host, as "key"
+	Cli        bool     `json:",omitempty"`
 }
 
-func (h *DirverCgi) stderr() io.Writer {
-	if h.err != nil {
-		return h.err
+func (h *DirverCgi) init() error {
+	if h.Path == "" {
+		return fmt.Errorf("DirverCgi Path empty")
 	}
-	return os.Stderr
+
+	return nil
 }
 
 // removeLeadingDuplicates remove leading duplicate in environments.
@@ -92,82 +83,44 @@ func removeLeadingDuplicates(env []string) (ret []string) {
 	return
 }
 
-type responseWriter struct {
-	header http.Header
-	code   int
-	buf    *bytes.Buffer
-}
-
-func (w *responseWriter) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-func (w *responseWriter) WriteHeader(statusCode int) {
-	w.code = statusCode
-}
-
-func (w *responseWriter) Write(b []byte) (int, error) {
-	if w.buf == nil {
-		w.buf = new(bytes.Buffer)
-
-		if w.code == 0 {
-			w.code = 200
-		}
-
-		msg := "HTTP/1.1 " + strconv.Itoa(w.code) + " " + http.StatusText(w.code)
-
-		w.buf.WriteString(msg)
-
-		if err := w.Header().Write(w.buf); err != nil {
-			return 0, err
-		}
-	}
-
-	return w.buf.Write(b)
-}
-
 func (h *DirverCgi) run(o *Order) {
-	var rw responseWriter
 
-    req := new(http.Request).WithContext(o.ctx)
+	req := new(http.Request).WithContext(o.ctx)
 
 	u, _ := url.Parse(o.Task.Url)
 
 	req.Method = o.Task.Method
 	req.URL = u
 	req.Header = make(http.Header)
+	req.RemoteAddr = "0.0.0.0:0"
+
+	if req.Method == "" {
+		req.Method = "GET"
+	}
 
 	for k, v := range o.Task.Header {
 		req.Header.Set(k, v)
 	}
 
-	req.Body = io.NopCloser(bytes.NewReader(o.Task.Body))
-
-	h.ServeHTTP(&rw, req)
-
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(rw.buf.Bytes())), req)
-
-	if err != nil {
-		o.status = -1
-		o.err = err
-		return
+	req.Host = req.Header.Get("Host")
+	if req.Host == "" {
+		req.Host = u.Host
 	}
 
-	onResponse(o, resp)
+	req.Body = io.NopCloser(bytes.NewReader(o.Task.Body))
+
+	h.ServeHTTP(req, o)
 }
 
-func (h *DirverCgi) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 	root := h.Root
 	if root == "" {
 		root = "/"
 	}
 
 	if len(req.TransferEncoding) > 0 && req.TransferEncoding[0] == "chunked" {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte("Chunked request bodies are not supported by CGI."))
+		o.status = http.StatusBadRequest
+		o.err = fmt.Errorf("Chunked request bodies are not supported by CGI.")
 		return
 	}
 
@@ -208,7 +161,7 @@ func (h *DirverCgi) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		env = append(env, "SERVER_NAME="+req.Host)
 	}
 
-	if req.TLS != nil {
+	if req.URL.Scheme == "https" {
 		env = append(env, "HTTPS=on")
 	}
 
@@ -256,164 +209,59 @@ func (h *DirverCgi) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	env = removeLeadingDuplicates(env)
 
-	var cwd, path string
-	if h.Dir != "" {
-		path = h.Path
-		cwd = h.Dir
-	} else {
-		cwd, path = filepath.Split(h.Path)
-	}
-	if cwd == "" {
-		cwd = "."
-	}
-
-	internalError := func(err error) {
-		rw.WriteHeader(http.StatusInternalServerError)
-		h.printf("CGI error: %v", err)
-	}
-
-	args := append([]string{h.Path}, h.Args...)
-
-	cmd := exec.CommandContext(req.Context(), path, args...)
-	cmd.Dir = cwd
+	cmd := exec.CommandContext(req.Context(), h.Path, h.Args...)
 	cmd.Env = env
-	cmd.Stderr = h.stderr()
+
+	if h.Dir != "" {
+		cmd.Dir = h.Dir
+	}
 
 	if req.ContentLength != 0 {
 		cmd.Stdin = req.Body
 	}
-	stdoutRead, err := cmd.StdoutPipe()
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	// o.fields["cmd"] = cmd.String()
+	o.fields["url"] = req.URL.String()
+
+	err := cmd.Run()
 	if err != nil {
-		internalError(err)
+		o.status = http.StatusInternalServerError
+		o.err = err
 		return
 	}
 
-	err = cmd.Start()
-	if err != nil {
-		internalError(err)
-		return
+	if t := stderr.Bytes(); len(t) > 0 {
+		o.fields["stderr"] = string(t)
 	}
-	defer cmd.Wait()
-	defer stdoutRead.Close()
 
-	linebody := bufio.NewReaderSize(stdoutRead, 1024)
-	headers := make(http.Header)
-	statusCode := 0
-	headerLines := 0
-	sawBlankLine := false
-	for {
-		line, isPrefix, err := linebody.ReadLine()
-		if isPrefix {
-			rw.WriteHeader(http.StatusInternalServerError)
-			h.printf("cgi: long header line from subprocess.")
-			return
+	if h.Cli {
+		o.status = cmd.ProcessState.ExitCode()
+
+		if o.Task.Status != o.status {
+			o.err = fmt.Errorf("Status %d != %d", o.status, o.Task.Status)
 		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			rw.WriteHeader(http.StatusInternalServerError)
-			h.printf("cgi: error reading headers: %v", err)
-			return
-		}
-		if len(line) == 0 {
-			sawBlankLine = true
-			break
-		}
-		headerLines++
-		header, val, ok := strings.Cut(string(line), ":")
-		if !ok {
-			h.printf("cgi: bogus header line: %s", string(line))
-			continue
-		}
-		if !httpguts.ValidHeaderFieldName(header) {
-			h.printf("cgi: invalid header name: %q", header)
-			continue
-		}
-		val = textproto.TrimString(val)
-		switch {
-		case header == "Status":
-			if len(val) < 3 {
-				h.printf("cgi: bogus status (short): %q", val)
-				return
-			}
-			code, err := strconv.Atoi(val[0:3])
-			if err != nil {
-				h.printf("cgi: bogus status: %q", val)
-				h.printf("cgi: line was %q", line)
-				return
-			}
-			statusCode = code
-		default:
-			headers.Add(header, val)
-		}
-	}
-	if headerLines == 0 || !sawBlankLine {
-		rw.WriteHeader(http.StatusInternalServerError)
-		h.printf("cgi: no headers")
+
 		return
 	}
 
-	if loc := headers.Get("Location"); loc != "" {
-		if statusCode == 0 {
-			statusCode = http.StatusFound
+	o.status, _, o.resp, o.err = readResponse(&out)
+
+	if o.status == 0 {
+		if len(stderr.Bytes()) > 0 {
+			o.status = http.StatusInternalServerError
+		} else {
+			o.status = http.StatusOK
 		}
 	}
 
-	if statusCode == 0 && headers.Get("Content-Type") == "" {
-		rw.WriteHeader(http.StatusInternalServerError)
-		h.printf("cgi: missing required Content-Type in headers")
+	if o.err != nil {
 		return
 	}
 
-	if statusCode == 0 {
-		statusCode = http.StatusOK
-	}
-
-	// Copy headers to rw's headers, after we've decided not to
-	// go into handleInternalRedirect, which won't want its rw
-	// headers to have been touched.
-	for k, vv := range headers {
-		for _, v := range vv {
-			rw.Header().Add(k, v)
-		}
-	}
-
-	rw.WriteHeader(statusCode)
-
-	_, err = io.Copy(rw, linebody)
-	if err != nil {
-		h.printf("cgi: copy error: %v", err)
-		// And kill the child CGI process so we don't hang on
-		// the deferred cmd.Wait above if the error was just
-		// the client (rw) going away. If it was a read error
-		// (because the child died itself), then the extra
-		// kill of an already-dead process is harmless (the PID
-		// won't be reused until the Wait above).
-		cmd.Process.Kill()
-	}
-}
-
-func (h *DirverCgi) printf(format string, v ...any) {
-	if h.logger != nil {
-		h.logger.Printf(format, v...)
-	} else {
-		log.Printf(format, v...)
-	}
-}
-
-func upperCaseAndUnderscore(r rune) rune {
-	switch {
-	case r >= 'a' && r <= 'z':
-		return r - ('a' - 'A')
-	case r == '-':
-		return '_'
-	case r == '=':
-		// Maybe not part of the CGI 'spec' but would mess up
-		// the environment in any case, as Go represents the
-		// environment as a slice of "key=value" strings.
-		return '_'
-	}
-	// TODO: other transformations in spec or practice?
-	return r
+	checkHttpStatus(o)
 }

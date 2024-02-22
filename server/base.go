@@ -56,11 +56,3 @@ type Task struct {
 	Interval uint   `json:"interval,omitempty"`
 }
 
-type Dirver struct {
-	Type DirverType
-
-	Cgi  *DirverCgi  `json:",omitempty"`
-	Fcgi *DirverFcgi `json:",omitempty"`
-
-	http *dirverHttp
-}

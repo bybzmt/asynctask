@@ -17,7 +17,7 @@
     )
 
     $: {
-        if (value == "" || value == http_val || value == cli_val) {
+        if (value == "") {
             value = http_val
         }
     }

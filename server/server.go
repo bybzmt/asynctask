@@ -45,7 +45,7 @@ type Server struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	run   bool
+	run   int
 	timer timer
 }
 
@@ -110,7 +110,7 @@ func (s *Server) getConfig() (*Config, error) {
 	}
 
 	for _, x := range c.Dirver {
-		if err := x.init(); err != nil {
+		if err := x.init(s); err != nil {
 			return nil, err
 		}
 	}
@@ -209,13 +209,13 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 func (s *Server) Start() {
 	s.store_init()
 
-	s.run = true
+	s.run = 1
 	s.now = time.Now()
 
 	go func() {
 		tick := time.Tick(time.Second)
 
-		for s.run {
+		for s.run == 1 {
 			now := <-tick
 			s.now = now
 
@@ -228,7 +228,9 @@ func (s *Server) Start() {
 	}()
 
 	go func() {
-		for s.run {
+		for s.run == 1 {
+            s.log.Debugln("start")
+
 			s.l.Lock()
 			s.ctx, s.cancel = context.WithCancel(context.Background())
 			ctx := s.ctx
@@ -266,6 +268,8 @@ func (s *Server) Start() {
 	if err := s.db.Close(); err != nil {
 		s.log.Error("db Close", err)
 	}
+
+	s.run = 3
 }
 
 func (s *Server) Reload() error {
@@ -281,16 +285,14 @@ func (s *Server) Reload() error {
 
 	err = s.reload()
 	if err != nil {
-		s.Kill()
+		s.log.Error("reload internal error", err)
+		return err
 	}
 
 	return nil
 }
 
 func (s *Server) reload() error {
-	s.l.Lock()
-	defer s.l.Unlock()
-
 	if s.http != nil {
 		ctx, fn := context.WithTimeout(context.Background(), time.Second*2)
 		defer fn()
@@ -309,14 +311,17 @@ func (s *Server) reload() error {
 
 	err = s.s.SetConfig(s.getSchedulerConfig(&s.cfg))
 	if err != nil {
-		s.log.Errorln("reload", err)
+		return err
 	}
 
 	return nil
 }
 
 func (s *Server) Stop() {
-	s.run = false
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	s.run = 2
 
 	s.reload()
 	s.s.Stop()
@@ -328,6 +333,8 @@ func (s *Server) Kill() {
 	s.s.Kill()
 }
 
-func (s *Server) CloseWait() {
-	time.Sleep(time.Second * time.Duration(s.cfg.CloseWait))
+func (s *Server) WaitStop() {
+	for n := 0; s.run < 3 && n < int(s.cfg.CloseWait); n++ {
+		time.Sleep(time.Millisecond * 10)
+	}
 }

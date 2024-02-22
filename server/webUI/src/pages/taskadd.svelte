@@ -1,7 +1,7 @@
 <script>
     import Layout from "./lib/layout.svelte"
     import Task from "./lib/task.svelte"
-    import { sendJson, mkUrl, timeStr } from "./lib/base"
+    import { sendJson, mkUrl } from "./lib/base"
 
     let addTask = ""
     let errmsg = ""

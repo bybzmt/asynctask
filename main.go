@@ -62,18 +62,20 @@ func main() {
 	go func() {
 		waitSignal()
 
+		logrus.Warnln("Stop")
+
 		s.Stop()
 
-		s.CloseWait()
+		s.WaitStop()
 
 		s.Kill()
 	}()
 
-	logrus.Info("Scheduler Start")
+	logrus.Info("Start")
 
 	s.Start()
 
-	logrus.Info("Scheduler Stop")
+	logrus.Info("Stoped")
 }
 
 func waitSignal() {
@@ -90,7 +92,9 @@ func waitSignal() {
 			//realod
 			err := s.Reload()
 			if err != nil {
-				logrus.Warnln("reload", err)
+				logrus.Warnln("reload err", err)
+			} else {
+				logrus.Warnln("reload success")
 			}
 
 		default:
@@ -118,6 +122,11 @@ func initLog() (*logrus.Logger, error) {
 		l.SetOutput(writer)
 	}
 
+	l.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+
 	switch strings.ToLower(LogLevel) {
 	case "error":
 		l.SetLevel(logrus.ErrorLevel)
@@ -133,10 +142,7 @@ func initLog() (*logrus.Logger, error) {
 		return nil, fmt.Errorf("Unkown LogLevel: %s", LogLevel)
 	}
 
-	l.SetFormatter(&logrus.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
+	l.Println("loglevel", LogLevel)
 
 	return l, nil
 }

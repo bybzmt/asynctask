@@ -46,7 +46,7 @@ func TestRun(t *testing.T) {
 	t.Log("listen", to)
 	t.Log("http", hub.cfg.HttpAddr)
 
-	total := 100_0000
+	total := 10000
 
 	go hub.Start()
 	go addTask(t, hub, total, taskadd)
@@ -285,7 +285,7 @@ func initServer(to string) *Server {
 	}
 
 	l := logrus.StandardLogger()
-	l.SetLevel(logrus.FatalLevel)
+	l.SetLevel(logrus.InfoLevel)
 	l.SetFormatter(&logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,

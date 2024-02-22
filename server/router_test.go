@@ -53,10 +53,6 @@ func TestRouter(t *testing.T) {
 		if o.Task.Method != "POST" {
 			t.Error("route1 Method error")
 		}
-
-		if o.Task.Header["Host"] != "host_old" {
-			t.Error("route2 Header Host error")
-		}
 	} else {
 		t.Error("route1", err)
 	}
@@ -92,10 +88,9 @@ func TestRouter(t *testing.T) {
 	if o, err := r.route(&t4); err == nil {
 		t.Log("task4", json_encode(o))
 
-		if o.Task.Header["Host"] != "test1" {
+		if o.Task.Header["Host"] != "" {
 			t.Error("Task4 Header Host error")
 		}
 	}
 
 }
-

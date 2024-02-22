@@ -57,7 +57,23 @@ func (s *Server) page_status(r *http.Request) any {
 }
 
 func (s *Server) page_runing(r *http.Request) any {
-	return s.TaskRuning()
+	var out []any
+
+	ts := s.s.GetRunTask()
+
+	for _, t := range ts {
+		o := s.store_order_get(t.Id)
+
+		out = append(out, struct {
+			scheduler.RunTask
+			Task Task
+		}{
+			Task:    o.Task,
+			RunTask: t,
+		})
+	}
+
+	return out
 }
 
 func (s *Server) page_task_add(r *http.Request) any {

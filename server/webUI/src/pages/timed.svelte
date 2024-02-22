@@ -1,20 +1,10 @@
 <script>
     import Layout from "./lib/layout.svelte"
-    import { onMount, onDestroy } from "svelte"
+    import { onMount } from "svelte"
     import { sendJson, mkUrl, timeStr } from "./lib/base"
-
-    let timer
 
     onMount(() => {
         showStatus()
-
-        timer = setInterval(function () {
-            showStatus()
-        }, 2000)
-    })
-
-    onDestroy(() => {
-        clearInterval(timer)
     })
 
     let rows = []
@@ -29,7 +19,7 @@
         var ok = confirm(`Del timer?\r\nId:${row.Id} name: ${row.name}`)
         if (ok) {
             let json = await sendJson(mkUrl("api/task/del"), {
-                TimedID: row.TimedID,
+                Id: row.Id,
             })
             if (json.Code != 0) {
                 alert(json.Data)
@@ -53,7 +43,7 @@
             <tbody>
                 {#each rows as row}
                     <tr>
-                        <td class="px-2 py-1 border">{timeStr(row.timer)}</td>
+                        <td class="px-2 py-1 border">{timeStr(row.Task.runat)}</td>
                         <td class="px-2 py-1 border">{JSON.stringify(row)}</td>
                         <td class="px-2 py-1 border"><button on:click={() => rowDel(row)}>删除</button></td>
                     </tr>

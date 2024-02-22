@@ -272,6 +272,8 @@ func (s *Scheduler) onComplete(o *order) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
+	s.now = time.Now()
+
 	o.g.end(o)
 
 	for o.g.dispatch() {
@@ -305,7 +307,7 @@ func (s *Scheduler) Kill() {
 
 func (s *Scheduler) WaitStop() {
 	for s.running != 3 {
-		time.Sleep(time.Millisecond)
+		time.Sleep(time.Millisecond * 10)
 	}
 }
 

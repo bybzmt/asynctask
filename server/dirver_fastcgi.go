@@ -1,11 +1,16 @@
 package server
 
 import (
+	"asynctask/server/fcgi"
 	"bytes"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"strconv"
-
-	"github.com/tomasen/fcgi_client"
+	"strings"
+	"sync/atomic"
 )
 
 /*
@@ -34,45 +39,142 @@ fastcgi_param  SERVER_NAME        $server_name;
 fastcgi_param  REDIRECT_STATUS    200;
 */
 
-type DirverFcgi struct {
+type addr struct {
 	Network string
 	Address string
-	Params  map[string]string
+}
+
+type DirverFcgi struct {
+	Address []string
+	Params  map[string]string `json:",omitempty"`
+	idx     uint32
+	addrs   []addr
+}
+
+func (h *DirverFcgi) init() error {
+	if len(h.Address) == 0 {
+		return fmt.Errorf("DirverFcgi Address empty")
+	}
+
+	h.addrs = make([]addr, 0)
+
+	for _, s := range h.Address {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return fmt.Errorf("DirverFcgi Address empty")
+		}
+
+		_, _, err := net.SplitHostPort(s)
+		if err == nil {
+			h.addrs = append(h.addrs, addr{
+				Network: "tcp",
+				Address: s,
+			})
+		} else {
+			h.addrs = append(h.addrs, addr{
+				Network: "unix",
+				Address: s,
+			})
+        } 
+	}
+	return nil
 }
 
 func (h *DirverFcgi) run(o *Order) {
 
+	if o.Task.Method == "" {
+		o.Task.Method = "GET"
+	}
+
+	o.fields["url"] = o.Task.Url
+
 	u, _ := url.Parse(o.Task.Url)
 
-	env := make(map[string]string)
+	env := map[string]string{
+		"REMOTE_ADDR":     "0.0.0.0:0",
+		"REQUEST_URI":     u.RequestURI(),
+		"QUERY_STRING":    u.Query().Encode(),
+		"REQUEST_METHOD":  o.Task.Method,
+		"CONTENT_LENGTH":  strconv.Itoa(len(o.Task.Body)),
+		"SCRIPT_FILENAME": u.Path,
+	}
+
+	if u.Scheme == "https" {
+		env["HTTPS"] = "on"
+	}
+
+	headers := http.Header{}
+
+	for key, val := range o.Task.Header {
+		headers.Add(key, val)
+	}
+
+	host := headers.Get("Host")
+	if host == "" {
+		headers.Set("Host", u.Host)
+	}
+
+	for k, v := range headers {
+		k = strings.Map(upperCaseAndUnderscore, k)
+		if k == "PROXY" {
+			// See Issue 16405
+			continue
+		}
+		joinStr := ", "
+		if k == "COOKIE" {
+			joinStr = "; "
+		}
+		env["HTTP_"+k] = strings.Join(v, joinStr)
+	}
+
+	var body io.Reader
+
+	if len(o.Task.Body) > 0 {
+		body = bytes.NewReader(o.Task.Body)
+
+		bodyType := headers.Get("Content-Type")
+
+		if bodyType == "" {
+			env["CONTENT_TYPE"] = bodyType
+		} else {
+			env["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
+		}
+	}
+
 	for k, v := range h.Params {
 		env[k] = v
 	}
 
-	env["REMOTE_ADDR"] = "127.0.0.1"
-	env["REQUEST_URI"] = u.Path
-	env["QUERY_STRING"] = u.Query().Encode()
-    env["REQUEST_METHOD"] = o.Task.Method
-	env["CONTENT_LENGTH"] = strconv.Itoa(len(o.Task.Body))
+	idx := atomic.AddUint32(&h.idx, 1)
 
-	if len(o.Task.Body) > 0 {
-        bodyType, ok := o.Task.Header["ContentType"]
+	a := h.addrs[int(idx)%len(h.addrs)]
 
-        if ok  {
-            env["CONTENT_TYPE"] = bodyType
-        } else {
-            env["CONTENT_TYPE"] = "application/x-www-form-urlencoded"
-        }
-    }
-
-	fcgi, err := fcgiclient.Dial(h.Network, h.Address)
+	fcgi, err := fcgi.Dial(a.Network, a.Address)
 	if err == nil {
-        r := bytes.NewReader(o.Task.Body)
-
-		resp, err := fcgi.Request(env, r)
+		stdout, stderr, err := fcgi.Do(env, body)
 		if err == nil {
-			onResponse(o, resp)
+			o.status, _, o.resp, o.err = readResponse(bytes.NewReader(stdout))
+
+			if len(stderr) > 0 {
+				o.fields["stderr"] = string(stderr)
+			}
+
+			if o.status == 0 {
+				if len(stderr) > 0 {
+					o.status = http.StatusInternalServerError
+				} else {
+					o.status = http.StatusOK
+				}
+			}
+
+			if o.err != nil {
+				return
+			}
+
+			checkHttpStatus(o)
 			return
+		} else {
+			o.err = err
 		}
 	}
 

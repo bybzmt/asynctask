@@ -1,12 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 )
 
@@ -22,13 +19,13 @@ type Order struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	status int
-	msg    string
 	err    error
+	status int
+	resp   []byte
 
 	startTime time.Time
 
-	taskTxt string
+	fields map[string]any
 }
 
 func (s *Server) dirver(id ID, ctx context.Context) error {
@@ -44,7 +41,13 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 		return NotFound
 	}
 
+	o.fields = map[string]any{
+		"id":  o.Id,
+		"job": o.Job,
+	}
+
 	s.l.Lock()
+	s.now = time.Now()
 	o.startTime = s.now
 	d, ok := s.cfg.Dirver[o.Dirver]
 	var timeout uint = s.cfg.Timeout
@@ -60,12 +63,12 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 
 		d.run(o)
 	} else {
-		o.status = -1
 		o.err = DirverNotFound
 	}
 
 	s.l.Lock()
-    now := s.now
+	s.now = time.Now()
+	now := s.now
 	s.l.Unlock()
 
 	del := true
@@ -102,29 +105,25 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 func (s *Server) logTask(now time.Time, o *Order) {
 	runTime := now.Sub(o.startTime).Seconds()
 
-	logFields := map[string]any{
-		"id":     o.Id,
-		"job":    o.Job,
-		"url":    o.taskTxt,
-		"status": o.status,
-		"cost":   logCost(runTime),
-	}
+	o.fields["cost"] = logCost(runTime)
+	o.fields["status"] = o.status
 
 	if o.err != nil {
-		logFields["err"] = o.err
+		o.fields["err"] = o.err
 
 		if xx, err := json.Marshal(o.Task); err == nil {
-			logFields["task"] = string(xx)
+			o.fields["task"] = string(xx)
 		}
 
 		if o.Retry > 0 {
-			logFields["retry"] = o.Retry
+			o.fields["retry"] = o.Retry
 		}
 
-		s.log.WithFields(logFields).Errorln(o.msg)
-	} else {
-		s.log.WithFields(logFields).Infoln(o.msg)
+		s.log.WithFields(o.fields).Errorf("%s", o.resp)
+		return
 	}
+
+	s.log.WithFields(o.fields).Infof("%s", o.resp)
 }
 
 func logCost(ts float64) string {
@@ -133,90 +132,4 @@ func logCost(ts float64) string {
 	}
 
 	return fmt.Sprintf("%.2fs", ts)
-}
-
-func (d *Dirver) run(o *Order) {
-	switch d.Type {
-	case DIRVER_HTTP:
-		d.http.run(o)
-
-	case DIRVER_CGI:
-		d.Cgi.run(o)
-
-	case DIRVER_FASTCGI:
-		d.Fcgi.run(o)
-
-	default:
-		o.status = -1
-		o.err = TaskError
-	}
-}
-
-func (d *Dirver) init() error {
-
-	switch d.Type {
-	case DIRVER_HTTP:
-		d.http = &dirverHttp{
-			client: &http.Client{},
-		}
-
-	case DIRVER_CGI:
-
-	case DIRVER_FASTCGI:
-
-	default:
-		return TaskError
-	}
-
-	return nil
-}
-
-type dirverHttp struct {
-	client *http.Client
-}
-
-func (d *dirverHttp) run(o *Order) {
-
-	t := o.Task
-
-	var rb io.Reader
-	if t.Body != nil {
-		rb = bytes.NewReader(t.Body)
-	}
-
-	req, err := http.NewRequestWithContext(o.ctx, t.Method, t.Url, rb)
-	if err != nil {
-		o.status = -1
-		o.err = err
-		return
-	}
-
-	o.taskTxt = req.URL.String()
-
-	resp, err := d.client.Do(req)
-
-	if err != nil {
-		o.status = -1
-		o.err = err
-		return
-	}
-
-	onResponse(o, resp)
-}
-
-func onResponse(o *Order, resp *http.Response) {
-	defer resp.Body.Close()
-
-	b2, _ := io.ReadAll(resp.Body)
-
-	o.status = resp.StatusCode
-	o.msg = string(b2)
-
-	if o.Task.Status == 0 {
-		if !(o.status >= 200 && o.status < 300) {
-			o.err = fmt.Errorf("Status %d", o.status)
-		}
-	} else if o.Task.Status != o.status {
-		o.err = fmt.Errorf("Status %d != %d", o.status, o.Task.Status)
-	}
 }

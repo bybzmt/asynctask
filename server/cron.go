@@ -4,7 +4,6 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-
 const corn_cfg_key = "cron.cfg"
 
 type CronTask struct {
@@ -15,17 +14,19 @@ type CronTask struct {
 }
 
 func (s *Server) cronConfig(c *CronTask) error {
-    _, err := cron.ParseStandard(c.Cfg)
-    if err != nil {
-        return err
-    }
+	_, err := cron.ParseStandard(c.Cfg)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
 }
 
 func (s *Server) CronRun() {
-	s.log.Debugln("Cron init")
-	defer s.log.Debugln("Cron close")
+	l := s.log.WithField("tag", "cron")
+
+	l.Debugln("Cron init")
+	defer l.Debugln("Cron close")
 
 	c := cron.New()
 
@@ -38,14 +39,22 @@ func (s *Server) CronRun() {
 			continue
 		}
 
-		c.AddFunc(j.Cfg, func(t Task) func() {
+		l.Debugln("AddCron", j.Cfg)
+
+		_, err := c.AddFunc(j.Cfg, func(t Task) func() {
 			return func() {
+				l.WithField("task", json_encode(t)).Info("addTask")
+
 				err := s.TaskAdd(&t)
 				if err != nil {
-					s.log.Errorln("Cron AddTask", err)
+					l.Errorln("Cron AddTask", err)
 				}
 			}
 		}(j.Task))
+
+		if err != nil {
+			l.Errorln("AddCron", err)
+		}
 	}
 
 	s.l.Unlock()

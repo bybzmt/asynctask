@@ -90,12 +90,6 @@ func (r *Route) rewrite(src, dst *Task) {
 	}
 
 	if r.Rewrite != nil {
-		if _, ok := src.Header["Host"]; !ok {
-			if u, err := url.Parse(src.Url); err == nil {
-				dst.Header["Host"] = u.Host
-			}
-		}
-
 		r.Rewrite.rewrite(dst)
 	}
 }

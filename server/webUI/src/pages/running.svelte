@@ -5,7 +5,6 @@
 
     let timer
     onMount(() => {
-        getGroups()
         showStatus()
 
         timer = setInterval(function () {
@@ -17,23 +16,7 @@
         clearInterval(timer)
     })
 
-    let Groups = []
     let Runs = []
-
-    async function getGroups() {
-        let json = await sendJson(mkUrl("api/group/list"))
-
-        Groups = json.Data || []
-    }
-
-    function getGroup(gid) {
-        for (let g of Groups) {
-            if (g.Id == gid) {
-                return g
-            }
-        }
-        return {}
-    }
 
     async function showStatus() {
         let json = await sendJson(mkUrl("api/task/runing"))
