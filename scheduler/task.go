@@ -54,10 +54,10 @@ func (s *Scheduler) TaskRuning() []ID {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-    var ids []ID
+	var ids []ID
 
 	for t := range s.orders {
-        ids = append(ids, t.id)
+		ids = append(ids, t.id)
 	}
 
 	return ids
@@ -71,6 +71,10 @@ func (s *Scheduler) TaskAdd(t *Task) {
 
 	if ok {
 		if j.g == nil {
+			if j.mode == job_mode_idle {
+				s.idleLen--
+			}
+
 			jobRemove(j)
 
 			j.g = s.getGroup(j.group)
@@ -87,5 +91,5 @@ func (s *Scheduler) TaskAdd(t *Task) {
 	j.g.waitNum++
 	j.g.modeCheck(j)
 
-    j.g.dispatch()
+	j.g.dispatch()
 }
