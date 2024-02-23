@@ -42,8 +42,7 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 	}
 
 	o.fields = map[string]any{
-		"id":  o.Id,
-		"job": o.Job,
+		"id": o.Id,
 	}
 
 	s.l.Lock()
@@ -109,6 +108,7 @@ func (s *Server) logTask(now time.Time, o *Order) {
 	o.fields["status"] = o.status
 
 	if o.err != nil {
+		o.fields["job"] = o.Job
 		o.fields["err"] = o.err
 
 		if xx, err := json.Marshal(o.Task); err == nil {

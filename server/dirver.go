@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"golang.org/x/net/http/httpguts"
 	"io"
+	"net"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/http/httpguts"
 )
 
 type Dirver struct {
@@ -213,4 +216,38 @@ func readResponse(r io.Reader) (status int, headers http.Header, body []byte, er
 	status = statusCode
 	body, err = io.ReadAll(linebody)
 	return
+}
+
+var ip string
+var hostname string
+
+func getLocalip() string {
+	if ip == "" {
+		addrs, err := net.InterfaceAddrs()
+		if err != nil {
+			ip = "0.0.0.0"
+		}
+
+		for _, address := range addrs {
+			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				ip = ipnet.IP.String()
+				break
+			}
+		}
+	}
+
+	return ip
+}
+
+func getHostname() string {
+	if hostname == "" {
+		name, err := os.Hostname()
+		if err != nil {
+			hostname = "unknown"
+		} else {
+			hostname = name
+		}
+	}
+
+	return hostname
 }

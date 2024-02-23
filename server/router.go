@@ -20,7 +20,7 @@ type Rewrite struct {
 
 type Route struct {
 	Pattern string
-	Job     string
+	Job     string `json:",omitempty"`
 	Dirver  string
 	Rewrite *Rewrite `json:",omitempty"`
 	Note    string   `json:",omitempty"`
@@ -125,8 +125,11 @@ func (r *router) match(name string) (string, *Route) {
 
 	for _, r := range r.routes {
 		if r.exp.MatchString(name) {
-			job := r.exp.ReplaceAllString(name, r.Job)
-			return job, r
+			if r.Job != "" {
+				job := r.exp.ReplaceAllString(name, r.Job)
+				return job, r
+			}
+			return name, r
 		}
 	}
 

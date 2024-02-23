@@ -92,7 +92,6 @@ func (h *DirverCgi) run(o *Order) {
 	req.Method = o.Task.Method
 	req.URL = u
 	req.Header = make(http.Header)
-	req.RemoteAddr = "0.0.0.0:0"
 
 	if req.Method == "" {
 		req.Method = "GET"
@@ -129,30 +128,15 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 		pathInfo = pathInfo[len(root):]
 	}
 
-	port := "80"
-	if matches := trailingPort.FindStringSubmatch(req.Host); len(matches) != 0 {
-		port = matches[1]
-	}
-
 	env := []string{
-		"SERVER_SOFTWARE=go",
-		"SERVER_PROTOCOL=HTTP/1.1",
 		"HTTP_HOST=" + req.Host,
-		"GATEWAY_INTERFACE=CGI/1.1",
 		"REQUEST_METHOD=" + req.Method,
 		"QUERY_STRING=" + req.URL.RawQuery,
 		"REQUEST_URI=" + req.URL.RequestURI(),
 		"PATH_INFO=" + pathInfo,
 		"SCRIPT_NAME=" + root,
 		"SCRIPT_FILENAME=" + h.Path,
-		"SERVER_PORT=" + port,
-	}
-
-	if remoteIP, remotePort, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		env = append(env, "REMOTE_ADDR="+remoteIP, "REMOTE_HOST="+remoteIP, "REMOTE_PORT="+remotePort)
-	} else {
-		// could not parse ip:port, let's use whole RemoteAddr and leave REMOTE_PORT undefined
-		env = append(env, "REMOTE_ADDR="+req.RemoteAddr, "REMOTE_HOST="+req.RemoteAddr)
+		"REMOTE_ADDR=" + getLocalip(),
 	}
 
 	if hostDomain, _, err := net.SplitHostPort(req.Host); err == nil {
@@ -225,22 +209,26 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 
-	// o.fields["cmd"] = cmd.String()
 	o.fields["url"] = req.URL.String()
 
 	err := cmd.Run()
 	if err != nil {
 		o.status = http.StatusInternalServerError
 		o.err = err
+		o.fields["cmd"] = cmd.String()
+		o.fields["env"] = strings.Join(env, "; ")
+		o.fields["stdout"] = out.String()
+		o.fields["stderr"] = stderr.String()
 		return
 	}
 
 	if t := stderr.Bytes(); len(t) > 0 {
-		o.fields["stderr"] = string(t)
+		o.fields["stderr"] = stderr.String()
 	}
 
 	if h.Cli {
 		o.status = cmd.ProcessState.ExitCode()
+		o.resp = out.Bytes()
 
 		if o.Task.Status != o.status {
 			o.err = fmt.Errorf("Status %d != %d", o.status, o.Task.Status)
@@ -251,16 +239,18 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 
 	o.status, _, o.resp, o.err = readResponse(&out)
 
+	if o.err != nil {
+		o.fields["cmd"] = cmd.String()
+		o.fields["env"] = strings.Join(env, "; ")
+		return
+	}
+
 	if o.status == 0 {
 		if len(stderr.Bytes()) > 0 {
 			o.status = http.StatusInternalServerError
 		} else {
 			o.status = http.StatusOK
 		}
-	}
-
-	if o.err != nil {
-		return
 	}
 
 	checkHttpStatus(o)

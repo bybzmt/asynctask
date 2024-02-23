@@ -184,7 +184,7 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 
 	cfg, err := s.getConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("config err:%s", err)
 	}
 	s.cfg = *cfg
 
@@ -229,7 +229,7 @@ func (s *Server) Start() {
 
 	go func() {
 		for s.run == 1 {
-            s.log.Debugln("start")
+			s.log.Debugln("start")
 
 			s.l.Lock()
 			s.ctx, s.cancel = context.WithCancel(context.Background())

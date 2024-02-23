@@ -75,7 +75,7 @@ func (h *DirverFcgi) init() error {
 				Network: "unix",
 				Address: s,
 			})
-        } 
+		}
 	}
 	return nil
 }
@@ -91,7 +91,7 @@ func (h *DirverFcgi) run(o *Order) {
 	u, _ := url.Parse(o.Task.Url)
 
 	env := map[string]string{
-		"REMOTE_ADDR":     "0.0.0.0:0",
+		"REMOTE_ADDR":     getLocalip(),
 		"REQUEST_URI":     u.RequestURI(),
 		"QUERY_STRING":    u.Query().Encode(),
 		"REQUEST_METHOD":  o.Task.Method,
@@ -148,6 +148,8 @@ func (h *DirverFcgi) run(o *Order) {
 	idx := atomic.AddUint32(&h.idx, 1)
 
 	a := h.addrs[int(idx)%len(h.addrs)]
+
+	o.fields["fcgi"] = a.Address
 
 	fcgi, err := fcgi.Dial(a.Network, a.Address)
 	if err == nil {

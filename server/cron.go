@@ -8,9 +8,9 @@ const corn_cfg_key = "cron.cfg"
 
 type CronTask struct {
 	Cfg     string
-	Note    string
+	Note    string `json:",omitempty"`
 	Task    Task
-	Disable bool
+	Disable bool `json:",omitempty"`
 }
 
 func (s *Server) cronConfig(c *CronTask) error {

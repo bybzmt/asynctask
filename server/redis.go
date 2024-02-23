@@ -8,10 +8,11 @@ import (
 )
 
 type RedisConfig struct {
-	Addr string
-	Pwd  string
-	Db   string
-	Key  string
+	Addr    string
+	Pwd     string
+	Db      string
+	Key     string
+	Disable bool
 
 	r *redis.Client
 }
@@ -36,6 +37,10 @@ func (c *RedisConfig) checkConfig() error {
 func (c *RedisConfig) RedisRun(s *Server) {
 	s.log.Println("[Info] redis init")
 	defer s.log.Println("[Info] redis close")
+
+	if c.Disable {
+		return
+	}
 
 	s.l.Lock()
 	_db, _ := strconv.Atoi(c.Db)
