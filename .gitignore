@@ -3,6 +3,7 @@ asynctask
 *.bolt
 *.log
 *.json
+*.toml
 
 #js
 /server/dist/*

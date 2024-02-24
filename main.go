@@ -25,13 +25,12 @@ func init() {
 	dbfile := os.Getenv("DBFILE")
 
 	if dbfile == "" {
-		file, _ := os.Executable()
-		base := path.Base(file)
+		dbfile = "asynctask.bolt"
 
-		if base != "" {
-			dbfile = base + ".bolt"
-		} else {
-			dbfile = "asynctask.bolt"
+		if file, err := os.Executable(); err != nil {
+			if base := path.Base(file); base != "" {
+				dbfile = base + ".bolt"
+			}
 		}
 	}
 
@@ -43,7 +42,7 @@ func init() {
 	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
 	flag.StringVar(&dbFile, "db.file", dbfile, "storage file")
-	flag.StringVar(&config, "config", "config.json", "config file")
+    flag.StringVar(&config, "config", "config.toml", "config file json or toml")
 }
 
 func main() {

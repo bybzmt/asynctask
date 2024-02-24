@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/BurntSushi/toml"
 	"github.com/sirupsen/logrus"
 )
 
@@ -59,11 +61,25 @@ func (s *Server) getConfig() (*Config, error) {
 	}
 	defer f.Close()
 
-	d := json.NewDecoder(f)
+	ext := strings.ToLower(path.Ext(s.config))
 
-	err = d.Decode(c)
-	if err != nil {
-		return nil, err
+	switch ext {
+	case ".json":
+		d := json.NewDecoder(f)
+
+		err = d.Decode(c)
+		if err != nil {
+			return nil, err
+		}
+	case ".toml":
+		d := toml.NewDecoder(f)
+
+		_, err = d.Decode(c)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("%s not .json or .toml", s.config)
 	}
 
 	cc := s.getSchedulerConfig(c)
