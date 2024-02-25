@@ -27,9 +27,7 @@ type job struct {
 
 	score int
 
-	tasks_head int
-	tasks_tail int
-	tasks      [][1024]ID
+	tasks []ID
 
 	nowNum int32
 	errNum int32
@@ -54,17 +52,11 @@ func (j *job) init(s *Scheduler, name string) *job {
 }
 
 func (j *job) addTask(taskid ID) {
-	p := j.tasks_tail / 1024
-	f := j.tasks_tail % 1024
-
-	l := len(j.tasks)
-
-	if p > l-1 {
-		j.tasks = append(j.tasks, [1024]ID{})
+	if len(j.tasks) >= cap(j.tasks) {
+		j.tasks = append(make([]ID, 0, 128), j.tasks...)
 	}
 
-	j.tasks[p][f] = taskid
-	j.tasks_tail++
+	j.tasks = append(j.tasks, taskid)
 }
 
 func (j *job) popTask() ID {
@@ -72,24 +64,12 @@ func (j *job) popTask() ID {
 		return 0
 	}
 
-	if j.tasks_head == j.tasks_tail {
-		return 0
-	}
+	id := j.tasks[0]
+	j.tasks = j.tasks[1:]
 
-	p := j.tasks_head / 1024
-	f := j.tasks_head % 1024
-
-	j.tasks_head++
-
-	if j.tasks_head == 1024 {
-		j.tasks = j.tasks[1:]
-		j.tasks_tail -= j.tasks_head
-		j.tasks_head = 0
-	}
-
-	return j.tasks[p][f]
+	return id
 }
 
 func (j *job) len() int {
-	return j.tasks_tail - j.tasks_head
+	return len(j.tasks)
 }
