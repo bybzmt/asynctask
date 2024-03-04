@@ -42,7 +42,7 @@ func init() {
 	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
 	flag.StringVar(&dbFile, "db.file", dbfile, "storage file")
-    flag.StringVar(&config, "config", "config.toml", "config file json or toml")
+	flag.StringVar(&config, "config", "config.toml", "config file json or toml")
 }
 
 func main() {
@@ -73,6 +73,8 @@ func main() {
 	logrus.Info("Start")
 
 	s.Start()
+
+	time.Sleep(time.Millisecond * 500)
 
 	logrus.Info("Stoped")
 }

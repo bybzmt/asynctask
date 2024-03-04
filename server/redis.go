@@ -1,32 +1,31 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/go-redis/redis"
-	"strconv"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type RedisConfig struct {
 	Addr    string
 	Pwd     string
-	Db      string
+	Db      int
 	Key     string
 	Disable bool
-
-	r *redis.Client
 }
 
 func (c *RedisConfig) checkConfig() error {
-	_db, _ := strconv.Atoi(c.Db)
-
-	redis := redis.NewClient(&redis.Options{
+	client := redis.NewClient(&redis.Options{
 		Addr:     c.Addr,
 		Password: c.Pwd,
-		DB:       _db,
+		DB:       c.Db,
 	})
 
-	_, err := redis.Ping().Result()
+	ctx := context.Background()
+
+	_, err := client.Ping(ctx).Result()
 	if err != nil {
 		return err
 	}
@@ -34,44 +33,61 @@ func (c *RedisConfig) checkConfig() error {
 	return nil
 }
 
+func (c *RedisConfig) RedisLen() int64 {
+	client := redis.NewClient(&redis.Options{
+		Addr:     c.Addr,
+		Password: c.Pwd,
+		DB:       c.Db,
+	})
+
+	ctx := context.Background()
+
+	a, _ := client.LLen(ctx, c.Key).Result()
+
+	return a
+}
+
 func (c *RedisConfig) RedisRun(s *Server) {
-	s.log.Println("[Info] redis init")
-	defer s.log.Println("[Info] redis close")
+	s.log.Println("redis init")
+	defer s.log.Println("redis close")
 
 	if c.Disable {
 		return
 	}
 
 	s.l.Lock()
-	_db, _ := strconv.Atoi(c.Db)
 
-	redis := redis.NewClient(&redis.Options{
+	client := redis.NewClient(&redis.Options{
 		Addr:     c.Addr,
 		Password: c.Pwd,
-		DB:       _db,
+		DB:       c.Db,
 	})
 
-	redis = redis.WithContext(s.ctx)
-	c.r = redis
 	ctx := s.ctx
 
 	s.l.Unlock()
 
-	// _, err := redis.LLen(c.Key).Result()
+	go func() {
+		<-ctx.Done()
+
+		client.Close()
+	}()
 
 	for {
-		out, err := redis.BLPop(time.Second*5, c.Key).Result()
+		out, err := client.BLPop(ctx, time.Second*5, c.Key).Result()
 
 		if err != nil {
-			s.log.Debugln("redis list empty.", c.Key, err.Error())
-
-			select {
-			case <-ctx.Done():
-			default:
+			if err.Error() == "redis: nil" {
+				s.log.Debugln("redis", c.Key, "empty")
 				time.Sleep(time.Second)
+			} else {
+				s.log.Debugln("redis", c.Key, "err:", err)
+				return
 			}
 		} else {
 			data := out[1]
+
+			s.log.Debugln("redis task:", data)
 
 			t := Task{}
 			err = json.Unmarshal([]byte(data), &t)
@@ -83,12 +99,6 @@ func (c *RedisConfig) RedisRun(s *Server) {
 					s.log.Warnln("redis add Task Fail", data)
 				}
 			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		default:
 		}
 	}
 }
