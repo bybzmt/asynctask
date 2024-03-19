@@ -149,38 +149,59 @@ func (h *DirverFcgi) run(o *Order) {
 
 	a := h.addrs[int(idx)%len(h.addrs)]
 
-	o.fields["fcgi"] = a.Address
-
 	fcgi, err := fcgi.Dial(a.Network, a.Address)
-	if err == nil {
-		stdout, stderr, err := fcgi.Do(env, body)
-		if err == nil {
-			o.status, _, o.resp, o.err = readResponse(bytes.NewReader(stdout))
+	if err != nil {
+		o.status = -1
+		o.err = err
+		return
+	}
 
-			if len(stderr) > 0 {
-				o.fields["stderr"] = string(stderr)
+	stdout, stderr, err := fcgi.Do(env, body)
+
+	defer func() {
+		var resp []byte
+
+		if len(stderr) > 0 {
+			resp = append(resp, []byte("stderr:\n")...)
+			resp = append(resp, stderr...)
+			resp = append(resp, "\n\n"...)
+		}
+
+		if o.err != nil {
+			resp = append(resp, fmt.Sprintf("fcgi %s\n", a.Address)...)
+			for k, v := range env {
+				resp = append(resp, (k + "=" + v + "\n")...)
 			}
+			resp = append(resp, "\n"...)
+		}
 
-			if o.status == 0 {
-				if len(stderr) > 0 {
-					o.status = http.StatusInternalServerError
-				} else {
-					o.status = http.StatusOK
-				}
-			}
+		if len(resp) > 0 {
+			resp = append(resp, "stdout:\n"...)
+		}
 
-			if o.err != nil {
-				return
-			}
+		o.resp = append(resp, stdout...)
+	}()
 
-			checkHttpStatus(o)
-			return
+	if err != nil {
+		o.err = err
+		return
+	}
+
+	o.status, _, _, o.err = readResponse(bytes.NewReader(stdout))
+
+	if o.status == 0 {
+		if len(stderr) > 0 {
+			o.status = http.StatusInternalServerError
 		} else {
-			o.err = err
+			o.status = http.StatusOK
 		}
 	}
 
-	o.status = -1
-	o.err = err
+	if o.err != nil {
+		return
+	}
+
+	checkHttpStatus(o)
 	return
+
 }

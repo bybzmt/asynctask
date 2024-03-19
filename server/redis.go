@@ -92,8 +92,6 @@ func (c *RedisConfig) RedisRun(s *Server) {
 		} else {
 			data := out[1]
 
-			s.log.Debugln("redis task:", data)
-
 			t := Task{}
 			err = json.Unmarshal([]byte(data), &t)
 			if err != nil {

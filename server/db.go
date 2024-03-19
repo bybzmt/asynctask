@@ -88,7 +88,7 @@ func (s *Server) store_order_get(id ID) *Order {
 		}
 
 		if err := json.Unmarshal(t, &out); err != nil {
-			s.log.Warnln("Order Unmarshal Error", err)
+			s.log.Error("Order Unmarshal Error", err)
 			return nil
 		}
 
@@ -96,7 +96,7 @@ func (s *Server) store_order_get(id ID) *Order {
 	})
 
 	if err != nil {
-		s.log.Warnln("store_order_get Error", err)
+		s.log.Error("store_order_get Error", err)
 		return nil
 	}
 
@@ -114,7 +114,7 @@ func (s *Server) store_order_del(id ID) {
 	})
 
 	if err != nil {
-		s.log.Warnln("store_order_del error", err)
+		s.log.Error("store_order_del error", err)
 	}
 }
 
@@ -157,6 +157,80 @@ func (s *Server) store_order_put(o *Order) error {
 	})
 }
 
+func (s *Server) store_idle_check() {
+	num := 0
+
+	s.l.Lock()
+	point := s.now.Unix() - 5
+	s.l.Unlock()
+
+	var delKeys [][]byte
+	var tasks []*task
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := getBucket(tx, "tasks")
+		if b == nil {
+			return nil
+		}
+
+		return b.ForEach(func(k, v []byte) error {
+			num++
+			if num > 100 {
+				return Empty
+			}
+
+			if v == nil {
+				delKeys = append(delKeys, bytes.Clone(k))
+				return nil
+			}
+
+			var o *Order
+
+			if err := json.Unmarshal(v, &o); err != nil {
+				delKeys = append(delKeys, bytes.Clone(k))
+				s.log.Errorf("store_init Unmarshal Error:%s key:%s val:%s", err, k, v)
+				return nil
+			}
+
+			if o != nil && point > o.Task.RunAt {
+				s.log.Error("store_idle_check find", string(k))
+
+				tasks = append(tasks, &task{
+					Id:  o.Id,
+					Job: o.Job,
+				})
+			}
+
+			return nil
+		})
+	})
+
+	go func() {
+		for _, t := range tasks {
+			s.s.TaskAdd(t)
+		}
+	}()
+
+	if err != nil && err != Empty {
+		s.log.Error("store_idle_check error", err)
+	}
+
+	for _, k := range delKeys {
+		err := s.db.Update(func(tx *bolt.Tx) error {
+			b := getBucket(tx, "tasks")
+			if b == nil {
+				return nil
+			}
+
+			return b.Delete(k)
+		})
+
+		if err != nil {
+			s.log.Errorf("store_idle_check del:%s error", k, err)
+		}
+	}
+}
+
 func (s *Server) store_init() error {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := getBucket(tx, "tasks")
@@ -172,11 +246,13 @@ func (s *Server) store_init() error {
 			var o *Order
 
 			if err := json.Unmarshal(v, &o); err != nil {
-				s.log.Warnln("store_init Unmarshal Error", err)
+				s.log.Error("store_init Unmarshal Error", err)
 				return nil
 			}
 
-			s.orderAdd(o)
+			if o != nil {
+				s.orderAdd(o)
+			}
 
 			return nil
 		})

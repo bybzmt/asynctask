@@ -88,9 +88,21 @@ func (d *dirverHttp) run(o *Order) {
 		return
 	}
 
-	o.fields["url"] = req.URL.String()
-
 	resp, err := d.client.Do(req)
+
+	defer func() {
+		if o.err != nil {
+			o.resp = append(o.resp, "\n==request==\n"...)
+
+			var buf bytes.Buffer
+			err := req.Write(&buf)
+			if err != nil {
+				o.resp = append(o.resp, err.Error()...)
+			} else {
+				o.resp = append(o.resp, buf.Bytes()...)
+			}
+		}
+	}()
 
 	if err != nil {
 		o.err = err

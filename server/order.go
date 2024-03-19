@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -29,20 +28,26 @@ type Order struct {
 }
 
 func (s *Server) dirver(id ID, ctx context.Context) error {
+	del := true
+	defer func() {
+		if del {
+			s.store_order_del(id)
+		}
+	}()
 
 	o := s.store_order_get(id)
-
 	if o == nil {
 		s.log.WithFields(map[string]any{
 			"id":  id,
 			"err": NotFound,
-		}).Errorln("store_order_get not found")
+		}).Error("store_order_get not found")
 
 		return NotFound
 	}
 
 	o.fields = map[string]any{
-		"id": o.Id,
+		"id":  o.Id,
+		"url": o.Task.Url,
 	}
 
 	s.l.Lock()
@@ -70,8 +75,6 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 	now := s.now
 	s.l.Unlock()
 
-	del := true
-
 	if o.err != nil {
 		if o.Retry < o.Task.Retry {
 			o.Retry++
@@ -92,10 +95,6 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 		}
 	}
 
-	if del {
-		s.store_order_del(o.Id)
-	}
-
 	s.logTask(now, o)
 
 	return o.err
@@ -108,12 +107,7 @@ func (s *Server) logTask(now time.Time, o *Order) {
 	o.fields["status"] = o.status
 
 	if o.err != nil {
-		o.fields["job"] = o.Job
 		o.fields["err"] = o.err
-
-		if xx, err := json.Marshal(o.Task); err == nil {
-			o.fields["task"] = string(xx)
-		}
 
 		if o.Retry > 0 {
 			o.fields["retry"] = o.Retry

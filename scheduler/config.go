@@ -20,6 +20,8 @@ type Config struct {
 
 	Dirver Dirver
 	Log    Logger
+
+    OnIdle func()
 }
 
 type Group struct {

@@ -262,9 +262,16 @@ func (s *Scheduler) onTick(now time.Time) {
 	s.dayCheck()
 	s.statMaintain()
 
+	empty := true
+
 	for _, g := range s.groups {
 		for g.dispatch() {
+			empty = true
 		}
+	}
+
+	if empty && len(s.orders) == 0 && s.cfg.OnIdle != nil {
+		s.cfg.OnIdle()
 	}
 }
 

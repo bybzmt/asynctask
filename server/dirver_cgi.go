@@ -204,31 +204,43 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 		cmd.Stdin = req.Body
 	}
 
-	var out bytes.Buffer
+	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = &out
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	o.fields["url"] = req.URL.String()
-
 	err := cmd.Run()
+
+	defer func() {
+		var resp []byte
+
+		if stderr.Len() > 0 {
+			resp = append(resp, "stderr:\n"...)
+			resp = append(resp, stderr.Bytes()...)
+			resp = append(resp, "\n\n"...)
+		}
+
+		if o.err != nil {
+			resp = append(resp, fmt.Sprintf("cgi %s:\n", cmd.String())...)
+			resp = append(resp, strings.Join(env, "\n")...)
+			resp = append(resp, "\n\n"...)
+		}
+
+		if len(resp) > 0 {
+			resp = append(resp, "stdout:\n"...)
+		}
+
+		o.resp = append(resp, stdout.Bytes()...)
+	}()
+
 	if err != nil {
 		o.status = http.StatusInternalServerError
 		o.err = err
-		o.fields["cmd"] = cmd.String()
-		o.fields["env"] = strings.Join(env, "; ")
-		o.fields["stdout"] = out.String()
-		o.fields["stderr"] = stderr.String()
 		return
-	}
-
-	if t := stderr.Bytes(); len(t) > 0 {
-		o.fields["stderr"] = stderr.String()
 	}
 
 	if h.Cli {
 		o.status = cmd.ProcessState.ExitCode()
-		o.resp = out.Bytes()
 
 		if o.Task.Status != o.status {
 			o.err = fmt.Errorf("Status %d != %d", o.status, o.Task.Status)
@@ -237,11 +249,9 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 		return
 	}
 
-	o.status, _, o.resp, o.err = readResponse(&out)
+	o.status, _, _, o.err = readResponse(bytes.NewReader(stdout.Bytes()))
 
 	if o.err != nil {
-		o.fields["cmd"] = cmd.String()
-		o.fields["env"] = strings.Join(env, "; ")
 		return
 	}
 

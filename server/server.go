@@ -167,6 +167,7 @@ func (s *Server) getSchedulerConfig(cfg *Config) *scheduler.Config {
 		Groups:      cfg.Groups,
 		Dirver:      scheduler.DirverFunc(s.dirver),
 		Log:         &debugLog{log: s.log},
+		OnIdle:      s.store_idle_check,
 	}
 
 	return c
@@ -233,12 +234,15 @@ func (s *Server) Start() {
 
 		for s.run == 1 {
 			now := <-tick
+
+			s.l.Lock()
 			s.now = now
+			s.l.Unlock()
 
 			s.checkTimer(now)
 
 			if err := s.db.Sync(); err != nil {
-				s.log.Error("db Sync", err)
+				s.log.Error("db sync", err)
 			}
 		}
 	}()
@@ -278,11 +282,11 @@ func (s *Server) Start() {
 	s.s.Start()
 
 	if err := s.db.Sync(); err != nil {
-		s.log.Error("db Sync", err)
+		s.log.Error("db sync", err)
 	}
 
 	if err := s.db.Close(); err != nil {
-		s.log.Error("db Close", err)
+		s.log.Error("db close", err)
 	}
 
 	s.run = 3

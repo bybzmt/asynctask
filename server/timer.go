@@ -96,8 +96,8 @@ func (s *Server) TimerTopN(num int) []*Order {
 		if o != nil {
 			out = append(out, o)
 		} else {
-			s.log.Warnln("TimerTopN task NotFound", id)
-        }
+			s.log.Errorln("TimerTopN task NotFound", id)
+		}
 	}
 
 	return out
@@ -118,14 +118,12 @@ func (s *Server) checkTimer(now time.Time) {
 			o := s.store_order_get(id)
 
 			if o != nil {
-				t2 := task{
+				s.s.TaskAdd(&task{
 					Id:  o.Id,
 					Job: o.Job,
-				}
-
-				s.s.TaskAdd(&t2)
+				})
 			} else {
-				s.log.Warnln("checkTimer task NotFound", id)
+				s.log.Errorln("checkTimer task NotFound", id)
 			}
 		}
 	}
