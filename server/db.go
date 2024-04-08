@@ -158,6 +158,9 @@ func (s *Server) store_order_put(o *Order) error {
 }
 
 func (s *Server) store_idle_check() {
+	s.log.Debug("store_idle_check start")
+	defer s.log.Debug("store_idle_check end")
+
 	num := 0
 
 	s.l.Lock()
@@ -205,11 +208,9 @@ func (s *Server) store_idle_check() {
 		})
 	})
 
-	go func() {
-		for _, t := range tasks {
-			s.s.TaskAdd(t)
-		}
-	}()
+	for _, t := range tasks {
+		s.s.TaskAdd(t)
+	}
 
 	if err != nil && err != Empty {
 		s.log.Error("store_idle_check error", err)

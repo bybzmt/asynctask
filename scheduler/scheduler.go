@@ -233,7 +233,10 @@ func (s *Scheduler) Start() {
 	for {
 		select {
 		case now := <-ticker.C:
-			s.onTick(now)
+			idle := s.onTick(now)
+			if idle && s.cfg.OnIdle != nil {
+				s.cfg.OnIdle()
+			}
 
 		case o := <-s.complete:
 			s.onComplete(o)
@@ -251,7 +254,7 @@ func (s *Scheduler) Start() {
 	}
 }
 
-func (s *Scheduler) onTick(now time.Time) {
+func (s *Scheduler) onTick(now time.Time) bool {
 	s.l.Lock()
 	defer s.l.Unlock()
 
@@ -262,17 +265,15 @@ func (s *Scheduler) onTick(now time.Time) {
 	s.dayCheck()
 	s.statMaintain()
 
-	empty := true
+	idle := true
 
 	for _, g := range s.groups {
 		for g.dispatch() {
-			empty = true
+			idle = false
 		}
 	}
 
-	if empty && len(s.orders) == 0 && s.cfg.OnIdle != nil {
-		s.cfg.OnIdle()
-	}
+	return idle && len(s.orders) == 0
 }
 
 func (s *Scheduler) onComplete(o *order) {
