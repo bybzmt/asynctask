@@ -27,6 +27,7 @@ type Scheduler struct {
 
 	orders   map[*order]struct{}
 	complete chan *order
+	cmd      chan int
 
 	today    int
 	running  int
@@ -49,6 +50,7 @@ func (s *Scheduler) init() error {
 	s.jobs = make(map[string]*job)
 	s.complete = make(chan *order)
 	s.orders = make(map[*order]struct{})
+	s.cmd = make(chan int, 1)
 
 	s.idle = &job{}
 	s.idle.next = s.idle
@@ -232,14 +234,17 @@ func (s *Scheduler) Start() {
 
 	for {
 		select {
+		case o := <-s.complete:
+			s.onComplete(o)
+
 		case now := <-ticker.C:
 			idle := s.onTick(now)
 			if idle && s.cfg.OnIdle != nil {
 				s.cfg.OnIdle()
 			}
 
-		case o := <-s.complete:
-			s.onComplete(o)
+		case <-s.cmd:
+			s.dispatch()
 		}
 
 		if s.running != 1 {
@@ -285,6 +290,16 @@ func (s *Scheduler) onComplete(o *order) {
 	o.g.end(o)
 
 	for o.g.dispatch() {
+	}
+}
+
+func (s *Scheduler) dispatch() {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	for _, g := range s.groups {
+		for g.dispatch() {
+		}
 	}
 }
 

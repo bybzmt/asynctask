@@ -91,5 +91,8 @@ func (s *Scheduler) TaskAdd(t *Task) {
 	j.g.waitNum++
 	j.g.modeCheck(j)
 
-	j.g.dispatch()
+	select {
+	case s.cmd <- 1:
+	default:
+	}
 }
