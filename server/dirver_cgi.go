@@ -215,22 +215,21 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 		var resp []byte
 
 		if stderr.Len() > 0 {
-			resp = append(resp, "stderr:\n"...)
+			resp = append(resp, "STDERR:\n"...)
 			resp = append(resp, stderr.Bytes()...)
 			resp = append(resp, "\n\n"...)
 		}
 
 		if o.err != nil {
-			resp = append(resp, fmt.Sprintf("cgi %s:\n", cmd.String())...)
+			resp = append(resp, fmt.Sprintf("CGI %s:\n", cmd.String())...)
 			resp = append(resp, strings.Join(env, "\n")...)
 			resp = append(resp, "\n\n"...)
 		}
 
 		if len(resp) > 0 {
-			resp = append(resp, "stdout:\n"...)
+			resp = append(resp, "STDOUT:\n"...)
+			o.resp = append(resp, stdout.Bytes()...)
 		}
-
-		o.resp = append(resp, stdout.Bytes()...)
 	}()
 
 	if err != nil {
@@ -249,7 +248,7 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 		return
 	}
 
-	o.status, _, _, o.err = readResponse(bytes.NewReader(stdout.Bytes()))
+	o.status, _, o.resp, o.err = readResponse(bytes.NewReader(stdout.Bytes()))
 
 	if o.err != nil {
 		return

@@ -162,13 +162,13 @@ func (h *DirverFcgi) run(o *Order) {
 		var resp []byte
 
 		if len(stderr) > 0 {
-			resp = append(resp, []byte("stderr:\n")...)
+			resp = append(resp, []byte("STDERR:\n")...)
 			resp = append(resp, stderr...)
 			resp = append(resp, "\n\n"...)
 		}
 
 		if o.err != nil {
-			resp = append(resp, fmt.Sprintf("fcgi %s\n", a.Address)...)
+			resp = append(resp, fmt.Sprintf("FCGI %s\n", a.Address)...)
 			for k, v := range env {
 				resp = append(resp, (k + "=" + v + "\n")...)
 			}
@@ -176,10 +176,9 @@ func (h *DirverFcgi) run(o *Order) {
 		}
 
 		if len(resp) > 0 {
-			resp = append(resp, "stdout:\n"...)
+			resp = append(resp, "STDOUT:\n"...)
+			o.resp = append(resp, stdout...)
 		}
-
-		o.resp = append(resp, stdout...)
 	}()
 
 	if err != nil {
@@ -187,7 +186,7 @@ func (h *DirverFcgi) run(o *Order) {
 		return
 	}
 
-	o.status, _, _, o.err = readResponse(bytes.NewReader(stdout))
+	o.status, _, o.resp, o.err = readResponse(bytes.NewReader(stdout))
 
 	if o.status == 0 {
 		if len(stderr) > 0 {
