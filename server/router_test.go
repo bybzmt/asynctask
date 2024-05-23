@@ -8,89 +8,95 @@ func TestRouter(t *testing.T) {
 
 	rs := []*Route{
 		{
-			Pattern: "^http://test1/(.+)",
-			Job:     "slow",
+			Pattern: "^regular/priority/(.+)",
+			Job:     "job/$1",
 			Rewrite: &Rewrite{
-				Method:  "POST",
-				Pattern: "/test1/",
-				Rewrite: "/127.0.0.1/",
+				Method: "POST",
+				Header: map[string]string{
+					"Host": "host2",
+				},
+				Pattern: "^regular/priority/(.+)",
+				Rewrite: "rewrite/$1",
 			},
 		},
 		{
-			Pattern: "test2/(.+)",
-			Job:     "test2/$1",
-			Rewrite: &Rewrite{
-				Header: map[string]string{
-					"Host": "host_new",
-				},
-				Pattern: "^test2/",
-				Rewrite: "http://127.0.0.1/",
-			},
+			Pattern: "^regular/(.+)",
 		},
+		{
+			Pattern: "regular/map1",
+			Job:     "hasjob",
+		},
+		{
+			Pattern: "regular/map2",
+		},
+	}
+
+	for _, r := range rs {
+		t.Log("route", json_encode(r))
 	}
 
 	r := router{}
 	r.set(rs)
 
-	t1 := Task{
-		Url: "http://test1/123?123",
+	if o, err := r.route(&Task{
+		Url: "regular/priority/123?a=1",
 		Header: map[string]string{
-			"Host": "host_old",
+			"Host": "host1",
 		},
-	}
+	}); err == nil {
+		a1 := `{"Job":"job/123","Task":{"method":"POST","url":"rewrite/123?a=1","header":{"Host":"host2"}}}`
+		a2 := json_encode(o)
 
-	if o, err := r.route(&t1); err == nil {
-		t.Log("task1", json_encode(o))
+		t.Log("route expect", a1)
 
-		if o.Job != "slow" {
-			t.Error("route1 Job not Slow")
-		}
-
-		if o.Task.Url != "http://127.0.0.1/123?123" {
-			t.Error("route1 url error")
-		}
-
-		if o.Task.Method != "POST" {
-			t.Error("route1 Method error")
+		if a1 != a2 {
+			t.Error("route fail", a2)
 		}
 	} else {
-		t.Error("route1", err)
+		t.Error("route fail", err)
 	}
 
-	t2 := Task{
-		Url: "test2/123?123",
-		Header: map[string]string{
-			"Host": "host_old",
-		},
-	}
+	if o, err := r.route(&Task{Url: "regular/test2?a=1"}); err == nil {
+		a1 := `{"Job":"regular/test2","Task":{"url":"regular/test2?a=1"}}`
+		a2 := json_encode(o)
 
-	if o, err := r.route(&t2); err == nil {
-		t.Log("task2", json_encode(o))
+		t.Log("route expect", a1)
 
-		if o.Task.Header["Host"] != "host_new" {
-			t.Error("route2 Header Host error")
+		if a1 != a2 {
+			t.Error("route fail", a2)
 		}
 	} else {
-		t.Error("route2:", err)
+		t.Error("route fail", err)
 	}
 
-	t3 := Task{
-		Url: "testNotAollow/123?123",
-	}
+	if o, err := r.route(&Task{Url: "regular/map1?a=1"}); err == nil {
+		a1 := `{"Job":"hasjob","Task":{"url":"regular/map1?a=1"}}`
+		a2 := json_encode(o)
 
-	if _, err := r.route(&t3); err == nil {
-		t.Error("task3 mast not allow")
-	}
+		t.Log("route expect", a1)
 
-	t4 := Task{
-		Url: "http://test1/123?123",
-	}
-	if o, err := r.route(&t4); err == nil {
-		t.Log("task4", json_encode(o))
-
-		if o.Task.Header["Host"] != "" {
-			t.Error("Task4 Header Host error")
+		if a1 != a2 {
+			t.Error("route fail", a2)
 		}
+	} else {
+		t.Error("route fail", err)
+	}
+
+	if o, err := r.route(&Task{Url: "regular/map2?a=1"}); err == nil {
+		a1 := `{"Job":"regular/map2","Task":{"url":"regular/map2?a=1"}}`
+		a2 := json_encode(o)
+
+		t.Log("route expect", a1)
+
+		if a1 != a2 {
+			t.Error("route fail", a2)
+		}
+	} else {
+		t.Error("route fail", err)
+	}
+
+	if _, err := r.route(&Task{Url: "testNotAollow"}); err == nil {
+		t.Error("route mast not allow")
 	}
 
 }

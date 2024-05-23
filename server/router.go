@@ -119,8 +119,12 @@ func (r *router) set(rs []*Route) error {
 }
 
 func (r *router) match(name string) (string, *Route) {
-	if t, ok := r.direct[name]; ok {
-		return name, t
+	if r, ok := r.direct[name]; ok {
+		if r.Job != "" {
+			return r.Job, r
+		}
+
+		return name, r
 	}
 
 	for _, r := range r.routes {
@@ -177,6 +181,7 @@ func (r *router) urlCheck(u string) *url.URL {
 		u2.Path = path.Clean(u2.Path)
 	}
 
+	u2.ForceQuery = false
 	u2.RawQuery = ""
 	u2.Fragment = ""
 

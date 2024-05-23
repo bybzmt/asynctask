@@ -245,6 +245,8 @@ func (h *DirverCgi) ServeHTTP(req *http.Request, o *Order) {
 			o.err = fmt.Errorf("Status %d != %d", o.status, o.Task.Status)
 		}
 
+		o.resp = stdout.Bytes()
+
 		return
 	}
 
