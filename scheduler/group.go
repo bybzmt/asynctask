@@ -110,25 +110,6 @@ func (g *group) end(o *order) {
 	g.modeCheck(o.job)
 }
 
-func (s *Scheduler) statMaintain() {
-	for t := range s.orders {
-		us := s.now.Sub(t.statTime)
-		t.g.loadTime += us
-		t.job.loadTime += us
-		t.statTime = s.now
-	}
-
-	for _, j := range s.jobs {
-		j.loadStat.push(int64(j.loadTime))
-		j.loadTime = 0
-	}
-
-	for _, g := range s.groups {
-		g.loadStat.push(int64(g.loadTime))
-		g.loadTime = 0
-	}
-}
-
 func (g *group) modeCheck(j *job) {
 	if j.len() == 0 {
 		if j.mode != job_mode_idle {

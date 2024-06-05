@@ -40,6 +40,14 @@ func (d *Dirver) run(o *Order) {
 
 func (d *Dirver) init(s *Server) error {
 
+	if d.Type == 0 {
+		if d.Cgi == nil && d.Fcgi != nil {
+			d.Type = DIRVER_FASTCGI
+		} else if d.Cgi != nil && d.Fcgi == nil {
+			d.Type = DIRVER_CGI
+		}
+	}
+
 	switch d.Type {
 	case DIRVER_HTTP:
 		d.http = &dirverHttp{
@@ -63,7 +71,7 @@ func (d *Dirver) init(s *Server) error {
 		return d.Fcgi.init()
 
 	default:
-		return TaskError
+		return fmt.Errorf("Dirver Type Unknow")
 	}
 
 	return nil

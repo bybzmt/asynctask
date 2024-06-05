@@ -21,29 +21,54 @@
 
 ## 使用帮助
 
-程序分为: http 模式 和 cmd 模式
+任务使用json格式
+通过 http接口 /api/task/add
+或 redis队列添加
 
-自带帮助中 [ENV] 表示可以从环境变量中得到默认值
+字段      | 类型              | 默认值 | 说明
+----------| ----------------- | ------ | ------------
+method    | string            | GET    | 服务运行状态监控页面
+url       | string            | 必选!  | 监控状态json数据
+header    | map[string]string | 无     | 添加任务接口
+body      | []byte            | 无     | POST时请求体，要base64编码
+runat     | int               | 0      | 任务执行时间, 单位秒
+timeout   | int               | 0      | 任务执行超时间
+hold      | string            | 无     | 原样输出在日志方便排错
+status    | int               | 0      | 任务确定响应结果, 0为自动
+retry     | int               | 0      | 出错时重试次数
+interval  | interval          | 1      | 重试间隔,单位秒
 
-## 接口
 
-接口      | 说明
-----------| -------
-/         | 服务运行状态监控页面
-/status   | 监控状态json数据
-/task/add | 添加任务接口
-
-参数: id 任务id, name 任务, params 任务参数, parallel 并发数
+## 配置
 
 
-## redis接口
-可以配置好redis相关设置, 程序会从redis list中获取任务.
+```
+type Config struct {
+	Group       string //默认组
+	WorkerNum   uint32 //默认工作线程数量
+	Parallel    uint32 //默认并发数
+	Timeout     uint   //默认超时
+	JobsMaxIdle uint   //空闲数量
+	CloseWait   uint   //关闭等待
+	HttpAddr    string //http监听端口
+	HttpEnable  bool   //http是否开启
 
-任务要求用json格式:`{id:任务id, parallel:并发数, name:任务(必需), params:[] 参数, add_time: 添加时间}`
+	Jobs   []*Job              //任务配置
+	Routes []*Route            //路由配置
+	Groups map[string]*Group   //任务组配置
+	Dirver map[string]*Dirver  //驱动配置
+	Redis  []RedisConfig       //redis队列
+	Crons  []CronTask          //计化任务
+}
 
-* http模式参数示例: params:["a=1&b=2&c=3"]。需要url编码
-* 推荐使用redis来添加任务
+type Job struct {
+	Pattern  string //正则，命中的会使用这条配置
+	Group    string //任务组
+	Priority int32  //权重系数
+	Parallel uint32 //并发数
+}
+```
 
-## 监控页截图
 
-![监控页截图](https://raw.githubusercontent.com/bybzmt/asynctask/master/testtools/screenshot.gif)
+
+

@@ -18,6 +18,7 @@ import (
 var s *server.Server
 var dbFile string
 var config string
+var LogFmt string
 var LogFile string
 var LogLevel string
 
@@ -41,6 +42,7 @@ func init() {
 
 	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
+	flag.StringVar(&LogFmt, "log.fmt", "logfmt", "log farmat: json or logfmt")
 	flag.StringVar(&dbFile, "db.file", dbfile, "storage file")
 	flag.StringVar(&config, "config", "config.toml", "config file json or toml")
 }
@@ -123,10 +125,16 @@ func initLog() (*logrus.Logger, error) {
 		l.SetOutput(writer)
 	}
 
-	l.SetFormatter(&logrus.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
+	if LogFmt == "json" {
+		l.SetFormatter(&logrus.JSONFormatter{
+			DisableHTMLEscape: true,
+		})
+	} else {
+		l.SetFormatter(&logrus.TextFormatter{
+			DisableColors: true,
+			FullTimestamp: true,
+		})
+	}
 
 	switch strings.ToLower(LogLevel) {
 	case "error":

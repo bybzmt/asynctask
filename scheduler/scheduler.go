@@ -281,6 +281,31 @@ func (s *Scheduler) onTick(now time.Time) bool {
 	return idle && len(s.orders) == 0
 }
 
+func (s *Scheduler) statMaintain() {
+	for t := range s.orders {
+		us := s.now.Sub(t.statTime)
+		t.g.loadTime += us
+		t.job.loadTime += us
+		t.statTime = s.now
+	}
+
+	s.idleLen = 0
+
+	for _, j := range s.jobs {
+		if j.mode == job_mode_idle {
+			s.idleLen++
+		}
+
+		j.loadStat.push(int64(j.loadTime))
+		j.loadTime = 0
+	}
+
+	for _, g := range s.groups {
+		g.loadStat.push(int64(g.loadTime))
+		g.loadTime = 0
+	}
+}
+
 func (s *Scheduler) onComplete(o *order) {
 	s.l.Lock()
 	defer s.l.Unlock()
