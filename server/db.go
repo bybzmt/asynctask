@@ -70,7 +70,7 @@ func (db *logdb) cache_set(o *Order) {
 		ele := db.cache.PushBack(o)
 		db.cIndexes[o.Id] = ele
 
-		if db.cache.Len() > 10 {
+		if db.cache.Len() > 1000 {
 			ele := db.cache.Front()
 			db.cache.Remove(ele)
 
@@ -178,23 +178,25 @@ func (db *logdb) tick_check() {
 		panic(err)
 	}
 
-	if seek > fileMax {
-		fsidx++
-		if fsidx > 0xffff {
-			fsidx = 1
-		}
-
-		db.nextId = ID(fsidx<<32 | uint64(seek))
-	}
-
-	for fsidx, f := range db.fs {
+	for idx, f := range db.fs {
 		if err := f.Sync(); err != nil {
 			panic(err)
 		}
 
 		f.Close()
 
-		delete(db.fs, fsidx)
+		delete(db.fs, idx)
+	}
+
+	if seek > fileMax {
+		fsidx++
+		if fsidx > 0xffff {
+			fsidx = 1
+		}
+
+		db.nextId = ID(fsidx<<32 | uint64(0))
+
+		db.removeOldFiles()
 	}
 }
 
@@ -388,6 +390,21 @@ func (s *Server) store_init() error {
 	}
 
 	return nil
+}
+
+func (s *Server) store_close() {
+	s.db.l.Lock()
+	defer s.db.l.Unlock()
+
+	for idx, f := range s.db.fs {
+		if err := f.Sync(); err != nil {
+			panic(err)
+		}
+
+		f.Close()
+
+		delete(s.db.fs, idx)
+	}
 }
 
 func json_encode(val any) string {

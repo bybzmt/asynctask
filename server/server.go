@@ -189,28 +189,28 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 	}
 	s.cfg = *cfg
 
-    dbdir, dbname := path.Split(db)
-    if dbdir == "" {
-        dbdir = "."
-    }
+	dbdir, dbname := path.Split(db)
+	if dbdir == "" {
+		dbdir = "."
+	}
 
-    if dbname == "" {
+	if dbname == "" {
 		return nil, fmt.Errorf("config db name empty")
-    }
+	}
 
-    if strings.Contains(dbname, "%d") == false {
-        ext := path.Ext(dbname)
+	if strings.Contains(dbname, "%d") == false {
+		ext := path.Ext(dbname)
 
-        if ext != "" {
-            dbname = dbname[0 : len(dbname)-len(ext)]
-        }
+		if ext != "" {
+			dbname = dbname[0 : len(dbname)-len(ext)]
+		}
 
-        dbname = dbname + "%d" + ext
-    }
+		dbname = dbname + "%d" + ext
+	}
 
-    s.db.dir = dbdir
-    s.db.filefmt = dbname
-    s.db.oldest = 7
+	s.db.dir = dbdir
+	s.db.filefmt = dbname
+	s.db.oldest = 7
 
 	if err := s.initScheduler(); err != nil {
 		return nil, err
@@ -244,9 +244,9 @@ func (s *Server) Start() {
 
 			s.checkTimer(now)
 
-            if now.Unix() % 10 == 0 {
-                s.db.tick_check()
-            }
+			if now.Unix()%10 == 0 {
+				s.db.tick_check()
+			}
 		}
 	}()
 
@@ -284,7 +284,6 @@ func (s *Server) Start() {
 
 	s.s.Start()
 
-
 	s.run = 3
 }
 
@@ -309,6 +308,8 @@ func (s *Server) Reload() error {
 }
 
 func (s *Server) reload() error {
+	s.store_close()
+
 	if s.http != nil {
 		ctx, fn := context.WithTimeout(context.Background(), time.Second*2)
 		defer fn()
