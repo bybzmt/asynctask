@@ -8,12 +8,14 @@ import (
 
 // 运行的任务
 type Order struct {
+	Task
+
 	Id      ID     `json:",omitempty"`
 	Job     string `json:",omitempty"`
-	Task    Task   `json:",omitempty"`
 	Dirver  string `json:",omitempty"`
 	AddTime int64  `json:",omitempty"`
 	Retry   uint   `json:",omitempty"`
+	PrevId  ID     `json:",omitempty"`
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -28,11 +30,8 @@ type Order struct {
 }
 
 func (s *Server) dirver(id ID, ctx context.Context) error {
-	del := true
 	defer func() {
-		if del {
-			s.store_order_del(id)
-		}
+		s.store_order_del(id)
 	}()
 
 	o := s.store_order_get(id)
@@ -75,6 +74,8 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 	now := s.now
 	s.l.Unlock()
 
+	s.logTask(now, o)
+
 	if o.err != nil {
 		if o.Retry < o.Task.Retry {
 			o.Retry++
@@ -87,15 +88,14 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 
 			o.Task.RunAt = now.Unix() + int64(sec)
 
-			s.store_order_put(o)
+            o.PrevId = o.Id
+			o.Id = 0
+
+			s.store_order_add(o)
 
 			s.timer.push(int64(o.Task.RunAt), o.Id)
-
-			del = false
 		}
 	}
-
-	s.logTask(now, o)
 
 	return o.err
 }

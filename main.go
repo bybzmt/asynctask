@@ -26,11 +26,11 @@ func init() {
 	dbfile := os.Getenv("DBFILE")
 
 	if dbfile == "" {
-		dbfile = "asynctask.bolt"
+		dbfile = "asynctask.db"
 
 		if file, err := os.Executable(); err != nil {
 			if base := path.Base(file); base != "" {
-				dbfile = base + ".bolt"
+				dbfile = base + ".db"
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/robfig/cron/v3"
+	"github.com/sirupsen/logrus"
 )
 
 const corn_cfg_key = "cron.cfg"
@@ -22,13 +23,25 @@ func (s *Server) cronConfig(c *CronTask) error {
 	return nil
 }
 
+type cronLogger struct {
+	l logrus.FieldLogger
+}
+
+func (l *cronLogger) Info(msg string, keysAndValues ...interface{}) {
+	l.l.Debugln(append([]interface{}{msg}, keysAndValues...)...)
+}
+
+func (l *cronLogger) Error(err error, msg string, keysAndValues ...interface{}) {
+	l.l.Debugln(append([]interface{}{err, msg}, keysAndValues...)...)
+}
+
 func (s *Server) CronRun() {
 	l := s.log.WithField("tag", "cron")
 
 	l.Debugln("Cron init")
 	defer l.Debugln("Cron close")
 
-	c := cron.New()
+	c := cron.New(cron.WithLogger(&cronLogger{l}))
 
 	s.l.Lock()
 

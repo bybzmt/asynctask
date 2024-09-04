@@ -59,9 +59,7 @@ func (s *Server) TaskAdd(t *Task) error {
 
 	o.AddTime = s.now.Unix()
 
-	if err := s.store_order_add(o); err != nil {
-		return err
-	}
+    s.store_order_add(o)
 
 	s.orderAdd(o)
 

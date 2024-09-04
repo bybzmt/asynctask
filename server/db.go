@@ -2,58 +2,23 @@ package server
 
 import (
 	"bytes"
+	"container/list"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-
-	bolt "go.etcd.io/bbolt"
+	"fmt"
+	"io"
+	"os"
+	"path"
+	"slices"
+	"sync"
+	"time"
 )
 
 var Empty = errors.New("empty")
 var NotFound = errors.New("NotFound")
 var TaskError = errors.New("TaskError")
 var DirverNotFound = errors.New("DirverNotFound")
-
-type bucketer interface {
-	Bucket(key []byte) *bolt.Bucket
-	CreateBucketIfNotExists(key []byte) (*bolt.Bucket, error)
-}
-
-func getBucketMust(bk bucketer, keys ...string) (*bolt.Bucket, error) {
-	if len(keys) == 0 {
-		panic(errors.New("keys empty"))
-	}
-
-	out := bk
-
-	for _, key := range keys {
-		t, err := out.CreateBucketIfNotExists([]byte(key))
-		if err != nil {
-			return nil, err
-		}
-		out = t
-	}
-
-	return out.(*bolt.Bucket), nil
-}
-
-func getBucket(bk bucketer, keys ...string) *bolt.Bucket {
-	if len(keys) == 0 {
-		panic(errors.New("keys empty"))
-	}
-
-	out := bk
-
-	for _, key := range keys {
-		t := out.Bucket([]byte(key))
-		if t == nil {
-			return nil
-		}
-		out = t
-	}
-
-	return out.(*bolt.Bucket)
-}
 
 func fmtId(id any) []byte {
 	buf := new(bytes.Buffer)
@@ -71,195 +36,358 @@ func copyMap(src map[string]string) map[string]string {
 	return dst
 }
 
-func (s *Server) store_order_get(id ID) *Order {
+type logdb struct {
+	l        sync.Mutex
+	dir      string
+	filefmt  string
+	nextId   ID
+	cache    *list.List
+	cIndexes map[ID]*list.Element
+	writeNum int
+	fs       map[uint16]*os.File
+	oldest   int
+}
 
-	var out *Order
+const fsIdxMask uint64 = 0x0000_ffff_0000_0000
+const seekMask uint64 = 0x0000_0000_ffff_ffff
 
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := getBucket(tx, "tasks")
-		if b == nil {
-			return nil
+const fileMax = 1024 * 1024 * 100
+
+const (
+	ACTION_ADD = 1
+	ACTION_DEL = 2
+)
+
+type dbItem struct {
+	Order
+	Action uint
+}
+
+func (db *logdb) cache_set(o *Order) {
+	if ele, ok := db.cIndexes[o.Id]; ok {
+		ele.Value = o
+	} else {
+		ele := db.cache.PushBack(o)
+		db.cIndexes[o.Id] = ele
+
+		if db.cache.Len() > 10 {
+			ele := db.cache.Front()
+			db.cache.Remove(ele)
+
+			do := ele.Value.(*Order)
+			delete(db.cIndexes, do.Id)
 		}
+	}
+}
 
-		t := b.Get(fmtId(id))
+func (db *logdb) cache_get(id ID) *Order {
+	if e, ok := db.cIndexes[id]; ok {
+		return e.Value.(*Order)
+	}
+	return nil
+}
 
-		if t == nil {
-			return nil
-		}
+func (db *logdb) cache_del(id ID) {
+	if e, ok := db.cIndexes[id]; ok {
+		o := e.Value.(*Order)
+		delete(db.cIndexes, o.Id)
+	}
+}
 
-		if err := json.Unmarshal(t, &out); err != nil {
-			s.log.Error("Order Unmarshal Error", err)
-			return nil
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		s.log.Error("store_order_get Error", err)
-		return nil
+func (db *logdb) file_open(fsidx uint16) *os.File {
+	if f, ok := db.fs[fsidx]; ok {
+		return f
 	}
 
-	return out
+	name := fmt.Sprintf(db.filefmt, fsidx)
+
+	nf, err := os.OpenFile(path.Join(db.dir, name), os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	db.fs[fsidx] = nf
+
+	return nf
+}
+
+func (db *logdb) item_read(id ID) *dbItem {
+
+	fsidx := (uint64(id) & fsIdxMask) >> 32
+	seek := uint64(id) & seekMask
+
+	f := db.file_open(uint16(fsidx))
+
+	if _, err := f.Seek(int64(seek), io.SeekStart); err != nil {
+		panic(err)
+	}
+
+	dec := json.NewDecoder(f)
+
+	item := &dbItem{}
+
+	err := dec.Decode(item)
+	if err != nil {
+		panic(err)
+	}
+
+	return item
+}
+
+func (db *logdb) item_write(item *dbItem) {
+	id := item.Id
+
+	fsidx := (uint64(id) & fsIdxMask) >> 32
+
+	f := db.file_open(uint16(fsidx))
+
+	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+		panic(err)
+	}
+
+	dec := json.NewEncoder(f)
+
+	if err := dec.Encode(&item); err != nil {
+		panic(err)
+	}
+
+	seek, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	db.nextId = ID((fsidx << 32) | uint64(seek))
+	db.writeNum++
+
+	if db.writeNum > 100 {
+		if err := f.Sync(); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (db *logdb) tick_check() {
+	db.l.Lock()
+	defer db.l.Unlock()
+
+	fsidx := (uint64(db.nextId) & fsIdxMask) >> 32
+
+	f := db.file_open(uint16(fsidx))
+	seek, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	if seek > fileMax {
+		fsidx++
+		if fsidx > 0xffff {
+			fsidx = 1
+		}
+
+		db.nextId = ID(fsidx<<32 | uint64(seek))
+	}
+
+	for fsidx, f := range db.fs {
+		if err := f.Sync(); err != nil {
+			panic(err)
+		}
+
+		f.Close()
+
+		delete(db.fs, fsidx)
+	}
+}
+
+func (db *logdb) removeOldFiles() {
+	files, err := os.ReadDir(db.dir)
+	if err != nil {
+		panic(err)
+	}
+
+	var fsidxs []uint16
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		var fsidx uint16
+		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fsidx)
+		if err == nil && fsidx > 0 {
+			fsidxs = append(fsidxs, fsidx)
+		}
+	}
+
+	slices.Sort(fsidxs)
+
+	nowidx := (uint64(db.nextId) & fsIdxMask) >> 32
+	oldest := time.Now().Add(time.Hour * 24 * time.Duration(db.oldest))
+
+	for _, fsidx := range fsidxs {
+		if fsidx == uint16(nowidx) {
+			continue
+		}
+
+		name := path.Join(db.dir, fmt.Sprintf(db.filefmt, fsidx))
+
+		if fi, err := os.Stat(name); err == nil {
+			if fi.ModTime().Before(oldest) {
+				os.Remove(name)
+			}
+		}
+	}
+}
+
+func (db *logdb) recoverIds() (ids map[ID]struct{}, maxId ID) {
+	files, err := os.ReadDir(db.dir)
+	if err != nil {
+		panic(err)
+	}
+
+	var fsidxs []uint16
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		var fsidx uint16
+		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fsidx)
+		if err == nil && fsidx > 0 {
+			fsidxs = append(fsidxs, fsidx)
+		}
+	}
+
+	slices.Sort(fsidxs)
+
+	ids = make(map[ID]struct{})
+
+	for _, fsidx := range fsidxs {
+		name := fmt.Sprintf(db.filefmt, fsidx)
+
+		nf, err := os.OpenFile(path.Join(db.dir, name), os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		dec := json.NewDecoder(nf)
+
+		for dec.More() {
+			item := &dbItem{}
+
+			err := dec.Decode(item)
+			if err != nil {
+				panic(err)
+			}
+
+			if item.Id > maxId {
+				maxId = item.Id
+			}
+
+			if item.Action == ACTION_ADD {
+				ids[item.Id] = struct{}{}
+			} else if item.Action == ACTION_DEL {
+				delete(ids, item.Id)
+			} else {
+				panic("unknow action")
+			}
+		}
+
+		nf.Close()
+	}
+
+	return ids, maxId
+}
+
+func (s *Server) store_order_get(id ID) *Order {
+	s.db.l.Lock()
+	defer s.db.l.Unlock()
+
+	if o := s.db.cache_get(id); o != nil {
+		return o
+	}
+
+	item := s.db.item_read(id)
+
+	if item.Id != id {
+		panic(fmt.Sprintf("expect id=%d got=%d", id, item.Order.Id))
+	}
+
+	if item.Action != ACTION_ADD {
+		panic(fmt.Sprintf("item id=%d action=%d", id, item.Action))
+	}
+
+	return &item.Order
 }
 
 func (s *Server) store_order_del(id ID) {
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := getBucket(tx, "tasks")
-		if b == nil {
-			return nil
-		}
+	s.db.l.Lock()
+	defer s.db.l.Unlock()
 
-		return b.Delete(fmtId(id))
-	})
-
-	if err != nil {
-		s.log.Error("store_order_del error", err)
+	item := &dbItem{
+		Order: Order{
+			Id: id,
+		},
+		Action: ACTION_DEL,
 	}
+
+	s.db.item_write(item)
+
+	s.db.cache_del(id)
 }
 
-func (s *Server) store_order_add(o *Order) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b, err := getBucketMust(tx, "tasks")
-		if err != nil {
-			return err
-		}
+func (s *Server) store_order_add(o *Order) {
+	s.db.l.Lock()
+	defer s.db.l.Unlock()
 
-		id, err := b.NextSequence()
-		if err != nil {
-			return err
-		}
-
-		o.Id = ID(id)
-
-		v, err := json.Marshal(o)
-		if err != nil {
-			return err
-		}
-
-		return b.Put(fmtId(o.Id), v)
-	})
-}
-
-func (s *Server) store_order_put(o *Order) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b, err := getBucketMust(tx, "tasks")
-		if err != nil {
-			return err
-		}
-
-		v, err := json.Marshal(o)
-		if err != nil {
-			return err
-		}
-
-		return b.Put(fmtId(o.Id), v)
-	})
-}
-
-func (s *Server) store_idle_check() {
-	s.log.Debug("store_idle_check start")
-	defer s.log.Debug("store_idle_check end")
-
-	num := 0
-
-	s.l.Lock()
-	point := s.now.Unix() - 5
-	s.l.Unlock()
-
-	var delKeys [][]byte
-	var tasks []*task
-
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := getBucket(tx, "tasks")
-		if b == nil {
-			return nil
-		}
-
-		return b.ForEach(func(k, v []byte) error {
-			num++
-			if num > 100 {
-				return Empty
-			}
-
-			if v == nil {
-				delKeys = append(delKeys, bytes.Clone(k))
-				return nil
-			}
-
-			var o *Order
-
-			if err := json.Unmarshal(v, &o); err != nil {
-				delKeys = append(delKeys, bytes.Clone(k))
-				s.log.Errorf("store_init Unmarshal Error:%s key:%s val:%s", err, k, v)
-				return nil
-			}
-
-			if o != nil && point > o.Task.RunAt {
-				s.log.Error("store_idle_check find", string(k))
-
-				tasks = append(tasks, &task{
-					Id:  o.Id,
-					Job: o.Job,
-				})
-			}
-
-			return nil
-		})
-	})
-
-	for _, t := range tasks {
-		s.s.TaskAdd(t)
+	if o.Id != 0 {
+		panic("order id not empty")
 	}
 
-	if err != nil && err != Empty {
-		s.log.Error("store_idle_check error", err)
+	o.Id = s.db.nextId
+
+	item := &dbItem{
+		Order:  *o,
+		Action: ACTION_ADD,
 	}
 
-	for _, k := range delKeys {
-		err := s.db.Update(func(tx *bolt.Tx) error {
-			b := getBucket(tx, "tasks")
-			if b == nil {
-				return nil
-			}
+	s.db.item_write(item)
 
-			return b.Delete(k)
-		})
-
-		if err != nil {
-			s.log.Errorf("store_idle_check del:%s error", k, err)
-		}
-	}
+	s.db.cache_set(o)
 }
 
 func (s *Server) store_init() error {
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := getBucket(tx, "tasks")
-		if b == nil {
-			return nil
+	s.db.l.Lock()
+
+	s.db.cache = list.New()
+	s.db.cIndexes = make(map[ID]*list.Element)
+	s.db.fs = make(map[uint16]*os.File)
+
+	ids, maxId := s.db.recoverIds()
+
+	if maxId > 0 {
+		fsidx := uint16((uint64(maxId) & fsIdxMask) >> 32)
+
+		f := s.db.file_open(fsidx)
+
+		seek2, err := f.Seek(0, io.SeekEnd)
+		if err != nil {
+			panic(err)
 		}
 
-		return b.ForEach(func(k, v []byte) error {
-			if v == nil {
-				return nil
-			}
+		s.db.nextId = ID((uint64(fsidx) << 32) | uint64(seek2))
+	} else {
+		s.db.nextId = ID((uint64(1) << 32) | uint64(0))
+	}
 
-			var o *Order
+	s.db.l.Unlock()
 
-			if err := json.Unmarshal(v, &o); err != nil {
-				s.log.Error("store_init Unmarshal Error", err)
-				return nil
-			}
+	for id := range ids {
+		o := s.store_order_get(id)
+		s.orderAdd(o)
+	}
 
-			if o != nil {
-				s.orderAdd(o)
-			}
-
-			return nil
-		})
-	})
-
-	return err
+	return nil
 }
 
 func json_encode(val any) string {

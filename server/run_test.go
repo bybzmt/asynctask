@@ -258,14 +258,6 @@ func initServer(to string) *Server {
 		},
 	}
 
-	f, err := os.CreateTemp("", "asynctask_*.bolt")
-	if err != nil {
-		panic(err)
-	}
-
-	defer os.Remove(f.Name())
-	defer f.Close()
-
 	f2, err := os.CreateTemp("", "config_*.json")
 	if err != nil {
 		panic(err)
@@ -291,7 +283,7 @@ func initServer(to string) *Server {
 		FullTimestamp: true,
 	})
 
-	t, err := New(f2.Name(), f.Name(), l)
+	t, err := New(f2.Name(), "test.db", l)
 	if err != nil {
 		panic(err)
 	}

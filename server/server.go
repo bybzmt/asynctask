@@ -14,8 +14,6 @@ import (
 	"time"
 	_ "time/tzdata"
 
-	bolt "go.etcd.io/bbolt"
-
 	"github.com/BurntSushi/toml"
 	"github.com/sirupsen/logrus"
 )
@@ -38,7 +36,7 @@ type Server struct {
 	s    *scheduler.Scheduler
 	http *http.Server
 	log  logrus.FieldLogger
-	db   *bolt.DB
+	db   logdb
 
 	config string
 	dbFile string
@@ -144,19 +142,6 @@ func (s *Server) getConfig() (*Config, error) {
 	return c, nil
 }
 
-func (s *Server) initDb() error {
-	db, err := bolt.Open(s.dbFile, 0666, &bolt.Options{
-		NoSync: true,
-	})
-	if err != nil {
-		return err
-	}
-
-	s.db = db
-
-	return nil
-}
-
 func (s *Server) getSchedulerConfig(cfg *Config) *scheduler.Config {
 	c := &scheduler.Config{
 		Group:       cfg.Group,
@@ -167,7 +152,6 @@ func (s *Server) getSchedulerConfig(cfg *Config) *scheduler.Config {
 		Groups:      cfg.Groups,
 		Dirver:      scheduler.DirverFunc(s.dirver),
 		Log:         &debugLog{log: s.log},
-		OnIdle:      s.store_idle_check,
 	}
 
 	return c
@@ -205,9 +189,28 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 	}
 	s.cfg = *cfg
 
-	if err := s.initDb(); err != nil {
-		return nil, err
-	}
+    dbdir, dbname := path.Split(db)
+    if dbdir == "" {
+        dbdir = "."
+    }
+
+    if dbname == "" {
+		return nil, fmt.Errorf("config db name empty")
+    }
+
+    if strings.Contains(dbname, "%d") == false {
+        ext := path.Ext(dbname)
+
+        if ext != "" {
+            dbname = dbname[0 : len(dbname)-len(ext)]
+        }
+
+        dbname = dbname + "%d" + ext
+    }
+
+    s.db.dir = dbdir
+    s.db.filefmt = dbname
+    s.db.oldest = 7
 
 	if err := s.initScheduler(); err != nil {
 		return nil, err
@@ -241,9 +244,9 @@ func (s *Server) Start() {
 
 			s.checkTimer(now)
 
-			if err := s.db.Sync(); err != nil {
-				s.log.Error("db sync", err)
-			}
+            if now.Unix() % 10 == 0 {
+                s.db.tick_check()
+            }
 		}
 	}()
 
@@ -281,13 +284,6 @@ func (s *Server) Start() {
 
 	s.s.Start()
 
-	if err := s.db.Sync(); err != nil {
-		s.log.Error("db sync", err)
-	}
-
-	if err := s.db.Close(); err != nil {
-		s.log.Error("db close", err)
-	}
 
 	s.run = 3
 }
