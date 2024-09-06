@@ -97,7 +97,7 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 func (s *Server) logTask(now time.Time, o *Order) {
 	runTime := now.Sub(o.startTime).Seconds()
 
-	kv := append(o.attr, "cost", logCost(runTime), "status", o.Status)
+	kv := append(o.attr, "cost", logCost(runTime), "status", o.status)
 
 	resp := string(o.resp)
 	if resp == "" {
