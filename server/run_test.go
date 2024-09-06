@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 var ts_actions = []int{
@@ -276,12 +275,7 @@ func initServer(to string) *Server {
 		panic(err)
 	}
 
-	l := logrus.StandardLogger()
-	l.SetLevel(logrus.InfoLevel)
-	l.SetFormatter(&logrus.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
+    l := slog.Default()
 
 	t, err := New(f2.Name(), "test.db", l)
 	if err != nil {

@@ -34,6 +34,4 @@ func jobMoveBefore(j, x *job) {
 
 type nullLogger struct{}
 
-func (nullLogger) Print(...interface{})          {}
-func (nullLogger) Printf(string, ...interface{}) {}
-func (nullLogger) Println(...interface{})        {}
+func (nullLogger) Debug(string, ...any) {}

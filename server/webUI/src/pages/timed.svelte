@@ -43,7 +43,7 @@
             <tbody>
                 {#each rows as row}
                     <tr>
-                        <td class="px-2 py-1 border">{timeStr(row.Task.runat)}</td>
+                        <td class="px-2 py-1 border">{timeStr(row.runat)}</td>
                         <td class="px-2 py-1 border">{JSON.stringify(row)}</td>
                         <td class="px-2 py-1 border"><button on:click={() => rowDel(row)}>删除</button></td>
                     </tr>

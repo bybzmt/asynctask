@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/robfig/cron/v3"
-	"github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 const corn_cfg_key = "cron.cfg"
@@ -24,22 +24,22 @@ func (s *Server) cronConfig(c *CronTask) error {
 }
 
 type cronLogger struct {
-	l logrus.FieldLogger
+	l *slog.Logger
 }
 
-func (l *cronLogger) Info(msg string, keysAndValues ...interface{}) {
-	l.l.Debugln(append([]interface{}{msg}, keysAndValues...)...)
+func (l *cronLogger) Info(msg string, keysAndValues ...any) {
+	l.l.Debug(msg, keysAndValues...)
 }
 
-func (l *cronLogger) Error(err error, msg string, keysAndValues ...interface{}) {
-	l.l.Debugln(append([]interface{}{err, msg}, keysAndValues...)...)
+func (l *cronLogger) Error(err error, msg string, keysAndValues ...any) {
+	l.l.Error(msg, append([]any{"err", err}, keysAndValues...)...)
 }
 
 func (s *Server) CronRun() {
-	l := s.log.WithField("tag", "cron")
+	l := s.log.With("tag", "cron")
 
-	l.Debugln("Cron init")
-	defer l.Debugln("Cron close")
+	l.Debug("Cron init")
+	defer l.Debug("Cron close")
 
 	c := cron.New(cron.WithLogger(&cronLogger{l}))
 
@@ -52,21 +52,21 @@ func (s *Server) CronRun() {
 			continue
 		}
 
-		l.Debugln("AddCron", j.Cfg)
+		l.Debug("AddCron", "cfg", j.Cfg)
 
 		_, err := c.AddFunc(j.Cfg, func(t Task) func() {
 			return func() {
-				l.WithField("task", json_encode(t)).Info("addTask")
+			    l.Info("Cron AddTask", "task", json_encode(t))
 
 				err := s.TaskAdd(&t)
 				if err != nil {
-					l.Errorln("Cron AddTask", err)
+					l.Error("Cron AddTask", err)
 				}
 			}
 		}(j.Task))
 
 		if err != nil {
-			l.Errorln("AddCron", err)
+			l.Error("AddCron", "err", err)
 		}
 	}
 

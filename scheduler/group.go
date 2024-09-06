@@ -62,11 +62,11 @@ func (g *group) dispatch() bool {
 		if err == empty {
 			if g.nowNum == 0 {
 				g.waitNum = 0
-				g.s.log.Println("Group", g.name, "Empty")
+				g.s.log.Debug("Group", g.name, "Empty")
 			}
 			return false
 		}
-		g.s.log.Println("GetTask Error", err)
+		g.s.log.Debug("GetTask Error", "err", err)
 
 		return false
 	}
@@ -154,7 +154,6 @@ func (g *group) GetOrder() (*order, error) {
 			job:       j,
 			startTime: g.s.now,
 			statTime:  g.s.now,
-			log:       g.s.log,
 			dirver:    g.s.dirver,
 		}
 

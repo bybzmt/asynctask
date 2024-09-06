@@ -48,8 +48,8 @@ func (c *RedisConfig) RedisLen() int64 {
 }
 
 func (c *RedisConfig) RedisRun(s *Server) {
-	s.log.Println("redis init")
-	defer s.log.Println("redis close")
+	s.log.Info("redis init")
+	defer s.log.Info("redis close")
 
 	if c.Disable {
 		return
@@ -79,14 +79,14 @@ func (c *RedisConfig) RedisRun(s *Server) {
 		if err != nil {
 			switch err.Error() {
 			case "redis: nil":
-				s.log.Debugf("redis:%s key:%s empty", c.Addr, c.Key)
+				s.log.Debug("redis key empty", "addr", c.Addr, "key", c.Key)
 			case "redis: client is closed":
 				fallthrough
 			case "context canceled":
-				s.log.Debugf("redis:%s key:%s %s", c.Addr, c.Key, err)
+				s.log.Debug("redis close", "addr", c.Addr, "key", c.Key, "err", err)
 				return
 			default:
-				s.log.Errorf("redis:%s key:%s %s", c.Addr, c.Key, err)
+				s.log.Debug("redis error", "addr", c.Addr, "key", c.Key, "err", err)
 				time.Sleep(time.Second)
 			}
 		} else {
@@ -95,11 +95,11 @@ func (c *RedisConfig) RedisRun(s *Server) {
 			t := Task{}
 			err = json.Unmarshal([]byte(data), &t)
 			if err != nil {
-				s.log.Errorln("redis data Unmarshal error:", err.Error(), data)
+				s.log.Error("redis data Unmarshal error", "err", err.Error(), "data", data)
 			} else {
 				err := s.TaskAdd(&t)
 				if err != nil {
-					s.log.Errorln("redis add Task Fail", data)
+					s.log.Error("redis add Task Fail", "data", data)
 				}
 			}
 		}

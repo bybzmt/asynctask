@@ -221,8 +221,8 @@ func (s *Scheduler) SetConfig(c *Config) error {
 }
 
 func (s *Scheduler) Start() {
-	s.log.Println("scheduler start")
-	defer s.log.Println("scheduler stop")
+	s.log.Debug("scheduler start")
+	defer s.log.Debug("scheduler stop")
 
 	s.running = 1
 	defer func() { s.running = 3 }()
@@ -263,7 +263,7 @@ func (s *Scheduler) onTick(now time.Time) bool {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	s.log.Println("tick")
+	s.log.Debug("tick")
 
 	s.now = now
 
@@ -336,7 +336,7 @@ func (s *Scheduler) Stop() {
 		return
 	}
 
-	s.log.Println("Scheduler closing...")
+	s.log.Debug("Scheduler closing...")
 
 	s.running++
 

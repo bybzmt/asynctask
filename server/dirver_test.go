@@ -28,7 +28,6 @@ func TestDirverCgi(t *testing.T) {
 		Task: Task{
 			Url: "http://test/path/path2?t=1",
 		},
-		fields: map[string]any{},
 	}
 
 	o.ctx, o.cancel = context.WithCancel(context.Background())
@@ -64,7 +63,6 @@ func TestDirverCli(t *testing.T) {
 		Task: Task{
 			Url: "http://test/path/path2?t=1",
 		},
-		fields: map[string]any{},
 	}
 
 	o.ctx, o.cancel = context.WithCancel(context.Background())
@@ -113,7 +111,6 @@ func TestDirverFcgi(t *testing.T) {
 		Task: Task{
 			Url: "http://test/path/path2?t=1",
 		},
-		fields: map[string]any{},
 	}
 
 	o.ctx, o.cancel = context.WithCancel(context.Background())
@@ -123,7 +120,7 @@ func TestDirverFcgi(t *testing.T) {
 
 	t.Logf("status %d", o.status)
 	t.Logf("resp %s", o.resp)
-	t.Logf("resp %#v", o.fields)
+	t.Log(o.attr...)
 
 	if o.err != nil {
 		t.Errorf("err: %s", o.err)

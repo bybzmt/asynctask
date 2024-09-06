@@ -67,7 +67,7 @@ func (s *Server) TaskAdd(t *Task) error {
 }
 
 func (s *Server) orderAdd(o *Order) {
-	s.log.Debugln("orderAdd:", json_encode(o))
+	s.log.Debug("orderAdd", "order", json_encode(o))
 
 	if o.Task.RunAt > o.AddTime {
 		s.timer.push(o.Task.RunAt, o.Id)

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -15,16 +17,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/BurntSushi/toml"
-	"github.com/sirupsen/logrus"
 )
-
-type debugLog struct {
-	log logrus.FieldLogger
-}
-
-func (l *debugLog) Println(val ...interface{}) {
-	l.log.Debugln(val...)
-}
 
 type Server struct {
 	l sync.Mutex
@@ -35,7 +28,7 @@ type Server struct {
 
 	s    *scheduler.Scheduler
 	http *http.Server
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	db   logdb
 
 	config string
@@ -151,7 +144,7 @@ func (s *Server) getSchedulerConfig(cfg *Config) *scheduler.Config {
 		Jobs:        cfg.Jobs,
 		Groups:      cfg.Groups,
 		Dirver:      scheduler.DirverFunc(s.dirver),
-		Log:         &debugLog{log: s.log},
+		Log:         s.log,
 	}
 
 	return c
@@ -171,7 +164,7 @@ func (s *Server) initScheduler() error {
 	return nil
 }
 
-func New(config, db string, log logrus.FieldLogger) (*Server, error) {
+func New(config, db string, log *slog.Logger) (*Server, error) {
 
 	s := Server{
 		config: config,
@@ -180,7 +173,7 @@ func New(config, db string, log logrus.FieldLogger) (*Server, error) {
 	}
 
 	if s.log == nil {
-		s.log = logrus.StandardLogger()
+		s.log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 
 	cfg, err := s.getConfig()
@@ -245,14 +238,14 @@ func (s *Server) Start() {
 			s.checkTimer(now)
 
 			if now.Unix()%10 == 0 {
-				s.db.tick_check()
+				s.store_tick()
 			}
 		}
 	}()
 
 	go func() {
 		for s.run == 1 {
-			s.log.Debugln("start")
+			s.log.Debug("start")
 
 			s.l.Lock()
 			s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -265,7 +258,7 @@ func (s *Server) Start() {
 					err := s.http.ListenAndServe()
 
 					if err != http.ErrServerClosed {
-						s.log.Warnln(err)
+						s.log.Warn("ListenAndServe", "err", err)
 					}
 				}()
 			}

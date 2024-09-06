@@ -79,7 +79,7 @@ func (t *timer) TopN(num int) []ID {
 		n = n.Next()
 	}
 
-	return out[:num]
+	return out
 }
 
 func (s *Server) TimerTopN(num int) []*Order {
@@ -96,7 +96,7 @@ func (s *Server) TimerTopN(num int) []*Order {
 		if o != nil {
 			out = append(out, o)
 		} else {
-			s.log.Errorln("TimerTopN task NotFound", id)
+			s.log.Error("TimerTopN task NotFound", "id", id)
 		}
 	}
 
@@ -123,7 +123,7 @@ func (s *Server) checkTimer(now time.Time) {
 					Job: o.Job,
 				})
 			} else {
-				s.log.Errorln("checkTimer task NotFound", id)
+				s.log.Error("checkTimer task NotFound", "id", id)
 			}
 		}
 	}

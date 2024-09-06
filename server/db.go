@@ -1,13 +1,12 @@
 package server
 
 import (
-	"bytes"
 	"container/list"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 	"slices"
@@ -19,12 +18,6 @@ var Empty = errors.New("empty")
 var NotFound = errors.New("NotFound")
 var TaskError = errors.New("TaskError")
 var DirverNotFound = errors.New("DirverNotFound")
-
-func fmtId(id any) []byte {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, id)
-	return buf.Bytes()
-}
 
 func copyMap(src map[string]string) map[string]string {
 	dst := make(map[string]string, len(src))
@@ -40,15 +33,15 @@ type logdb struct {
 	l        sync.Mutex
 	dir      string
 	filefmt  string
-	nextId   ID
 	cache    *list.List
 	cIndexes map[ID]*list.Element
 	writeNum int
 	fs       map[uint16]*os.File
+	fid      uint16
 	oldest   int
 }
 
-const fsIdxMask uint64 = 0x0000_ffff_0000_0000
+const fidMask uint64 = 0x0000_ffff_0000_0000
 const seekMask uint64 = 0x0000_0000_ffff_ffff
 
 const fileMax = 1024 * 1024 * 100
@@ -94,29 +87,29 @@ func (db *logdb) cache_del(id ID) {
 	}
 }
 
-func (db *logdb) file_open(fsidx uint16) *os.File {
-	if f, ok := db.fs[fsidx]; ok {
+func (db *logdb) file_open(fid uint16) *os.File {
+	if f, ok := db.fs[fid]; ok {
 		return f
 	}
 
-	name := fmt.Sprintf(db.filefmt, fsidx)
+	name := path.Join(db.dir, fmt.Sprintf(db.filefmt, fid))
 
-	nf, err := os.OpenFile(path.Join(db.dir, name), os.O_RDWR|os.O_CREATE, 0644)
+	nf, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		panic(err)
 	}
 
-	db.fs[fsidx] = nf
+	db.fs[fid] = nf
 
 	return nf
 }
 
 func (db *logdb) item_read(id ID) *dbItem {
 
-	fsidx := (uint64(id) & fsIdxMask) >> 32
+	fid := (uint64(id) & fidMask) >> 32
 	seek := uint64(id) & seekMask
 
-	f := db.file_open(uint16(fsidx))
+	f := db.file_open(uint16(fid))
 
 	if _, err := f.Seek(int64(seek), io.SeekStart); err != nil {
 		panic(err)
@@ -135,14 +128,15 @@ func (db *logdb) item_read(id ID) *dbItem {
 }
 
 func (db *logdb) item_write(item *dbItem) {
-	id := item.Id
+	f := db.file_open(db.fid)
 
-	fsidx := (uint64(id) & fsIdxMask) >> 32
-
-	f := db.file_open(uint16(fsidx))
-
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+	seek, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
 		panic(err)
+	}
+
+	if item.Id == 0 {
+		item.Id = ID(uint64(db.fid)<<32 | uint64(seek))
 	}
 
 	dec := json.NewEncoder(f)
@@ -151,12 +145,6 @@ func (db *logdb) item_write(item *dbItem) {
 		panic(err)
 	}
 
-	seek, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		panic(err)
-	}
-
-	db.nextId = ID((fsidx << 32) | uint64(seek))
 	db.writeNum++
 
 	if db.writeNum > 100 {
@@ -166,71 +154,36 @@ func (db *logdb) item_write(item *dbItem) {
 	}
 }
 
-func (db *logdb) tick_check() {
-	db.l.Lock()
-	defer db.l.Unlock()
-
-	fsidx := (uint64(db.nextId) & fsIdxMask) >> 32
-
-	f := db.file_open(uint16(fsidx))
-	seek, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		panic(err)
-	}
-
-	for idx, f := range db.fs {
-		if err := f.Sync(); err != nil {
-			panic(err)
-		}
-
-		f.Close()
-
-		delete(db.fs, idx)
-	}
-
-	if seek > fileMax {
-		fsidx++
-		if fsidx > 0xffff {
-			fsidx = 1
-		}
-
-		db.nextId = ID(fsidx<<32 | uint64(0))
-
-		db.removeOldFiles()
-	}
-}
-
 func (db *logdb) removeOldFiles() {
 	files, err := os.ReadDir(db.dir)
 	if err != nil {
 		panic(err)
 	}
 
-	var fsidxs []uint16
+	var fids []uint16
 
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 
-		var fsidx uint16
-		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fsidx)
-		if err == nil && fsidx > 0 {
-			fsidxs = append(fsidxs, fsidx)
+		var fid uint16
+		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fid)
+		if err == nil && fid > 0 {
+			fids = append(fids, fid)
 		}
 	}
 
-	slices.Sort(fsidxs)
+	slices.Sort(fids)
 
-	nowidx := (uint64(db.nextId) & fsIdxMask) >> 32
-	oldest := time.Now().Add(time.Hour * 24 * time.Duration(db.oldest))
+	oldest := time.Now().Add(-(time.Hour * 24 * time.Duration(db.oldest)))
 
-	for _, fsidx := range fsidxs {
-		if fsidx == uint16(nowidx) {
+	for _, fid := range fids {
+		if fid == uint16(db.fid) {
 			continue
 		}
 
-		name := path.Join(db.dir, fmt.Sprintf(db.filefmt, fsidx))
+		name := path.Join(db.dir, fmt.Sprintf(db.filefmt, fid))
 
 		if fi, err := os.Stat(name); err == nil {
 			if fi.ModTime().Before(oldest) {
@@ -240,65 +193,117 @@ func (db *logdb) removeOldFiles() {
 	}
 }
 
-func (db *logdb) recoverIds() (ids map[ID]struct{}, maxId ID) {
+func (db *logdb) recoverFileOrders(fid uint16) (ids map[ID]struct{}, err error) {
+	ids = make(map[ID]struct{})
+
+	name := path.Join(db.dir, fmt.Sprintf(db.filefmt, fid))
+
+	nf, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer nf.Close()
+
+	dec := json.NewDecoder(nf)
+
+	for dec.More() {
+		item := &dbItem{}
+
+		err = dec.Decode(item)
+		if err != nil {
+			return
+		}
+
+		if item.Action == ACTION_ADD {
+			ids[item.Id] = struct{}{}
+		} else if item.Action == ACTION_DEL {
+			delete(ids, item.Id)
+		} else {
+			err = fmt.Errorf("unknow action:%d", item.Action)
+			return
+		}
+	}
+
+	return
+}
+
+func (db *logdb) recoverOrders(log *slog.Logger) map[ID]struct{} {
 	files, err := os.ReadDir(db.dir)
 	if err != nil {
 		panic(err)
 	}
 
-	var fsidxs []uint16
+	var fids []uint16
 
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 
-		var fsidx uint16
-		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fsidx)
-		if err == nil && fsidx > 0 {
-			fsidxs = append(fsidxs, fsidx)
+		var fid uint16
+		_, err := fmt.Sscanf(file.Name(), db.filefmt, &fid)
+		if err == nil && fid > 0 {
+			fids = append(fids, fid)
 		}
 	}
 
-	slices.Sort(fsidxs)
+	slices.Sort(fids)
 
-	ids = make(map[ID]struct{})
+	ids := make(map[ID]struct{})
 
-	for _, fsidx := range fsidxs {
-		name := fmt.Sprintf(db.filefmt, fsidx)
+	var maxfid uint16
 
-		nf, err := os.OpenFile(path.Join(db.dir, name), os.O_RDWR|os.O_CREATE, 0644)
+	skipErrFile := false
+
+	for _, fid := range fids {
+		if maxfid == 0 {
+			maxfid = fid
+		} else if maxfid+1 == fid {
+			maxfid = fid
+		}
+
+		fids, err := db.recoverFileOrders(fid)
+
+		if err != nil {
+			skipErrFile = true
+
+			log.Error("recoverFileOrders error skip", "fid", fid, "err", err)
+		} else {
+			skipErrFile = false
+
+			for id := range fids {
+				ids[id] = struct{}{}
+			}
+		}
+	}
+
+	if skipErrFile {
+		maxfid++
+	}
+
+	for {
+		if maxfid == 0 {
+			maxfid = 1
+		}
+
+		f := db.file_open(maxfid)
+
+		seek, err := f.Seek(0, io.SeekEnd)
 		if err != nil {
 			panic(err)
 		}
 
-		dec := json.NewDecoder(nf)
-
-		for dec.More() {
-			item := &dbItem{}
-
-			err := dec.Decode(item)
-			if err != nil {
-				panic(err)
-			}
-
-			if item.Id > maxId {
-				maxId = item.Id
-			}
-
-			if item.Action == ACTION_ADD {
-				ids[item.Id] = struct{}{}
-			} else if item.Action == ACTION_DEL {
-				delete(ids, item.Id)
-			} else {
-				panic("unknow action")
-			}
+		if seek > fileMax {
+			maxfid++
+			continue
 		}
 
-		nf.Close()
+		break
 	}
 
-	return ids, maxId
+	db.fid = maxfid
+
+	return ids
 }
 
 func (s *Server) store_order_get(id ID) *Order {
@@ -343,10 +348,8 @@ func (s *Server) store_order_add(o *Order) {
 	defer s.db.l.Unlock()
 
 	if o.Id != 0 {
-		panic("order id not empty")
+		panic("add order id need empty")
 	}
-
-	o.Id = s.db.nextId
 
 	item := &dbItem{
 		Order:  *o,
@@ -354,6 +357,8 @@ func (s *Server) store_order_add(o *Order) {
 	}
 
 	s.db.item_write(item)
+
+	o.Id = item.Id
 
 	s.db.cache_set(o)
 }
@@ -365,22 +370,7 @@ func (s *Server) store_init() error {
 	s.db.cIndexes = make(map[ID]*list.Element)
 	s.db.fs = make(map[uint16]*os.File)
 
-	ids, maxId := s.db.recoverIds()
-
-	if maxId > 0 {
-		fsidx := uint16((uint64(maxId) & fsIdxMask) >> 32)
-
-		f := s.db.file_open(fsidx)
-
-		seek2, err := f.Seek(0, io.SeekEnd)
-		if err != nil {
-			panic(err)
-		}
-
-		s.db.nextId = ID((uint64(fsidx) << 32) | uint64(seek2))
-	} else {
-		s.db.nextId = ID((uint64(1) << 32) | uint64(0))
-	}
+	ids := s.db.recoverOrders(s.log)
 
 	s.db.l.Unlock()
 
@@ -404,6 +394,36 @@ func (s *Server) store_close() {
 		f.Close()
 
 		delete(s.db.fs, idx)
+	}
+}
+
+func (s *Server) store_tick() {
+	s.db.l.Lock()
+	defer s.db.l.Unlock()
+
+	f := s.db.file_open(s.db.fid)
+	seek, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	for idx, f := range s.db.fs {
+		if err := f.Sync(); err != nil {
+			panic(err)
+		}
+
+		f.Close()
+
+		delete(s.db.fs, idx)
+	}
+
+	if seek > fileMax {
+		s.db.fid++
+		if s.db.fid == 0 {
+			s.db.fid = 1
+		}
+
+		s.db.removeOldFiles()
 	}
 }
 

@@ -44,7 +44,7 @@ func TestRouter(t *testing.T) {
 			"Host": "host1",
 		},
 	}); err == nil {
-		a1 := `{"Job":"job/123","Task":{"method":"POST","url":"rewrite/123?a=1","header":{"Host":"host2"}}}`
+		a1 := `{"method":"POST","url":"rewrite/123?a=1","header":{"Host":"host2"},"Job":"job/123"}`
 		a2 := json_encode(o)
 
 		t.Log("route expect", a1)
@@ -57,7 +57,7 @@ func TestRouter(t *testing.T) {
 	}
 
 	if o, err := r.route(&Task{Url: "regular/test2?a=1"}); err == nil {
-		a1 := `{"Job":"regular/test2","Task":{"url":"regular/test2?a=1"}}`
+		a1 := `{"url":"regular/test2?a=1","Job":"regular/test2"}`
 		a2 := json_encode(o)
 
 		t.Log("route expect", a1)
@@ -70,7 +70,7 @@ func TestRouter(t *testing.T) {
 	}
 
 	if o, err := r.route(&Task{Url: "regular/map1?a=1"}); err == nil {
-		a1 := `{"Job":"hasjob","Task":{"url":"regular/map1?a=1"}}`
+		a1 := `{"url":"regular/map1?a=1","Job":"hasjob"}`
 		a2 := json_encode(o)
 
 		t.Log("route expect", a1)
@@ -83,7 +83,7 @@ func TestRouter(t *testing.T) {
 	}
 
 	if o, err := r.route(&Task{Url: "regular/map2?a=1"}); err == nil {
-		a1 := `{"Job":"regular/map2","Task":{"url":"regular/map2?a=1"}}`
+		a1 := `{"url":"regular/map2?a=1","Job":"regular/map2"}`
 		a2 := json_encode(o)
 
 		t.Log("route expect", a1)

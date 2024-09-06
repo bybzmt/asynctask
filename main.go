@@ -4,15 +4,15 @@ import (
 	"asynctask/server"
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
+	"log/syslog"
 	"os"
 	"os/signal"
 	"path"
 	"strings"
 	"syscall"
 	"time"
-
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/sirupsen/logrus"
 )
 
 var s *server.Server
@@ -21,6 +21,11 @@ var config string
 var LogFmt string
 var LogFile string
 var LogLevel string
+var LogType string
+
+var syslogFacility string
+var syslogTime bool
+var syslogOpts server.SyslogOptions
 
 func init() {
 	dbfile := os.Getenv("DBFILE")
@@ -43,6 +48,14 @@ func init() {
 	flag.StringVar(&LogFile, "log.file", os.Getenv("LOGFILE"), "log file")
 	flag.StringVar(&LogLevel, "log.level", logLevel, "log level")
 	flag.StringVar(&LogFmt, "log.fmt", "logfmt", "log farmat: json or logfmt")
+	flag.StringVar(&LogType, "log.type", "stderr", "log type: stderr|file|syslog")
+
+	flag.StringVar(&syslogOpts.Network, "syslog.natwork", "", "syslog tcp|udp")
+	flag.StringVar(&syslogOpts.Addr, "syslog.addr", "", "syslog ip:port")
+	flag.StringVar(&syslogFacility, "syslog.facility", "LOG_LOCAL0", "syslog LOG_LOCAL0 -> LOG_LOCAL7")
+	flag.StringVar(&syslogOpts.Tag, "syslog.tag", "", "syslog tag")
+	flag.BoolVar(&syslogOpts.WithTime, "syslog.time", false, "syslog time")
+
 	flag.StringVar(&dbFile, "db.file", dbfile, "storage file")
 	flag.StringVar(&config, "config", "config.toml", "config file json or toml")
 }
@@ -52,18 +65,20 @@ func main() {
 
 	l, err := initLog()
 	if err != nil {
-		logrus.Fatalln(err)
+		slog.Error("initLog", "err", err)
+		os.Exit(1)
 	}
 
 	s, err = server.New(config, dbFile, l)
 	if err != nil {
-		logrus.Fatalln(err)
+		slog.Error("New", "err", err)
+		os.Exit(1)
 	}
 
 	go func() {
 		waitSignal()
 
-		logrus.Warnln("Stop")
+		slog.Warn("Stop")
 
 		s.Stop()
 
@@ -72,13 +87,13 @@ func main() {
 		s.Kill()
 	}()
 
-	logrus.Info("Start")
+	slog.Info("Start")
 
 	s.Start()
 
 	time.Sleep(time.Millisecond * 500)
 
-	logrus.Info("Stoped")
+	slog.Info("Stoped")
 }
 
 func waitSignal() {
@@ -90,68 +105,95 @@ func waitSignal() {
 
 		switch n {
 		case syscall.SIGHUP:
-			logrus.Warnln("Reload")
+			slog.Warn("Reload")
 
 			//realod
 			err := s.Reload()
 			if err != nil {
-				logrus.Warnln("reload err", err)
+				slog.Error("Reload", "err", err)
 			} else {
-				logrus.Warnln("reload success")
+				slog.Warn("Reload Success")
 			}
-
 		default:
 			return
 		}
 	}
 }
 
-func initLog() (*logrus.Logger, error) {
-	var l *logrus.Logger
+func initLog() (*slog.Logger, error) {
+	var level slog.Level
 
-	if LogFile == "" {
-		l = logrus.StandardLogger()
-	} else {
-		l = logrus.New()
-
-		writer, err := rotatelogs.New(
-			LogFile,
-			rotatelogs.WithRotationTime(24*time.Hour),
-			rotatelogs.WithMaxAge(45*24*time.Hour),
-		)
-		if err != nil {
-			return nil, err
-		}
-		l.SetOutput(writer)
-	}
-
-	if LogFmt == "json" {
-		l.SetFormatter(&logrus.JSONFormatter{
-			DisableHTMLEscape: true,
-		})
-	} else {
-		l.SetFormatter(&logrus.TextFormatter{
-			DisableColors: true,
-			FullTimestamp: true,
-		})
+	ho := &slog.HandlerOptions{
+		Level: level,
 	}
 
 	switch strings.ToLower(LogLevel) {
 	case "error":
-		l.SetLevel(logrus.ErrorLevel)
+		level = slog.LevelError
 	case "warn":
-		l.SetLevel(logrus.WarnLevel)
+		level = slog.LevelWarn
 	case "":
 		fallthrough
 	case "info":
-		l.SetLevel(logrus.InfoLevel)
+		level = slog.LevelInfo
 	case "debug":
-		l.SetLevel(logrus.DebugLevel)
+		level = slog.LevelDebug
 	default:
 		return nil, fmt.Errorf("Unkown LogLevel: %s", LogLevel)
 	}
 
-	l.Println("loglevel", LogLevel)
+	var w io.Writer
 
-	return l, nil
+	if LogType == "syslog" {
+		switch syslogFacility {
+		case "LOG_LOCAL0":
+			syslogOpts.Priority = syslog.LOG_LOCAL0
+		case "LOG_LOCAL1":
+			syslogOpts.Priority = syslog.LOG_LOCAL1
+		case "LOG_LOCAL2":
+			syslogOpts.Priority = syslog.LOG_LOCAL2
+		case "LOG_LOCAL3":
+			syslogOpts.Priority = syslog.LOG_LOCAL3
+		case "LOG_LOCAL4":
+			syslogOpts.Priority = syslog.LOG_LOCAL4
+		case "LOG_LOCAL5":
+			syslogOpts.Priority = syslog.LOG_LOCAL5
+		case "LOG_LOCAL6":
+			syslogOpts.Priority = syslog.LOG_LOCAL6
+		case "LOG_LOCAL7":
+			syslogOpts.Priority = syslog.LOG_LOCAL7
+		default:
+			return nil, fmt.Errorf("Unkown syslog.facility: %s", syslogFacility)
+		}
+
+		syslogOpts.Level = ho.Level
+
+		return server.NewSyslog(&syslogOpts)
+	} else if LogType == "stderr" {
+		w = os.Stderr
+	} else if LogType == "file" {
+		if LogFile == "" {
+			return nil, fmt.Errorf("LogFile empty")
+		}
+
+		f, err := os.OpenFile(LogFile, os.O_APPEND|os.O_CREATE, 0644)
+
+		if err != nil {
+			return nil, err
+		}
+
+		w = f
+	} else {
+		return nil, fmt.Errorf("Unkown log type: %s", LogType)
+	}
+
+	var h slog.Handler
+
+	if LogFmt == "json" {
+		h = slog.NewJSONHandler(w, ho)
+	} else {
+		h = slog.NewTextHandler(w, ho)
+	}
+
+	return slog.New(h), nil
 }

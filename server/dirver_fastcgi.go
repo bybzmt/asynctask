@@ -86,8 +86,6 @@ func (h *DirverFcgi) run(o *Order) {
 		o.Task.Method = "GET"
 	}
 
-	o.fields["url"] = o.Task.Url
-
 	u, _ := url.Parse(o.Task.Url)
 
 	env := map[string]string{

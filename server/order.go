@@ -26,7 +26,7 @@ type Order struct {
 
 	startTime time.Time
 
-	fields map[string]any
+	attr []any
 }
 
 func (s *Server) dirver(id ID, ctx context.Context) error {
@@ -36,18 +36,12 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 
 	o := s.store_order_get(id)
 	if o == nil {
-		s.log.WithFields(map[string]any{
-			"id":  id,
-			"err": NotFound,
-		}).Error("store_order_get not found")
+		s.log.Error("store_order_get not found", "id", id, "err", NotFound)
 
 		return NotFound
 	}
 
-	o.fields = map[string]any{
-		"id":  o.Id,
-		"url": o.Task.Url,
-	}
+	o.attr = append(o.attr, "id", o.Id, "url", o.Task.Url)
 
 	s.l.Lock()
 	s.now = time.Now()
@@ -88,7 +82,7 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 
 			o.Task.RunAt = now.Unix() + int64(sec)
 
-            o.PrevId = o.Id
+			o.PrevId = o.Id
 			o.Id = 0
 
 			s.store_order_add(o)
@@ -103,21 +97,24 @@ func (s *Server) dirver(id ID, ctx context.Context) error {
 func (s *Server) logTask(now time.Time, o *Order) {
 	runTime := now.Sub(o.startTime).Seconds()
 
-	o.fields["cost"] = logCost(runTime)
-	o.fields["status"] = o.status
+	kv := append(o.attr, "cost", logCost(runTime), "status", o.Status)
 
-	if o.err != nil {
-		o.fields["err"] = o.err
-
-		if o.Retry > 0 {
-			o.fields["retry"] = o.Retry
-		}
-
-		s.log.WithFields(o.fields).Errorf("%s", o.resp)
-		return
+	resp := string(o.resp)
+	if resp == "" {
+		resp = "-"
 	}
 
-	s.log.WithFields(o.fields).Infof("%s", o.resp)
+	if o.err != nil {
+		kv = append(kv, "err", o.err)
+
+		if o.Retry > 0 {
+			kv = append(kv, "retry", o.Retry)
+		}
+
+		s.log.Error(resp, kv...)
+	} else {
+		s.log.Info(resp, kv...)
+	}
 }
 
 func logCost(ts float64) string {

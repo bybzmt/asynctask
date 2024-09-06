@@ -54,5 +54,5 @@ func (f DirverFunc) Run(id ID, ctx context.Context) error {
 }
 
 type Logger interface {
-	Println(...interface{})
+	Debug(string, ...any)
 }
